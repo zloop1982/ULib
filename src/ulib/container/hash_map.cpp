@@ -11,7 +11,6 @@
 //
 // ============================================================================
 
-#include <ulib/container/vector.h>
 #include <ulib/container/hash_map.h>
 
 bool        UHashMap<void*>::istream_loading;
@@ -56,8 +55,8 @@ void UHashMap<void*>::lookup(const UStringRep* keyr)
    U_INTERNAL_ASSERT_MAJOR(_capacity, 0)
 
    const UStringRep* keyn;
+   uint32_t sz1 = keyr->size();
    const char* ptr1  = keyr->data();
-   uint32_t sz2, sz1 = keyr->size();
 
    bool ignore_case = set_index(this, ptr1, sz1);
 
@@ -69,7 +68,7 @@ void UHashMap<void*>::lookup(const UStringRep* keyr)
       {
       U_INTERNAL_ASSERT_POINTER(node->key)
 
-      sz2 = (keyn = node->key)->size();
+      uint32_t sz2 = (keyn = node->key)->size();
 
       U_INTERNAL_DUMP("node->key(%u) = %p %V",  sz2, keyn, keyn)
 
@@ -118,8 +117,9 @@ void UHashMap<void*>::insertAfterFind(const UStringRep* _key, const void* _elem)
     * the element at the beginning of the list of collisions
     */
 
-   node         =
-   table[index] = U_NEW(UHashMapNode(_key, _elem, table[index], hash));
+   U_NEW(UHashMapNode, table[index], UHashMapNode(_key, _elem, table[index], hash));
+
+   node = table[index];
 
    ++_length;
 
@@ -128,7 +128,7 @@ void UHashMap<void*>::insertAfterFind(const UStringRep* _key, const void* _elem)
 
 void UHashMap<void*>::_eraseAfterFind()
 {
-   U_TRACE(0, "UHashMap<void*>::_eraseAfterFind()")
+   U_TRACE_NO_PARAM(0, "UHashMap<void*>::_eraseAfterFind()")
 
    U_CHECK_MEMORY
 
@@ -174,7 +174,7 @@ void UHashMap<void*>::_eraseAfterFind()
 
 void UHashMap<void*>::eraseAfterFind()
 {
-   U_TRACE(0, "UHashMap<void*>::eraseAfterFind()")
+   U_TRACE_NO_PARAM(0, "UHashMap<void*>::eraseAfterFind()")
 
    _eraseAfterFind();
 
@@ -195,7 +195,7 @@ void UHashMap<void*>::replaceKey(const UString& _key)
 
    lookup(_key);
 
-   U_INTERNAL_ASSERT_EQUALS(node,0)
+   U_INTERNAL_ASSERT_EQUALS(node, 0)
 
    pnode->hash = hash;
    pnode->next = table[index];
@@ -233,7 +233,7 @@ void UHashMap<void*>::reserve(uint32_t n)
    int sum = 0, max = 0, min = 1024, width;
 #endif
 
-   // inserisco i vecchi elementi
+   // we insert the old elements
 
    UHashMapNode* _next;
 
@@ -312,7 +312,7 @@ void UHashMap<void*>::reserve(uint32_t n)
 #ifdef DEBUG
 bool UHashMap<void*>::check_memory() const // check all element
 {
-   U_TRACE(0+256, "UHashMap<void*>::check_memory()")
+   U_TRACE_NO_PARAM(0+256, "UHashMap<void*>::check_memory()")
 
    U_CHECK_MEMORY
 
@@ -375,9 +375,9 @@ loop:    U_INTERNAL_ASSERT_POINTER(pnode)
 }
 #endif
 
-bool UHashMap<void*>::first()
+UHashMapNode* UHashMap<void*>::first()
 {
-   U_TRACE(0, "UHashMap<void*>::first()")
+   U_TRACE_NO_PARAM(0, "UHashMap<void*>::first()")
 
    U_INTERNAL_DUMP("_length = %u", _length)
 
@@ -387,16 +387,16 @@ bool UHashMap<void*>::first()
          {
          node = table[index];
 
-         U_RETURN(true);
+         U_RETURN_POINTER(node, UHashMapNode);
          }
       }
 
-   U_RETURN(false);
+   U_RETURN_POINTER(0, UHashMapNode);
 }
 
 bool UHashMap<void*>::next()
 {
-   U_TRACE(0, "UHashMap<void*>::next()")
+   U_TRACE_NO_PARAM(0, "UHashMap<void*>::next()")
 
    U_INTERNAL_DUMP("index = %u node = %p next = %p", index, node, node->next)
 
@@ -413,6 +413,27 @@ bool UHashMap<void*>::next()
       }
 
    U_RETURN(false);
+}
+
+UHashMapNode* UHashMap<void*>::next(UHashMapNode* _node)
+{
+   U_TRACE(0, "UHashMap<void*>::next(%p)", _node)
+
+   U_INTERNAL_DUMP("index = %u node = %p next = %p", index, node, node->next)
+
+   if ((node = _node->next)) U_RETURN_POINTER(node, UHashMapNode);
+
+   for (++index; index < _capacity; ++index)
+      {
+      if (table[index])
+         {
+         node = table[index];
+
+         U_RETURN_POINTER(node, UHashMapNode);
+         }
+      }
+
+   U_RETURN_POINTER(0, UHashMapNode);
 }
 
 void UHashMap<void*>::callForAllEntry(bPFprpv function)
@@ -515,8 +536,6 @@ void UHashMap<void*>::_callForAllEntrySorted(bPFprpv function)
       }
 }
 
-// specializzazione stringa
-
 UString UHashMap<UString>::erase(const UString& _key)
 {
    U_TRACE(0, "UHashMap<UString>::erase(%V)", _key.rep)
@@ -539,6 +558,48 @@ UString UHashMap<UString>::erase(const UString& _key)
       }
 
    return UString::getStringNull();
+}
+
+__pure bool UHashMap<UString>::operator==(const UHashMap<UString>& t)
+{
+   U_TRACE(0, "UHashMap<UString>::operator==(%p)", &t)
+
+   U_CHECK_MEMORY
+
+   if (_length == t._length)
+      {
+      U_INTERNAL_DUMP("_length = %u", _length)
+
+      UHashMapNode* _node;
+      UHashMapNode* _next;
+      UHashMapNode** ptr;
+      UHashMapNode** end;
+
+      for (end = (ptr = t.table) + t._capacity; ptr < end; ++ptr)
+         {
+         if (*ptr)
+            {
+            _node = *ptr;
+
+            do {
+               _next = _node->next;
+
+               UHashMap<void*>::lookup((UStringRep*)_node->key);
+            
+               if (node == 0 ||
+                   ((UStringRep*)_node->elem)->equal(elem()) == false)
+                  {
+                  U_RETURN(false);
+                  }
+               }
+            while ((_node = _next));
+            }
+         }
+
+      U_RETURN(true);
+      }
+
+   U_RETURN(false);
 }
 
 // OPERATOR []
@@ -606,7 +667,9 @@ bool UHashMap<void*>::find(const char* _key, uint32_t keylen)
 
    lookup(pkey);
 
-   U_RETURN(node != 0);
+   if (node != 0) U_RETURN(true);
+
+   U_RETURN(false);  
 }
 
 uint32_t UHashMap<UString>::loadFromData(const char* ptr, uint32_t sz)
@@ -663,12 +726,23 @@ uint32_t UHashMap<UString>::loadFromData(const char* ptr, uint32_t sz)
 
    // U_INTERNAL_DUMP("c = %C", c)
 
-      if (c == '"') _key.setFromData(&ptr, sz, '"');
+      if (c == '"')
+         {
+         // NB: check if we have a string null...
+
+         if (*ptr != '"') _key.setFromData(&ptr, _end - ptr, '"');
+         else
+            {
+            ++ptr;
+
+            _key.clear();
+            }
+         }
       else
          {
          --ptr;
 
-         _key.setFromData(&ptr, sz);
+         _key.setFromData(&ptr, _end - ptr, terminator);
          }
 
       U_INTERNAL_ASSERT(_key)
@@ -686,27 +760,146 @@ uint32_t UHashMap<UString>::loadFromData(const char* ptr, uint32_t sz)
 
    // U_INTERNAL_DUMP("c = %C", c)
 
-      if (c == '"') str.setFromData(&ptr, sz, '"');
+      if (c == '"')
+         {
+         // NB: check if we have a string null...
+
+         if (*ptr != '"') str.setFromData(&ptr, _end - ptr, '"');
+         else
+            {
+            ++ptr;
+
+            str.clear();
+            }
+         }
       else
          {
          --ptr;
 
-         str.setFromData(&ptr, sz);
+         str.setFromData(&ptr, _end - ptr, terminator);
          }
 
-      U_INTERNAL_ASSERT(str)
-      U_INTERNAL_ASSERT(str.isNullTerminated())
+      if (str)
+         {
+         U_INTERNAL_ASSERT(str.isNullTerminated())
 
-      insert(_key, str);
+         insert(_key, str);
+
+         continue;
+         }
+
+      U_WARNING("UHashMap<UString>::loadFromData() has found a key(%u) = %V without value", _key.size(), _key.rep);
       }
 
-   U_INTERNAL_DUMP("ptr-_start = %lu", ptr-_start)
+   U_INTERNAL_DUMP("ptr - _start = %lu", ptr - _start)
 
-   U_INTERNAL_ASSERT((ptr-_start) <= sz)
+   U_INTERNAL_ASSERT((ptr - _start) <= sz)
 
    sz = ptr - _start;
 
    U_RETURN(sz);
+}
+
+uint32_t UHashMap<UString>::getSpaceToDump() const
+{
+   U_TRACE_NO_PARAM(0, "UHashMap<UString>::getSpaceToDump()")
+
+   U_CHECK_MEMORY
+
+   U_INTERNAL_DUMP("_length = %u", _length)
+
+   uint32_t space = U_CONSTANT_SIZE("[\n]");
+
+   if (_length)
+      {
+      uint32_t sz;
+      UHashMapNode* pnode;
+      UHashMapNode* pnext;
+
+      for (uint32_t _index = 0; _index < _capacity; ++_index)
+         {
+         pnode = table[_index];
+
+         if (pnode == 0) continue;
+
+loop:    U_INTERNAL_ASSERT_POINTER(pnode)
+
+         sz = pnode->key->size();
+
+         U_INTERNAL_DUMP("pnode->key(%u) = %p %V", sz, pnode->key, pnode->key)
+
+         U_INTERNAL_ASSERT_MAJOR(sz, 0)
+
+         space += sz + 1 + ((UStringRep*)pnode->elem)->getSpaceToDump() + 1;
+
+         if (pnode->next)
+            {
+            pnext = pnode->next;
+
+            U_INTERNAL_ASSERT_POINTER(pnext)
+            U_INTERNAL_ASSERT_DIFFERS(pnode, pnext)
+
+            pnode = pnext;
+
+            goto loop;
+            }
+         }
+      }
+
+   U_RETURN(space);
+}
+
+bool UHashMap<UVectorUString>::empty()
+{
+   U_TRACE_NO_PARAM(0, "UHashMap<UVectorUString>::empty()")
+
+   if (_length)
+      {
+      if (first())
+         {
+         do {
+            UVector<UString>* _elem = elem();
+
+            if (_elem->empty() == false) U_RETURN(false);
+            }
+         while (next());
+         }
+      }
+
+   U_RETURN(true);
+}
+
+void UHashMap<UVectorUString>::push(const UString& _key, const UString& str)
+{
+   U_TRACE(0, "UHashMap<UVectorUString>::push(%V,%V)", _key.rep, str.rep)
+
+   UVector<UString>* _elem;
+
+   UHashMap<void*>::lookup(_key);
+
+   if (node) _elem = (UVector<UString>*) node->elem;
+   else
+      {
+      U_NEW(UVector<UString>, _elem, UVector<UString>);
+
+      UHashMap<UVectorUString*>::insertAfterFind(_key, _elem);
+      }
+
+   _elem->push(str);
+}
+
+void UHashMap<UVectorUString>::erase(const UString& _key, uint32_t pos)
+{
+   U_TRACE(0, "UHashMap<UVectorUString>::erase(%V,%u)", _key.rep, pos)
+
+   UHashMap<void*>::lookup(_key);
+
+   if (node)
+      {
+      UVector<UString>* _elem = (UVector<UString>*) node->elem;
+
+      _elem->erase(pos);
+      }
 }
 
 // STREAMS
@@ -790,7 +983,7 @@ U_EXPORT istream& operator>>(istream& is, UHashMap<UString>& t)
       }
 
    if (c == EOF)       is.setstate(ios::eofbit);
-   // if (t._length == 0) is.setstate(ios::failbit);
+// if (t._length == 0) is.setstate(ios::failbit);
 
    return is;
 }

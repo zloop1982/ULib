@@ -45,13 +45,25 @@ typedef uint32_t in_addr_t;
 #  include <fnmatch.h>
 #endif
 
+#ifndef FNM_CASEFOLD
+#define FNM_CASEFOLD (1 <<  4) /* compare without regard to case */
+#endif
+#define FNM_INVERT   (1 << 28) /* invert the result */
+
+#ifndef FNM_LEADING_DIR
+#define FNM_LEADING_DIR FNM_PERIOD
+#endif
+#ifndef FNM_IGNORECASE
+#define FNM_IGNORECASE FNM_CASEFOLD
+#endif
+
 #ifdef HAVE_SCHED_H
 #  include <sched.h>
 #elif defined(HAVE_SYS_SCHED_H)
 #  include <sys/sched.h>
 #endif
 
-#ifndef HAVE_CPU_SET_T
+#if defined(HAVE_CONFIG_H) && !defined(HAVE_CPU_SET_T)
 typedef uint64_t cpu_set_t;
 #endif
 
@@ -68,7 +80,7 @@ typedef uint64_t cpu_set_t;
 
 /**
  * TOKEN ID
- **/
+ */
 #define U_TK_ERROR       -1
 #define U_TK_AND          1
 #define U_TK_OR           2
@@ -115,12 +127,9 @@ U_EXPORT void u_need_group(bool necessary);
 
 /* Services */
 
-extern U_EXPORT int         u_num_cpu;
-extern U_EXPORT const char* u_short_units[]; /* { "B", "KB", "MB", "GB", "TB", 0 } */
+U_EXPORT uint32_t u_gettid(void);
 
 /* Random number generator */ 
-
-extern U_EXPORT uint32_t u_m_w, u_m_z;
 
 U_EXPORT double   u_get_uniform(void);
 U_EXPORT uint32_t u_get_num_random(uint32_t range);
@@ -136,47 +145,60 @@ static inline void u_set_seed_random(uint32_t u, uint32_t v)
    U_INTERNAL_ASSERT_MAJOR(u_m_z, 0)
 }
 
-U_EXPORT int         u_getScreenWidth(void) __pure; /* Determine the width of the terminal we're running on */
-U_EXPORT bool        u_isNumber(const char* restrict s, uint32_t n) __pure;
-U_EXPORT void        u_printSize(char* restrict buffer, uint64_t bytes); /* print size using u_calcRate() */
-U_EXPORT char*       u_getPathRelativ(const char* restrict path, uint32_t* restrict path_len);
-U_EXPORT bool        u_rmatch(const char* restrict haystack, uint32_t haystack_len, const char* restrict needle, uint32_t needle_len) __pure;
-U_EXPORT double      u_calcRate(uint64_t bytes, uint32_t msecs, int* restrict units); /* Calculate the transfert rate */
-U_EXPORT uint32_t    u_findEndHeader( const char* restrict s, uint32_t n) __pure; /* find sequence of U_CRLF2 or U_LF2 */
-U_EXPORT uint32_t    u_findEndHeader1(const char* restrict s, uint32_t n) __pure; /* find sequence of U_CRLF2 */
+U_EXPORT double u_calcRate(uint64_t bytes, uint32_t msecs, int* restrict units); /* Calculate the transfert rate */
+
+U_EXPORT char* u_getPathRelativ(const char* restrict path, uint32_t* restrict path_len);
+
+U_EXPORT char*    u_memoryDump( char* restrict bp, unsigned char* restrict cp, uint32_t n);
+U_EXPORT uint32_t u_memory_dump(char* restrict bp, unsigned char* restrict cp, uint32_t n);
+
+U_EXPORT int  u_getScreenWidth(void) __pure; /* Determine the width of the terminal we're running on */
+U_EXPORT bool u_isNumber(const char* restrict s, uint32_t n) __pure;
+U_EXPORT uint32_t u_printSize(char* restrict buffer, uint64_t bytes); /* print size using u_calcRate() */
+U_EXPORT bool u_rmatch(const char* restrict haystack, uint32_t haystack_len, const char* restrict needle, uint32_t needle_len) __pure;
+
 U_EXPORT const char* u_get_mimetype(const char* restrict suffix, int* pmime_index);
 
-U_EXPORT char*       u_memoryDump( char* restrict bp, unsigned char* restrict cp, uint32_t n);
-U_EXPORT uint32_t    u_memory_dump(char* restrict bp, unsigned char* restrict cp, uint32_t n);
+static inline bool u_isSuffixSwap(const char* restrict suffix) // NB: vi tmp...
+{
+   U_INTERNAL_TRACE("u_isSuffixSwap(%s)", suffix)
 
-#if defined(HAVE_MEMMEM) && !defined(__USE_GNU)
-U_EXPORT void* memmem(const void* restrict haystack, size_t haystacklen, const void* restrict needle, size_t needlelen);
-#endif
+   U_INTERNAL_ASSERT_EQUALS(suffix[0], '.')
+   U_INTERNAL_ASSERT_EQUALS(strchr(suffix, '/'), 0)
 
-U_EXPORT bool u_is_overlap(const char* restrict dst, const char* restrict src, size_t n);
+   if (u_get_unalignedp32(suffix) == U_MULTICHAR_CONSTANT32('.','s','w','p')) return true;
 
-#ifdef DEBUG
-/* NB: u_strlen() and u_memcpy conflit with /usr/include/unicode/urename.h */
-U_EXPORT size_t   u__strlen(const char* restrict s, const char* function);
-U_EXPORT void     u__strcpy( char* restrict dest, const char* restrict src);
-U_EXPORT void*    u__memcpy( void* restrict dest, const void* restrict src, size_t n, const char* function);
-U_EXPORT char*    u__strncpy(char* restrict dest, const char* restrict src, size_t n);
-#else
-#  define u__strlen(s,func)                 strlen((s))
-#  define u__strcpy(dest,src)        (void) strcpy( (dest),(src))
-#  define u__memcpy(dest,src,n,func) (void) memcpy( (dest),(src),(n))
-#  define u__strncpy(dest,src,n)            strncpy((dest),(src),(n))
-#endif
+   return false;
+}
 
-U_EXPORT void* u_find(const char* restrict s, uint32_t n, const char* restrict a, uint32_t n1) __pure;
+static inline void* u_find(const char* restrict a, uint32_t n1, const char* restrict b, uint32_t n2) /* check if string b is contained within string a */
+{
+   U_INTERNAL_TRACE("u_find(%.*s,%u,%.*s,%u)", U_min(n1,128), a, n1, U_min(n2,128), b, n2)
 
-/* check if string a start with string b */
+   U_INTERNAL_ASSERT_POINTER(a)
+   U_INTERNAL_ASSERT_POINTER(b)
+   U_INTERNAL_ASSERT_MAJOR(n2, 0)
 
-U_EXPORT bool u_startsWith(const char* restrict a, uint32_t n1, const char* restrict b, uint32_t n2) __pure;
+   return memmem(a, n1, b, n2);
+}
 
-/* check if string a terminate with string b */
+static inline uint32_t u_findEndHeader1(const char* restrict s, uint32_t n) /* find sequence of U_CRLF2 */
+{
+   void* p;
 
-U_EXPORT bool u_endsWith(const char* restrict a, uint32_t n1, const char* restrict b, uint32_t n2) __pure;
+   U_INTERNAL_TRACE("u_findEndHeader1(%.*s,%u)", U_min(n,128), s, n)
+
+   U_INTERNAL_ASSERT_POINTER(s)
+
+   p = memmem(s, n, U_CONSTANT_TO_PARAM(U_CRLF2));
+
+   return (p ? (const char*)p - s + U_CONSTANT_SIZE(U_CRLF2) : U_NOT_FOUND);
+}
+
+U_EXPORT uint32_t u_findEndHeader( const char* restrict s, uint32_t n) __pure; /* find sequence of U_CRLF2 or U_LF2 */
+
+U_EXPORT bool   u_endsWith(const char* restrict a, uint32_t n1, const char* restrict b, uint32_t n2) __pure; /* check if string a terminate with string b */
+U_EXPORT bool u_startsWith(const char* restrict a, uint32_t n1, const char* restrict b, uint32_t n2) __pure; /* check if string a start     with string b */
 
 /* find char not quoted */
 
@@ -197,11 +219,9 @@ U_EXPORT const char* u__strpbrk(const char* restrict s, uint32_t slen, const cha
 /* Search a string for a terminator of a group of delimitator {} [] () <%%>...*/
 
 U_EXPORT const char* u_strpend(const char* restrict s, uint32_t slen,
-                                      const char* restrict group_delimitor, uint32_t group_delimitor_len,
-                                      char skip_line_comment) __pure;
+                               const char* restrict group_delimitor, uint32_t group_delimitor_len, char skip_line_comment) __pure;
 
 /**
- * --------------------------------------------------------------------------------
  * WILDCARD PATTERN - The rules are as follows (POSIX.2, 3.13)
  * --------------------------------------------------------------------------------
  * Wildcard Matching
@@ -250,41 +270,30 @@ U_EXPORT const char* u_strpend(const char* restrict s, uint32_t slen,
  *
  * Now that regular expressions have bracket expressions where the negation is indicated by a '^', POSIX has declared the
  * effect of a wildcard pattern '[^...]' to be undefined
- * --------------------------------------------------------------------------------
  */
 
 typedef bool (*bPFpcupcud)(const char*, uint32_t, const char*, uint32_t, int);
 
-extern U_EXPORT int        u_pfn_flags;
-extern U_EXPORT bPFpcupcud u_pfn_match;
+U_EXPORT bool u_fnmatch(     const char* restrict s, uint32_t n1, const char* restrict pattern, uint32_t n2, int flags);
+U_EXPORT bool u_dosmatch(    const char* restrict s, uint32_t n1, const char* restrict pattern, uint32_t n2, int flags) __pure;
+U_EXPORT bool u_dosmatch_ext(const char* restrict s, uint32_t n1, const char* restrict pattern, uint32_t n2, int flags) __pure;
 
-U_EXPORT bool u_fnmatch(         const char* restrict s, uint32_t n1, const char* restrict pattern, uint32_t n2, int flags);
-U_EXPORT bool u_dosmatch(        const char* restrict s, uint32_t n1, const char* restrict pattern, uint32_t n2, int flags) __pure;
-/* multiple patterns separated by '|' */ 
-U_EXPORT bool u_dosmatch_with_OR(const char* restrict s, uint32_t n1, const char* restrict pattern, uint32_t n2, int flags) __pure;
+/* multiple patterns separated by '|' */
 
-enum MatchType { U_FNMATCH = 0, U_DOSMATCH = 1, U_DOSMATCH_WITH_OR = 2 };
+U_EXPORT bool u_match_with_OR(bPFpcupcud pfn_match, const char* restrict s, uint32_t n1, const char* restrict pattern, uint32_t n2, int flags) __pure;
 
-#ifndef FNM_CASEFOLD
-#define FNM_CASEFOLD    (1 <<  4)   /* Compare without regard to case */
-#endif
-#define FNM_INVERT      (1 << 28)   /* invert the result */
-
-#ifndef FNM_IGNORECASE
-#define FNM_IGNORECASE  FNM_CASEFOLD
-#endif
-#ifndef FNM_LEADING_DIR
-#define FNM_LEADING_DIR FNM_PERIOD
-#endif
-
-static inline void u_setPfnMatch(int match_type, int flags)
+static inline bool u_dosmatch_with_OR(const char* restrict s, uint32_t n1, const char* restrict pattern, uint32_t n2, int flags)
 {
-   U_INTERNAL_TRACE("u_setPfnMatch(%d,%d)", match_type, flags)
+   U_INTERNAL_TRACE("u_dosmatch_with_OR(%.*s,%u,%.*s,%u,%d)", U_min(n1,128), s, n1, n2, pattern, n2, flags)
 
-   u_pfn_flags = flags;
-   u_pfn_match = (match_type == U_FNMATCH  ? u_fnmatch  :
-                  match_type == U_DOSMATCH ? u_dosmatch :
-                                             u_dosmatch_with_OR);
+   return u_match_with_OR(u_dosmatch, s, n1, pattern, n2, flags);
+}
+
+static inline bool u_dosmatch_ext_with_OR(const char* restrict s, uint32_t n1, const char* restrict pattern, uint32_t n2, int flags)
+{
+   U_INTERNAL_TRACE("u_dosmatch_ext_with_OR(%.*s,%u,%.*s,%u,%d)", U_min(n1,128), s, n1, n2, pattern, n2, flags)
+
+   return u_match_with_OR(u_dosmatch_ext, s, n1, pattern, n2, flags);
 }
 
 /* Change the current working directory to the `user` user's home dir, and downgrade security to that user account */
@@ -313,14 +322,13 @@ U_EXPORT int u_get_num_cpu(void);
 
 /* Pin the process to a particular core */
 
-U_EXPORT void u_bind2cpu(cpu_set_t* cpuset, pid_t pid, int n);
+U_EXPORT void u_bind2cpu(cpu_set_t* cpuset, int n);
 
 /* Set the process to maximum priority that can be used with the scheduling algorithm */
 
-U_EXPORT void u_switch_to_realtime_priority(pid_t pid);
+U_EXPORT void u_switch_to_realtime_priority(void);
 
 /**
- * --------------------------------------------------------------------------------
  * Canonicalize PATH, and build a new path. The new path differs from PATH in that:
  * --------------------------------------------------------------------------------
  * Multiple    '/'   are collapsed to a single '/'
@@ -331,10 +339,9 @@ U_EXPORT void u_switch_to_realtime_priority(pid_t pid);
  * --------------------------------------------------------------------------------
  */
 
-U_EXPORT bool u_canonicalize_pathname(char* restrict path);
+U_EXPORT uint32_t u_canonicalize_pathname(char* restrict path, uint32_t sz);
 
 /**
- * --------------------------------------------------------------------------------
  * find a FILE MODE along PATH
  * --------------------------------------------------------------
  * pathfind looks for a a file with name FILENAME and MODE access
@@ -360,7 +367,7 @@ extern U_EXPORT const unsigned int  u__ct_tab[256];
 extern U_EXPORT const unsigned char u__ct_tol[256];
 extern U_EXPORT const unsigned char u__ct_tou[256];
 
-/* NB: we use u__tolower(), u__toupper, u__isspace, ... because conflit with /usr/include/unicode/uchar.h */
+/* NB: we use u__tolower(), u__toupper(), u__isspace(), ... cause of conflit with /usr/include/unicode/uchar.h */
 
 static inline unsigned int  u_cttab(   unsigned char c) { return u__ct_tab[c]; }
 static inline unsigned char u__tolower(unsigned char c) { return u__ct_tol[c]; }
@@ -387,38 +394,46 @@ static inline bool u__istext( unsigned char c)   { return ((u_cttab(c) & 0x00020
                                                                       /* 0x00040000              __T character       appears in plain ASCII text */
                                                                       /* 0x00080000              __X Hexadecimal */
                                                                       /* 0x00100000              __A BASE64 encoded: '+' | '/' (47 0x2F) | '=' (61 0x3D) */
+                                                                      /* 0x08000000              __UF filename invalid char: ":<>*?\| */
+                                                                      /* 0x10000000              __XM char >= (32 0x20) */
+                                                                      /* 0x20000000              __XE char '}' | ']' */
 static inline bool u__ismethod( unsigned char c) { return ((u_cttab(c) & 0x00200000) != 0); } /* __M HTTP (COPY,DELETE,GET,HEAD|HTTP,OPTIONS,POST/PUT/PATCH) */
 static inline bool u__isheader( unsigned char c) { return ((u_cttab(c) & 0x00400000) != 0); } /* __Y HTTP header (Host,Range,...) */
 static inline bool u__isquote(  unsigned char c) { return ((u_cttab(c) & 0x00800000) != 0); } /* __K string quote: '"' (34 0x22) | ''' (39 0x27) */
 static inline bool u__ishtmlc(  unsigned char c) { return ((u_cttab(c) & 0x01000000) != 0); } /* __J HTML: '&' (38 0x26) | '<' (60 0x3C) | '>' (62 0x3E) */
 static inline bool u__is2urlenc(unsigned char c) { return ((u_cttab(c) & 0x02000000) != 0); } /* __UE URL: char TO encoded ... */ 
 static inline bool u__isurlqry( unsigned char c) { return ((u_cttab(c) & 0x04000000) != 0); } /* __UQ URL: char FROM query '&' (38 0x26) | '=' (61 0x3D) | '#' (35 0x23) */
-static inline bool u__isfname(  unsigned char c) { return ((u_cttab(c) & 0x08000000) != 0); } /* __UF filename: char > 31 except: ":<>*?\| */
 
 static inline bool u__isprintf(unsigned char c)  { return ((u_cttab(c) & 0x00000002) != 0); } /*  __E                                  */
+static inline bool u__issign(  unsigned char c)  { return ((u_cttab(c) & 0x00000014) != 0); } /* (__H | __O)                           */
 static inline bool u__isipv4(  unsigned char c)  { return ((u_cttab(c) & 0x00001020) != 0); } /* (__N | __D)                           */
-static inline bool u__isreal(  unsigned char c)  { return ((u_cttab(c) & 0x00000024) != 0); } /* (__H | __N)                           */
 static inline bool u__isblank( unsigned char c)  { return ((u_cttab(c) & 0x00000101) != 0); } /* (__S | __B)                           */
 static inline bool u__isalpha( unsigned char c)  { return ((u_cttab(c) & 0x0000A000) != 0); } /* (__L | __U)                           */
 static inline bool u__isxdigit(unsigned char c)  { return ((u_cttab(c) & 0x00081000) != 0); } /* (__X | __D)                           */
-static inline bool u__isnumber(unsigned char c)  { return ((u_cttab(c) & 0x00001010) != 0); } /* (__O | __D)                           */
-static inline bool u__isename( unsigned char c)  { return ((u_cttab(c) & 0x00000240) != 0); } /* (__G | __R)                           */
 static inline bool u__isalnum( unsigned char c)  { return ((u_cttab(c) & 0x0000B000) != 0); } /* (__L | __U | __D)                     */
 static inline bool u__islitem( unsigned char c)  { return ((u_cttab(c) & 0x00000109) != 0); } /* (__S | __V | __B)                     */
 static inline bool u__ispecial(unsigned char c)  { return ((u_cttab(c) & 0x00000034) != 0); } /* (__H | __O | __N)                     */
-static inline bool u__isname(  unsigned char c)  { return ((u_cttab(c) & 0x0000B080) != 0); } /* (__Q | __L | __U | __D)               */
 static inline bool u__isipv6(  unsigned char c)  { return ((u_cttab(c) & 0x00081060) != 0); } /* (__N | __G | __X | __D)               */
 static inline bool u__isgraph( unsigned char c)  { return ((u_cttab(c) & 0x0000F000) != 0); } /* (__L | __U | __D | __I)               */
 static inline bool u__isprint( unsigned char c)  { return ((u_cttab(c) & 0x0000F001) != 0); } /* (__S | __L | __U | __D | __I)         */
-static inline bool u__ishname( unsigned char c)  { return ((u_cttab(c) & 0x0000B0B0) != 0); } /* (__O | __N | __Q | __L | __U | __D)   */
+static inline bool u__isname(  unsigned char c)  { return ((u_cttab(c) & 0x0000B080) != 0); } /* (__Q | __L | __U | __D)               */
+static inline bool u__isename( unsigned char c)  { return ((u_cttab(c) & 0x000030B0) != 0); } /* (__O | __N | __Q | __L | __D)         */
+static inline bool u__ishname( unsigned char c)  { return ((u_cttab(c) & 0x0000B0B0) != 0); } /* (__O | __N | __Q | __L | __D | __U)   */
 static inline bool u__isbase64(unsigned char c)  { return ((u_cttab(c) & 0x0010B000) != 0); } /* (__A | __L | __U | __D)               */
 static inline bool u__isb64url(unsigned char c)  { return ((u_cttab(c) & 0x0000B090) != 0); } /* (      __L | __U | __D | __O | __Q)   */
+
+static inline bool u__isfnameinvalid(unsigned char c) { return ((u_cttab(c) & 0x08000000) != 0); } /* __UF                   */
+static inline bool u__isvalidchar(   unsigned char c) { return ((u_cttab(c) & 0x10000000) != 0); } /* __XM                   */
+static inline bool u__isxmlvalidchar(unsigned char c) { return ((u_cttab(c) & 0x10000300) != 0); } /* __XM | __B | __R       */
+static inline bool u__isendtoken(    unsigned char c) { return ((u_cttab(c) & 0x20000009) != 0); } /* __XE | __V | __S       */
+static inline bool u__isnumberchar(  unsigned char c) { return ((u_cttab(c) & 0x00001034) != 0); } /*  __H | __O | __N | __D */
 
 /* buffer type identification - Assumed an ISO-1 character set */
 
 U_EXPORT bool u_isURL(       const char* restrict s, uint32_t n) __pure;
 U_EXPORT bool u_isHTML(      const char* restrict s            ) __pure;
 U_EXPORT bool u_isName(      const char* restrict s, uint32_t n) __pure;
+U_EXPORT bool u_isDigit(     const char* restrict s, uint32_t n) __pure;
 U_EXPORT bool u_isBase64(    const char* restrict s, uint32_t n) __pure;
 U_EXPORT bool u_isBase64Url( const char* restrict s, uint32_t n) __pure;
 U_EXPORT bool u_isMacAddr(   const char* restrict s, uint32_t n) __pure;
@@ -457,7 +472,15 @@ extern U_EXPORT const unsigned char u_validate_utf8[];
 U_EXPORT bool u_isText(  const unsigned char* restrict s, uint32_t n) __pure;
 U_EXPORT bool u_isUTF8(  const unsigned char* restrict s, uint32_t n) __pure;
 U_EXPORT int  u_isUTF16( const unsigned char* restrict s, uint32_t n) __pure;
-U_EXPORT bool u_isBinary(const unsigned char* restrict s, uint32_t n) __pure;
+
+static inline bool u_isBinary(const unsigned char* restrict s, uint32_t n) { return ((u_isText(s,n) || u_isUTF8(s,n) || u_isUTF16(s,n)) == false); }
+
+U_EXPORT unsigned long u_strtoul( const char* restrict s, const char* restrict e) __pure;
+U_EXPORT uint64_t      u_strtoull(const char* restrict s, const char* restrict e) __pure;
+U_EXPORT long          u_strtol(  const char* restrict s, const char* restrict e) __pure;
+U_EXPORT int64_t       u_strtoll( const char* restrict s, const char* restrict e) __pure;
+
+static inline unsigned u__octc2int(unsigned char c) { return ((c - '0') & 07); }
 
 /**
  * Quick and dirty int->hex. The only standard way is to call snprintf (?),
@@ -468,13 +491,9 @@ extern U_EXPORT const unsigned char u__ct_hex2int[112];
 
 static inline unsigned int u__hexc2int(unsigned char c) { return u__ct_hex2int[c]; }
 
-static inline void u_int2hex(char* restrict p, uint32_t n)
-   { int s; for (s = 28; s >= 0; s -= 4, ++p) *p = u_hex_upper[((n >> s) & 0x0F)]; }
+static inline void u_int2hex(char* restrict p, uint32_t n) { int s; for (s = 28; s >= 0; s -= 4, ++p) *p = "0123456789ABCDEF"[((n >> s) & 0x0F)]; }
 
-static inline uint32_t u_hex2int(const char* restrict p, uint32_t len)
-   { uint32_t n = 0; const char* eos = p + len; while (p < eos) n = (n << 4) | u__hexc2int(*p++); return n; }
-
-static inline unsigned u__octc2int(unsigned char c) { return ((c - '0') & 07); }
+U_EXPORT unsigned long u_hex2int(const char* restrict s, const char* restrict e) __pure;
 
 /* ip address type identification */
 
@@ -482,16 +501,7 @@ U_EXPORT bool u_isIPv4Addr(const char* restrict s, uint32_t n) __pure;
 U_EXPORT bool u_isIPv6Addr(const char* restrict s, uint32_t n) __pure;
 
 static inline bool u_isIPAddr(bool IPv6, const char* restrict p, uint32_t n) { return (IPv6 ? u_isIPv6Addr(p, n)
-                                                                                            : u_isIPv4Addr(p, n)); } 
-/**
- * The u_passwd_cb() function must write the password into the provided buffer buf which is of size size.
- * The actual length of the password must be returned to the calling function. rwflag indicates whether the
- * callback is used for reading/decryption (rwflag=0) or writing/encryption (rwflag=1).
- * See man SSL_CTX_set_default_passwd_cb(3) for more information
- */
-#ifdef USE_LIBSSL
-U_EXPORT int u_passwd_cb(char* restrict buf, int size, int rwflag, void* restrict password);
-#endif
+                                                                                            : u_isIPv4Addr(p, n)); }
 
 #ifdef __cplusplus
 }

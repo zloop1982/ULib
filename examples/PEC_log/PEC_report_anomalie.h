@@ -198,7 +198,7 @@ public:
 
       U_INTERNAL_DUMP("start = %T", start)
 
-      (void) u_strftime2(PEC_report::data, sizeof(PEC_report::data), "%b %e %T %Y", start);
+      (void) u_strftime2(PEC_report::data, sizeof(PEC_report::data), U_CONSTANT_TO_PARAM("%b %e %T %Y"), start);
 
       U_RETURN(PEC_report::data);
       }
@@ -249,7 +249,10 @@ public:
       // Per ogni riga [ ESCLUSI tipo=non-accettazione o senza tipo es: tipo= (BustaAnomalia)) ] si traccia lo stato...
 
       if (tipology[U_busta_anomalia] ||
-          tipology[U_non_accettazione]) U_RETURN(false);
+          tipology[U_non_accettazione])
+         {
+         U_RETURN(false);
+         }
 
       U_RETURN(true);
       }
@@ -263,7 +266,7 @@ public:
 
       if (Messaggio::max_ttl)
          {
-         (void) u__snprintf(buffer, sizeof(buffer), " - max TTL: %T day(s) for message <%.*s>",
+         (void) u__snprintf(buffer, sizeof(buffer), U_CONSTANT_TO_PARAM(" - max TTL: %T day(s) for message <%.*s>"),
                         Messaggio::max_ttl / U_ONE_DAY_IN_SECOND, U_STRING_TO_TRACE(*Messaggio::id_max_ttl));
          }
 

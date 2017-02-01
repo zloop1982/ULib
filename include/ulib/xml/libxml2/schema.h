@@ -59,17 +59,18 @@ public:
    U_MEMORY_ALLOCATOR
    U_MEMORY_DEALLOCATOR
 
-   /** Create a schema from a XML document.
-   *
-   * @param XMLSchema document
-   */
+   /**
+    * Create a schema from a XML document.
+    *
+    * @param XMLSchema document
+    */
 
     UXML2Schema(const UString& xmldoc);
    ~UXML2Schema();
 
    const char* getName() const
       {
-      U_TRACE(0, "UXML2Schema::getName()")
+      U_TRACE_NO_PARAM(0, "UXML2Schema::getName()")
 
       U_INTERNAL_ASSERT_POINTER(impl_)
 
@@ -80,7 +81,7 @@ public:
 
    const char* getTargetNameSpace() const
       {
-      U_TRACE(0, "UXML2Schema::getTargetNameSpace()")
+      U_TRACE_NO_PARAM(0, "UXML2Schema::getTargetNameSpace()")
 
       U_INTERNAL_ASSERT_POINTER(impl_)
 
@@ -91,7 +92,7 @@ public:
 
    const char* getVersion() const
       {
-      U_TRACE(0, "UXML2Schema::getVersion()")
+      U_TRACE_NO_PARAM(0, "UXML2Schema::getVersion()")
 
       U_INTERNAL_ASSERT_POINTER(impl_)
 
@@ -102,10 +103,11 @@ public:
 
    bool validate(UXML2Document& doc);
 
-   /** Write the schema to a file.
-   *
-   * @param filename
-   */
+   /**
+    * Write the schema to a file.
+    *
+    * @param filename
+    */
 
    void writeToFile(const char* filename);
 
@@ -121,8 +123,9 @@ protected:
    xmlSchemaPtr impl_;
    xmlSchemaValidCtxtPtr ctxt;
 
-   /** Create a schema from the underlying libxml schema element.
-   */
+   /**
+    * Create a schema from the underlying libxml schema element
+    */
 
    UXML2Schema(xmlSchemaPtr schema) : impl_(schema)
       {
@@ -130,13 +133,7 @@ protected:
       }
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UXML2Schema(const UXML2Schema&) = delete;
-   UXML2Schema& operator=(const UXML2Schema&) = delete;
-#else
-   UXML2Schema(const UXML2Schema&)            {}
-   UXML2Schema& operator=(const UXML2Schema&) { return *this; }
-#endif      
+   U_DISALLOW_COPY_AND_ASSIGN(UXML2Schema)
 };
 
 #endif

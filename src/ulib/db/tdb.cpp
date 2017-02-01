@@ -58,7 +58,7 @@ bool UTDB::getKeys(UVector<UString>& vec)
 
 UString UTDB::print()
 {
-   U_TRACE(1, "UTDB::print()")
+   U_TRACE_NO_PARAM(1, "UTDB::print()")
 
    U_CHECK_MEMORY
 
@@ -75,7 +75,7 @@ UString UTDB::print()
 
 UString UTDB::printSorted()
 {
-   U_TRACE(1, "UTDB::printSorted()")
+   U_TRACE_NO_PARAM(1, "UTDB::printSorted()")
 
    U_CHECK_MEMORY
 
@@ -95,7 +95,8 @@ UString UTDB::printSorted()
       {
       r = vkey.UVector<UStringRep*>::at(i);
 
-      key.d1 = { (unsigned char*)U_STRING_TO_PARAM(*r) };
+      key.d1.dptr  = (unsigned char*)r->data();
+      key.d1.dsize = r->size();
 
       dbuf = (TDB_DATA) U_SYSCALL(tdb_fetch, "%p,%J", context, key.d2);
 
@@ -121,8 +122,10 @@ U_EXPORT istream& operator>>(istream& is, UTDB& tdb)
    _uudata key, dbuf;
    char buffer1[4096], buffer2[4096];
 
-    key.d1 = { (unsigned char*)buffer1, 0 };
-   dbuf.d1 = { (unsigned char*)buffer2, 0 };
+    key.d1.dptr  = (unsigned char*)buffer1;
+    key.d1.dsize = 0;
+   dbuf.d1.dptr  = (unsigned char*)buffer2;
+   dbuf.d1.dsize = 0;
 
    while (is >> c)
       {

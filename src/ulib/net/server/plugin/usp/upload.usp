@@ -22,7 +22,7 @@ filepath;
 
    UServices::generateDigest(U_HASH_MD5, 0, (unsigned char*)ptr, size, md5sum, false);
 
-   dump.snprintf("%M", ptr, U_min(size,1024));
+   dump.snprintf(U_CONSTANT_TO_PARAM("%M"), ptr, U_min(size,1024));
 -->
 
     <p>
@@ -30,7 +30,7 @@ filepath;
     <!--#puts UStringExt::basename(filepath) --> (<!--#number size --> bytes)<br>
     md5sum: <!--#puts md5sum --><br>
     data:
-    <pre><!--#xputs dump --></pre>
+    <pre><!--#xmlputs dump --></pre>
     </p>
 
 <!--#code

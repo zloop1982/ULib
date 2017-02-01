@@ -16,9 +16,8 @@
 
 #include <ulib/string.h>
 
-#include <errno.h>
-
 class UFile;
+class UHTTP;
 class UDialog;
 class UFileConfig;
 class UServer_Base;
@@ -37,8 +36,6 @@ public:
    // Allocator e Deallocator
    U_MEMORY_ALLOCATOR
    U_MEMORY_DEALLOCATOR
-
-   // COSTRUTTORI
 
    void zero()
       {
@@ -99,7 +96,7 @@ public:
 
    void delArgument()
       {
-      U_TRACE(0, "UCommand::delArgument()")
+      U_TRACE_NO_PARAM(0, "UCommand::delArgument()")
 
       U_INTERNAL_ASSERT_POINTER(argv_exec)
 
@@ -147,6 +144,17 @@ public:
       argv_exec[ncmd] = (char*) argument;
       }
 
+   char* getArgument(int n) const __pure
+      {
+      U_TRACE(0, "UCommand::getArgument(%d)", n)
+
+      char* arg = (argv_exec ? argv_exec[n] : 0);
+
+      U_INTERNAL_ASSERT(arg == 0 || u_isText((const unsigned char*)arg, u__strlen(arg, __PRETTY_FUNCTION__)))
+
+      U_RETURN(arg);
+      }
+
    void setNumArgument(int32_t n = 1, bool bfree = false);
 
    // MANAGE FILE ARGUMENT
@@ -165,8 +173,6 @@ public:
 
       argv_exec[nfile] = (char*) pathfile;
       }
-
-   // VARIE
 
    int32_t getNumArgument() const       { return ncmd; }
    int32_t getNumFileArgument() const   { return nfile; }
@@ -201,25 +207,16 @@ public:
 
    bool isShellScript() const __pure
       {
-      U_TRACE(0, "UCommand::isShellScript()")
+      U_TRACE_NO_PARAM(0, "UCommand::isShellScript()")
 
       U_INTERNAL_ASSERT(command)
 
-      bool result = (strncmp(command.data(), U_CONSTANT_TO_PARAM(U_PATH_SHELL)) == 0);
+      if (strncmp(command.data(), U_CONSTANT_TO_PARAM(U_PATH_SHELL)) == 0) U_RETURN(true);
 
-      U_RETURN(result);
+      U_RETURN(false);
       }
 
-   char* getCommand() const __pure
-      {
-      U_TRACE(0, "UCommand::getCommand()")
-
-      char* result = (argv_exec ? argv_exec[(isShellScript() ? 2 : 0)] : 0);
-
-      U_INTERNAL_ASSERT(result == 0 || u_isText((const unsigned char*)result, u__strlen(result, __PRETTY_FUNCTION__)))
-
-      U_RETURN(result);
-      }
+   char* getCommand() const __pure { return getArgument(isShellScript() ? 2 : 0); }
 
    // SERVICES
 
@@ -232,7 +229,7 @@ public:
    static void setTimeout(int seconds) { timeoutMS = (seconds * 1000); }
 
    static int32_t setEnvironment(const UString& env, char**& envp);
-   static void   freeEnvironment(char** _envp, int32_t n) { UMemoryPool::_free(_envp, n + 1, sizeof(char*)); } // NB: considera null terminator...
+   static void   freeEnvironment(char** _envp, int32_t n) { UMemoryPool::_free(_envp, n + 1, sizeof(char*)); } // NB: we consider the null terminator...
 
    // run command
 
@@ -249,34 +246,34 @@ public:
 
       U_INTERNAL_ASSERT_POINTER(argv_exec)
 
-      bool result = (U_SYSCALL(access, "%S,%d", argv_exec[0], mode) == 0);
+      if (U_SYSCALL(access, "%S,%d", argv_exec[0], mode) == 0) U_RETURN(true);
 
-      U_RETURN(result);
+      U_RETURN(false);
       }
 
    // MANAGE MESSAGE ERROR
 
    static bool isStarted()
       {
-      U_TRACE(0, "UCommand::isStarted()")
+      U_TRACE_NO_PARAM(0, "UCommand::isStarted()")
 
-      bool result = (pid > 0);
+      if (pid > 0) U_RETURN(true);
 
-      U_RETURN(result);
+      U_RETURN(false);
       }
 
    static bool isTimeout()
       {
-      U_TRACE(0, "UCommand::isTimeout()")
+      U_TRACE_NO_PARAM(0, "UCommand::isTimeout()")
 
-      bool result = (exit_value == -EAGAIN);
+      if (exit_value == -EAGAIN) U_RETURN(true);
 
-      U_RETURN(result);
+      U_RETURN(false);
       }
 
    static void printMsgError()
       {
-      U_TRACE(0, "UCommand::printMsgError()")
+      U_TRACE_NO_PARAM(0, "UCommand::printMsgError()")
 
       U_INTERNAL_ASSERT_MAJOR(u_buffer_len,0)
 
@@ -302,7 +299,7 @@ protected:
    int32_t ncmd, nenv, nfile;
    UString command, environment;
 
-   void setCommand();
+   void  setCommand();
    void freeCommand();
    void freeEnvironment();
 
@@ -316,12 +313,9 @@ private:
    static bool postCommand(UString* input, UString* output) U_NO_EXPORT; // NB: (void*)-1 is a special value...
    static void setStdInOutErr(int fd_stdin, bool flag_stdin, bool flag_stdout, int fd_stderr) U_NO_EXPORT;
 
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UCommand& operator=(const UCommand&) = delete;
-#else
-   UCommand& operator=(const UCommand&) { return *this; }
-#endif
+   U_DISALLOW_ASSIGN(UCommand)
 
+   friend class UHTTP;
    friend class UDialog;
    friend class UServer_Base;
    friend class UProxyPlugIn;

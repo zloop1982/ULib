@@ -2,9 +2,9 @@
 
 #define U_ALL_C
 
-#include "base/base.c"
 #include "base/hash.c"
 #include "base/utility.c"
+#include "base/base.c"
 #include "base/base_error.c"
 #include "base/miniz/miniz.c"
 #include "base/coder/cbase64.c"
@@ -44,6 +44,8 @@
 
 #ifndef HAVE_SEM_INIT
 #  include "replace/sem.c"
+#elif !defined(HAVE_SEM_TIMEDWAIT)
+#  include "replace/sem_timedwait.c"
 #endif
 
 #ifndef HAVE_DAEMON
@@ -78,6 +80,10 @@
 #  include "replace/mkdtemp.c"
 #endif
 
+#ifndef HAVE_MEMMEM
+#  include "replace/memmem.c"
+#endif
+
 #ifndef HAVE_MEMRCHR
 #  include "replace/memrchr.c"
 #endif
@@ -100,4 +106,12 @@
 
 #ifndef HAVE_PREAD
 #  include "replace/pread.c"
+#endif
+
+#ifndef HAVE_SCHED_GETCPU
+#  include "replace/sched_getcpu.c"
+#endif
+
+#ifdef U_APEX_ENABLE
+#  include "base/apex/apex_memmove.c"
 #endif

@@ -22,8 +22,6 @@
 class U_EXPORT USOAPGenericMethod : public URPCGenericMethod {
 public:
 
-   // COSTRUTTORI
-
    USOAPGenericMethod(const UString& n, const UString& _ns, UCommand* cmd, int rtype) : URPCGenericMethod(n, _ns, cmd, rtype)
       {
       U_TRACE_REGISTER_OBJECT(0, USOAPGenericMethod, "%V,%V,%p,%d", n.rep, _ns.rep, cmd, rtype) 
@@ -50,19 +48,13 @@ protected:
 
    virtual void setFailed()
       {
-      U_TRACE(0, "USOAPGenericMethod::setFailed()")
+      U_TRACE_NO_PARAM(0, "USOAPGenericMethod::setFailed()")
 
-      pFault = (URPCFault*) U_NEW(USOAPFault);
+      U_NEW(USOAPFault, pFault, USOAPFault);
       }
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   USOAPGenericMethod(const USOAPGenericMethod& g) = delete;
-   USOAPGenericMethod& operator=(const USOAPGenericMethod& g) = delete;
-#else
-   USOAPGenericMethod(const USOAPGenericMethod& g) : URPCGenericMethod(UString::getStringNull(), UString::getStringNull(), 0, 0) {}
-   USOAPGenericMethod& operator=(const USOAPGenericMethod& g)                                                                    { return *this; }
-#endif      
+   U_DISALLOW_COPY_AND_ASSIGN(USOAPGenericMethod)
 };
 
 #endif

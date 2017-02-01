@@ -6,7 +6,7 @@ AC_DEFUN([AC_COMPILATION_OPTIONS],[
 	AC_MSG_CHECKING(if you want to enable use of memory pool)
 	AC_ARG_ENABLE(memory-pool,
 				[  --enable-memory-pool      enable memory pool features [[default=yes]]])
-	if test -z "$enable_memory_pool"; then
+	if test -z "$enable_memory_pool" -a "x$OPERATINGSYSTEM" = xlinux; then
 		enable_memory_pool="yes"
 	fi
 	if test "$enable_memory_pool" = "yes"; then
@@ -43,7 +43,7 @@ AC_DEFUN([AC_COMPILATION_OPTIONS],[
 	AC_MSG_CHECKING(for compile with GCC optimizations flags enabled)
 	AC_ARG_ENABLE(gcc-optimized,
 				[  --enable-gcc-optimized    compile with GCC optimizations flags enabled (-finline,-fstrict-aliasing,...) [[default=yes]]])
-	if test -z "$enable_gcc_optimized"; then
+	if test -z "$enable_gcc_optimized" -a "x$OPERATINGSYSTEM" = xlinux; then
 		enable_gcc_optimized="yes"
 	fi
 	AC_MSG_RESULT([${enable_gcc_optimized}])
@@ -61,7 +61,7 @@ AC_DEFUN([AC_COMPILATION_OPTIONS],[
 	AC_MSG_CHECKING(for use of the new linker flags)
 	AC_ARG_ENABLE(new-ldflags,
 				[  --enable-new-ldflags      enable the new linker flags (enable-new-dtags,as-needed,...) [[default=yes]]])
-	if test -z "$enable_new_ldflags"; then
+	if test -z "$enable_new_ldflags" -a "x$OPERATINGSYSTEM" = xlinux; then
 		enable_new_ldflags="yes"
 	fi
 	AC_MSG_RESULT([${enable_new_ldflags}])
@@ -91,7 +91,11 @@ AC_DEFUN([AC_COMPILATION_OPTIONS],[
 	AC_ARG_ENABLE(CRPWS,
 				[  --enable-CRPWS            enable Client Response Partial Write Support [[default=no]]])
 	if test -z "$enable_CRPWS"; then
-		enable_CRPWS="no"
+		if test "$enable_debug" = "yes"; then
+			enable_CRPWS="yes"
+		else
+			enable_CRPWS="no"
+		fi
 	fi
 	if test "$enable_CRPWS" = "yes"; then
 		AC_DEFINE(U_CLIENT_RESPONSE_PARTIAL_WRITE_SUPPORT, 1, [enable client response partial write support])
@@ -102,7 +106,11 @@ AC_DEFUN([AC_COMPILATION_OPTIONS],[
 	AC_ARG_ENABLE(check-time,
 				[  --enable-check-time       enable server check time between request for parallelization [[default=no]]])
 	if test -z "$enable_check_time"; then
-		enable_check_time="no"
+		if test "$enable_debug" = "yes"; then
+			enable_check_time="yes"
+		else
+			enable_check_time="no"
+		fi
 	fi
 	if test "$enable_check_time" = "yes"; then
 		AC_DEFINE(U_SERVER_CHECK_TIME_BETWEEN_REQUEST, 1, [enable server check time between request for parallelization])
@@ -135,7 +143,11 @@ AC_DEFUN([AC_COMPILATION_OPTIONS],[
 	AC_ARG_ENABLE(HIS,
 				[  --enable-HIS              enable HTTP Inotify Support [[default=no]]])
 	if test -z "$enable_HIS" ; then
-		enable_HIS="no"
+		if test "$enable_debug" = "yes"; then
+			enable_HIS="yes"
+		else
+			enable_HIS="no"
+		fi
 	fi
 	if test "$enable_HIS" = "yes"; then
 		AC_DEFINE(U_HTTP_INOTIFY_SUPPORT, 1, [enable HTTP inotify support])
@@ -144,9 +156,13 @@ AC_DEFUN([AC_COMPILATION_OPTIONS],[
 
 	AC_MSG_CHECKING(if you want to enable client and server log support)
 	AC_ARG_ENABLE(log,
-				[  --enable-log              enable client and server log support [[default=no]]])
+				[  --enable-log              enable client and server log support [[default=yes]]])
 	if test -z "$enable_log"; then
-		enable_log="no"
+		if test "$USP_FLAGS" = "-DAS_cpoll_cppsp_DO"; then
+			enable_log="no"
+		else
+			enable_log="yes"
+		fi
 	fi
 	if test "$enable_log" != "yes"; then
 		AC_DEFINE(U_LOG_DISABLE, 1, [disable client and server log support])
@@ -157,7 +173,11 @@ AC_DEFUN([AC_COMPILATION_OPTIONS],[
 	AC_ARG_ENABLE(GSDS,
 				[  --enable-GSDS             enable GDB Stack Dump Support [[default=no]]])
 	if test -z "$enable_GSDS"; then
-		enable_GSDS="$enable_debug"
+		if test "$enable_debug" = "yes"; then
+			enable_GSDS="yes"
+		else
+			enable_GSDS="no"
+		fi
 	fi
 	if test "$enable_GSDS" = "yes"; then
 		AC_DEFINE(U_GDB_STACK_DUMP_ENABLE, 1, [enable GDB stack dump support])
@@ -168,7 +188,11 @@ AC_DEFUN([AC_COMPILATION_OPTIONS],[
 	AC_ARG_ENABLE(HCRS,
 				[  --enable-HCRS             enable Cache Request Support [[default=no]]])
 	if test -z "$enable_HCRS"; then
-		enable_HCRS="yes"
+		if test "$USP_FLAGS" = "-DAS_cpoll_cppsp_DO"; then
+			enable_HCRS="yes"
+		else
+			enable_HCRS="no"
+		fi
 	fi
 	if test "$enable_HCRS" != "yes"; then
 		AC_DEFINE(U_CACHE_REQUEST_DISABLE, 1, [disable cache request support])
@@ -177,9 +201,13 @@ AC_DEFUN([AC_COMPILATION_OPTIONS],[
 
 	AC_MSG_CHECKING(if you want to enable homogeneous pipeline request support)
 	AC_ARG_ENABLE(HPRS,
-				[  --enable-HPRS             enable Homogeneous Pipeline Request Support [[default=yes]]])
+				[  --enable-HPRS             enable Homogeneous Pipeline Request Support [[default=no]]])
 	if test -z "$enable_HPRS"; then
-		enable_HPRS="yes"
+		if test "$USP_FLAGS" = "-DAS_cpoll_cppsp_DO"; then
+			enable_HPRS="yes"
+		else
+			enable_HPRS="no"
+		fi
 	fi
 	if test "$enable_HPRS" != "yes"; then
 		AC_DEFINE(U_PIPELINE_HOMOGENEOUS_DISABLE, 1, [disable homogeneous pipeline request support])
@@ -208,11 +236,26 @@ AC_DEFUN([AC_COMPILATION_OPTIONS],[
 	fi
 	AC_MSG_RESULT([$enable_classic])
 
+	AC_MSG_CHECKING(if you want to enable server bandwidth throttling support)
+	AC_ARG_ENABLE(throttling,
+				[  --enable-throttling       enable server bandwidth throttling support [[default=no]]])
+	if test -z "$enable_throttling"; then
+		enable_throttling="no"
+	fi
+	if test "$enable_throttling" = "yes"; then
+		AC_DEFINE(U_THROTTLING_SUPPORT, 1, [enable server bandwidth throttling support])
+	fi
+	AC_MSG_RESULT([$enable_throttling])
+
 	AC_MSG_CHECKING(if you want to enable alias URI support)
 	AC_ARG_ENABLE(alias,
-				[  --enable-alias            enable alias URI support [[default=no]]])
+				[  --enable-alias            enable alias URI support [[default=yes]]])
 	if test -z "$enable_alias"; then
-		enable_alias="no"
+		if test "$USP_FLAGS" = "-DAS_cpoll_cppsp_DO"; then
+			enable_alias="no"
+		else
+			enable_alias="yes"
+		fi
 	fi
 	if test "$enable_alias" = "yes"; then
 		AC_DEFINE(U_ALIAS, 1, [enable alias URI support])
@@ -256,7 +299,11 @@ AC_DEFUN([AC_COMPILATION_OPTIONS],[
 	AC_ARG_ENABLE(HSTS,
 				[  --enable-HSTS             enable HTTP Strict Transport Security support [[default=no]]])
 	if test -z "$enable_HSTS"; then
-		enable_HSTS="no"
+		if test "$enable_debug" = "yes"; then
+			enable_HSTS="yes"
+		else
+			enable_HSTS="no"
+		fi
 	fi
 	if test "$enable_HSTS" = "yes"; then
 		AC_DEFINE(U_HTTP_STRICT_TRANSPORT_SECURITY, 1, [enable HTTP Strict Transport Security support])

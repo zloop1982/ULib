@@ -39,7 +39,6 @@ int UTsaPlugIn::handlerConfig(UFileConfig& cfg)
 {
    U_TRACE(0, "UTsaPlugIn::handlerConfig(%p)", &cfg)
 
-   // -----------------------------------------------
    // Perform registration of userver method
    // -----------------------------------------------
    // COMMAND                      command to execute
@@ -58,7 +57,7 @@ int UTsaPlugIn::handlerConfig(UFileConfig& cfg)
 
 int UTsaPlugIn::handlerInit()
 {
-   U_TRACE(0, "UTsaPlugIn::handlerInit()")
+   U_TRACE_NO_PARAM(0, "UTsaPlugIn::handlerInit()")
 
    if (command)
       {
@@ -67,10 +66,10 @@ int UTsaPlugIn::handlerInit()
 #  ifndef U_ALIAS
       U_SRV_LOG("WARNING: Sorry, I can't enable TSA plugin because alias URI support is missing, please recompile ULib");
 #  else
-      if (UHTTP::valias == 0) UHTTP::valias = U_NEW(UVector<UString>(2U));
+      if (UHTTP::valias == 0) U_NEW(UVector<UString>, UHTTP::valias, UVector<UString>(2U));
 
-      UHTTP::valias->push_back(U_STRING_FROM_CONSTANT("/tsa"));
-      UHTTP::valias->push_back(U_STRING_FROM_CONSTANT("/nostat"));
+      UHTTP::valias->push_back(*UString::str_tsa);
+      UHTTP::valias->push_back(*UString::str_nostat);
 
       U_RETURN(U_PLUGIN_HANDLER_PROCESSED | U_PLUGIN_HANDLER_GO_ON);
 #  endif
@@ -83,7 +82,7 @@ int UTsaPlugIn::handlerInit()
 
 int UTsaPlugIn::handlerRequest()
 {
-   U_TRACE(0, "UTsaPlugIn::handlerRequest()")
+   U_TRACE_NO_PARAM(0, "UTsaPlugIn::handlerRequest()")
 
    if (UHTTP::isTSARequest())
       {
@@ -95,14 +94,14 @@ int UTsaPlugIn::handlerRequest()
          {
          U_http_info.nResponseCode = HTTP_OK;
 
-         UHTTP::setResponse(UHTTP::str_ctype_tsa, &body);
+         UHTTP::setResponse(*UString::str_ctype_tsa, &body);
          }
       else
          {
          UHTTP::setInternalError();
          }
 
-#  ifdef U_LOG_ENABLE
+#  ifndef U_LOG_DISABLE
       UServer_Base::logCommandMsgError(command->getCommand(), true);
 #  endif
 

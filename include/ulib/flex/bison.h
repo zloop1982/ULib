@@ -28,8 +28,6 @@
 class U_EXPORT UBison : public UFlexer {
 public:
 
-   // COSTRUTTORI
-
    UBison()
       {
       U_TRACE_REGISTER_OBJECT(0, UBison, "", 0)
@@ -44,8 +42,6 @@ public:
       {
       U_TRACE_UNREGISTER_OBJECT(0, UBison)
       }
-
-   // VARIE
 
    bool parse(void* obj = 0)
       {
@@ -85,13 +81,7 @@ public:
 #endif
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UBison(const UBison&) = delete;
-   UBison& operator=(const UBison&) = delete;
-#else
-   UBison(const UBison&) : UFlexer() {}
-   UBison& operator=(const UBison&)  { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UBison)
 };
 
 #endif

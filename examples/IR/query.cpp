@@ -50,12 +50,15 @@ public:
 
       if (ptr == 0) U_ERROR("<query> not specified");
 
+      UString::str_allocate(STR_ALLOCATE_QUERY_PARSER);
+
       if (IR::openCDB(false))
          {
          uint32_t len;
 
-         query = U_NEW(Query);
-         ptr   = Query::checkQuoting(argv, len);
+         U_NEW(Query, query, Query);
+
+         ptr = Query::checkQuoting(argv, len);
 
          query->run(ptr, len, 0);
 

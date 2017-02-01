@@ -16,18 +16,9 @@
 
 // gcc: call is unlikely and code size would grow
 
-void Url::set(const UString& x)
-{
-   U_TRACE(0, "Url::set(%V)", x.rep)
-
-   url = x;
-
-   findpos();
-}
-
 UString Url::getService() const
 {
-   U_TRACE(0, "Url::getService()")
+   U_TRACE_NO_PARAM(0, "Url::getService()")
 
    UString srv;
 
@@ -45,8 +36,9 @@ void Url::setService(const char* service, uint32_t n)
    if (service_end > 0) (void) url.replace(0, service_end, service, n);
    else
       {
-      (void) url.insert(0, U_CONSTANT_TO_PARAM("://"));
-      (void) url.insert(0, service, n);
+      char buffer[32];
+
+      (void) url.insert(0, buffer, u__snprintf(buffer, sizeof(buffer), U_CONSTANT_TO_PARAM("%.*s://"), n, service));
       }
 
    findpos();
@@ -54,14 +46,11 @@ void Url::setService(const char* service, uint32_t n)
 
 UString Url::getUser()
 {
-   U_TRACE(0, "Url::getUser()")
+   U_TRACE_NO_PARAM(0, "Url::getUser()")
 
    UString usr;
 
-   if (user_begin < user_end)
-      {
-      usr = url.substr(user_begin, user_end - user_begin);
-      }
+   if (user_begin < user_end) usr = url.substr(user_begin, user_end - user_begin);
 
    U_RETURN_STRING(usr);
 }
@@ -76,14 +65,12 @@ bool Url::setUser(const char* user, uint32_t n)
 
    if (host_begin < host_end)
       {
-      if (user_begin < user_end)
-         {
-         (void) url.replace(user_begin, user_end - user_begin, user, n);
-         }
+      if (user_begin < user_end) (void) url.replace(user_begin, user_end - user_begin, user, n);
       else
          {
-         (void) url.insert(user_begin, 1, '@');
-         (void) url.insert(user_begin, user, n);
+         char buffer[128];
+
+         (void) url.insert(user_begin, buffer, u__snprintf(buffer, sizeof(buffer), U_CONSTANT_TO_PARAM("%.*s@"), n, user));
          }
 
       findpos();
@@ -96,7 +83,7 @@ bool Url::setUser(const char* user, uint32_t n)
 
 UString Url::getHost()
 {
-   U_TRACE(0, "Url::getHost()")
+   U_TRACE_NO_PARAM(0, "Url::getHost()")
 
    UString host;
 
@@ -119,7 +106,7 @@ void Url::setHost(const char* _host, uint32_t n)
 
 unsigned int Url::getPort()
 {
-   U_TRACE(0, "Url::getPort()")
+   U_TRACE_NO_PARAM(0, "Url::getPort()")
 
    if (host_end < path_begin)
       {
@@ -190,7 +177,9 @@ bool Url::setPort(unsigned int port)
 
       buffer[0] = ':';
 
-      (void) url.replace(host_end, path_begin - host_end, buffer, u_num2str32(buffer+1, port));
+      char* ptr = buffer+1;
+
+      (void) url.replace(host_end, path_begin - host_end, buffer, u_num2str32(port, ptr) - ptr);
 
       findpos();
 
@@ -208,10 +197,7 @@ void Url::setPath(const char* path, uint32_t n)
 
    if (path_begin < path_end)
       {
-      if (*path != '/')
-         {
-         ++path_begin;
-         }
+      if (*path != '/') ++path_begin;
 
       (void) url.replace(path_begin, path_end - path_begin, path, n);
       }
@@ -232,7 +218,7 @@ void Url::setPath(const char* path, uint32_t n)
 
 UString Url::getPath()
 {
-   U_TRACE(0, "Url::getPath()")
+   U_TRACE_NO_PARAM(0, "Url::getPath()")
 
    UString path(U_CAPACITY);
 
@@ -246,7 +232,7 @@ UString Url::getPath()
 
 UString Url::getQuery()
 {
-   U_TRACE(0, "Url::getQuery()")
+   U_TRACE_NO_PARAM(0, "Url::getQuery()")
 
    int _end = url.size() - 1;
 
@@ -270,19 +256,14 @@ uint32_t Url::getQuery(UVector<UString>& vec)
 
    int _end = url.size() - 1;
 
-   if (path_end < _end)
-      {
-      uint32_t result = UStringExt::getNameValueFromData(url.substr(path_end + 1, _end - path_end), vec, U_CONSTANT_TO_PARAM("&"));
-
-      U_RETURN(result);
-      }
+   if (path_end < _end) return UStringExt::getNameValueFromData(url.substr(path_end + 1, _end - path_end), vec, U_CONSTANT_TO_PARAM("&"));
 
    U_RETURN(0);
 }
 
-bool Url::setQuery(const char* query_, uint32_t n)
+bool Url::setQuery(const char* query_, uint32_t query_len)
 {
-   U_TRACE(0, "Url::setQuery(%S,%u)", query_, n)
+   U_TRACE(0, "Url::setQuery(%S,%u)", query_, query_len)
 
    U_INTERNAL_ASSERT_POINTER(query_)
 
@@ -290,7 +271,7 @@ bool Url::setQuery(const char* query_, uint32_t n)
       {
       if (*query_ == '?') ++query_;
 
-      (void) url.replace(path_end + 1, url.size() - path_end - 1, query_, n);
+      (void) url.replace(path_end + 1, url.size() - path_end - 1, query_, query_len);
 
       U_RETURN(true);
       }
@@ -308,7 +289,7 @@ bool Url::setQuery(UVector<UString>& vec)
       {
       UString name, value;
 
-      for (int32_t i = 0, n  = vec.size(); i < n; ++i)
+      for (int32_t i = 0, n = vec.size(); i < n; ++i)
          {
          name  = vec[i++];
          value = vec[i];
@@ -322,9 +303,38 @@ bool Url::setQuery(UVector<UString>& vec)
    U_RETURN(false);
 }
 
+UString Url::getQueryBody(UVector<UString>& vec)
+{
+   U_TRACE(0, "Url::getQueryBody(%p)", &vec)
+
+   U_INTERNAL_ASSERT_EQUALS(vec.empty(), false)
+
+   char buffer[4096];
+   uint32_t sz, value_sz;
+   UString name, value, query(U_CAPACITY);
+
+   for (int32_t i = 0, n = vec.size(); i < n; ++i)
+      {
+      name  = vec[i++];
+      value = vec[i];
+
+      (void) query.reserve(3U +         name.size()  +
+                           (      sz = query.size()) +
+                           (value_sz = value.size()));
+
+      uint32_t encoded_sz = u_url_encode((const unsigned char*)value.data(), value_sz, (unsigned char*)buffer);
+
+      U_INTERNAL_ASSERT_MINOR(encoded_sz, sizeof(buffer))
+
+      query.snprintf_add(U_CONSTANT_TO_PARAM("%.*s%v=%.*s"), (sz > 0), "&", name.rep, encoded_sz, buffer);
+      }
+
+   U_RETURN_STRING(query);
+}
+
 UString Url::getPathAndQuery()
 {
-   U_TRACE(0, "Url::getPathAndQuery()")
+   U_TRACE_NO_PARAM(0, "Url::getPathAndQuery()")
 
    UString file;
 
@@ -336,7 +346,7 @@ UString Url::getPathAndQuery()
 
 void Url::findpos()
 {
-   U_TRACE(0, "Url::findpos()")
+   U_TRACE_NO_PARAM(0, "Url::findpos()")
 
    // proto://[user[:password]@]hostname[:port]/[path]?[query]
 
@@ -344,7 +354,14 @@ void Url::findpos()
 
    if (service_end < 0)
       {
-      service_end = user_begin = user_end = host_begin = host_end = path_begin = path_end = query = 0;
+      service_end =
+       user_begin =
+         user_end =
+       host_begin =
+         host_end =
+       path_begin =
+         path_end =
+            query = 0;
 
       return;
       }
@@ -438,7 +455,7 @@ void Url::findpos()
 
 U_NO_EXPORT bool Url::prepareForQuery()
 {
-   U_TRACE(0, "Url::prepareForQuery()")
+   U_TRACE_NO_PARAM(0, "Url::prepareForQuery()")
 
    // NB: Only posible if there is a url
 
@@ -467,29 +484,39 @@ void Url::addQuery(const char* entry, uint32_t entry_len, const char* value, uin
 
    if (prepareForQuery())
       {
-      uint32_t v_size = 0, b_size = entry_len, e_size = b_size;
+      uint32_t v_size = 0,
+               b_size = entry_len,
+               e_size = b_size;
 
       if (value) v_size = value_len;
 
       if (e_size < v_size) b_size = v_size;
 
-      b_size *= 3;
+      if (url.last_char() != '?') url.push_back('&');
 
-      UString buffer(b_size);
+      if (u_isUrlEncodeNeeded(entry, e_size) == false) (void) url.append(entry, e_size);
+      else
+         {
+         UString buffer(b_size * 3);
 
-      encode(entry, e_size, buffer);
+         encode(entry, e_size, buffer);
 
-      if (*url.rbegin() != '?') url.push_back('&');
-
-      (void) url.append(buffer);
+         (void) url.append(buffer);
+         }
 
       if (value)
          {
          url.push_back('=');
 
-         encode(value, v_size, buffer);
+         if (u_isUrlEncodeNeeded(value, v_size) == false) (void) url.append(value, v_size);
+         else
+            {
+            UString buffer(v_size * 3);
 
-         (void) url.append(buffer);
+            encode(value, v_size, buffer);
+
+            (void) url.append(buffer);
+            }
          }
       }
 }

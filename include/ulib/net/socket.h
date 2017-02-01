@@ -22,9 +22,10 @@
 #else
 #  define CAST(a) a
 #  include <netinet/tcp.h>
+#  if defined(U_LINUX) && !defined(SO_INCOMING_CPU)
+#     define SO_INCOMING_CPU 49
+#  endif
 #endif
-
-#include <errno.h>
 
 #ifndef SOL_TCP
 #define SOL_TCP IPPROTO_TCP
@@ -66,6 +67,7 @@ class SocketAddress;
 class URDBClientImage;
 class UHttpClient_Base;
 class UClientImage_Base;
+class UREDISClient_Base;
 
 #define U_socket_IPv6(obj)     (obj)->USocket::flag[0]
 #define U_socket_LocalSet(obj) (obj)->USocket::flag[1]
@@ -81,8 +83,6 @@ public:
    // Allocator e Deallocator
    U_MEMORY_ALLOCATOR
    U_MEMORY_DEALLOCATOR
-
-   // COSTRUTTORI
 
    enum State {
       CLOSE       = 0x000,
@@ -156,7 +156,7 @@ public:
 
    bool isUDP() const
       {
-      U_TRACE(0, "USocket::isUDP()")
+      U_TRACE_NO_PARAM(0, "USocket::isUDP()")
 
       U_INTERNAL_DUMP("U_socket_Type = %d %B", U_socket_Type(this), U_socket_Type(this))
 
@@ -167,7 +167,7 @@ public:
 
    bool isIPC() const
       {
-      U_TRACE(0, "USocket::isIPC()")
+      U_TRACE_NO_PARAM(0, "USocket::isIPC()")
 
       U_INTERNAL_DUMP("U_socket_Type = %d %B", U_socket_Type(this), U_socket_Type(this))
 
@@ -178,7 +178,7 @@ public:
 
    bool isSSL() const
       {
-      U_TRACE(0, "USocket::isSSL()")
+      U_TRACE_NO_PARAM(0, "USocket::isSSL()")
 
       U_INTERNAL_DUMP("U_socket_Type = %d %B", U_socket_Type(this), U_socket_Type(this))
 
@@ -191,7 +191,7 @@ public:
 
    bool isSSLActive() const
       {
-      U_TRACE(0, "USocket::isSSLActive()")
+      U_TRACE_NO_PARAM(0, "USocket::isSSLActive()")
 
       U_INTERNAL_DUMP("U_socket_Type = %d %B", U_socket_Type(this), U_socket_Type(this))
 
@@ -237,7 +237,7 @@ public:
     * The setsockopt() function is called with the provided parameters to obtain the desired value
     */
 
-   bool setSockOpt(int iCodeLevel, int iOptionName, const void* pOptionData, uint32_t iDataLength)
+   bool setSockOpt(int iCodeLevel, int iOptionName, const void* pOptionData, uint32_t iDataLength = sizeof(int))
       {
       U_TRACE(1, "USocket::setSockOpt(%d,%d,%p,%u)", iCodeLevel, iOptionName, pOptionData, iDataLength) // problem with sanitize address
 
@@ -256,7 +256,7 @@ public:
 
    bool isBlocking()
       {
-      U_TRACE(0, "USocket::isBlocking()")
+      U_TRACE_NO_PARAM(0, "USocket::isBlocking()")
 
       U_CHECK_MEMORY
 
@@ -288,7 +288,7 @@ public:
    /**
     * This method is called to accept a new pending connection on the server socket.
     * The USocket pointed to by the provided parameter is modified to refer to the
-    * newly connected socket. The remote IP Address and port number are also set.
+    * newly connected socket. The remote IP Address and port number are also set
     */
 
    bool acceptClient(USocket* pcConnection);
@@ -306,7 +306,7 @@ public:
 
    const char* getLocalInfo()
       {
-      U_TRACE(0, "USocket::getLocalInfo()")
+      U_TRACE_NO_PARAM(0, "USocket::getLocalInfo()")
 
       U_CHECK_MEMORY
 
@@ -325,7 +325,7 @@ public:
 
    unsigned int remotePortNumber()
       {
-      U_TRACE(0, "USocket::remotePortNumber()")
+      U_TRACE_NO_PARAM(0, "USocket::remotePortNumber()")
 
       U_CHECK_MEMORY
 
@@ -334,7 +334,7 @@ public:
 
    UIPAddress& remoteIPAddress()
       {
-      U_TRACE(0, "USocket::remoteIPAddress()")
+      U_TRACE_NO_PARAM(0, "USocket::remoteIPAddress()")
 
       U_CHECK_MEMORY
 
@@ -347,7 +347,7 @@ public:
 
    uint32_t getBufferRCV()
       {
-      U_TRACE(1, "USocket::getBufferRCV()")
+      U_TRACE_NO_PARAM(1, "USocket::getBufferRCV()")
 
       uint32_t size = U_NOT_FOUND, tmp = sizeof(uint32_t);
 
@@ -358,7 +358,7 @@ public:
 
    uint32_t getBufferSND()
       {
-      U_TRACE(1, "USocket::getBufferSND()")
+      U_TRACE_NO_PARAM(1, "USocket::getBufferSND()")
 
       uint32_t size = U_NOT_FOUND, tmp = sizeof(uint32_t);
 
@@ -371,7 +371,7 @@ public:
       {
       U_TRACE(1, "USocket::setBufferRCV(%u)", size)
 
-      if (setSockOpt(SOL_SOCKET, SO_RCVBUF, (const void*)&size, sizeof(uint32_t))) U_RETURN(true);
+      if (setSockOpt(SOL_SOCKET, SO_RCVBUF, (const void*)&size)) U_RETURN(true);
 
       U_RETURN(false);
       }
@@ -380,7 +380,7 @@ public:
       {
       U_TRACE(1, "USocket::setBufferSND(%u)", size)
 
-      if (setSockOpt(SOL_SOCKET, SO_SNDBUF, (const void*)&size, sizeof(uint32_t))) U_RETURN(true); 
+      if (setSockOpt(SOL_SOCKET, SO_SNDBUF, (const void*)&size)) U_RETURN(true); 
 
       U_RETURN(false);
       }
@@ -407,7 +407,7 @@ public:
    void          close();
    void abortive_close() /* Abort connection */
       {
-      U_TRACE(0, "USocket::abortive_close()")
+      U_TRACE_NO_PARAM(0, "USocket::abortive_close()")
 
       U_INTERNAL_ASSERT(isOpen())
 
@@ -459,8 +459,8 @@ public:
 
       U_INTERNAL_ASSERT_POINTER(sk)
 
-#  if defined(TCP_CORK) && !defined(_MSWINDOWS_)
-      (void) sk->setSockOpt(SOL_TCP, TCP_CORK, (const void*)&value, sizeof(uint32_t));
+#  if defined(TCP_CORK) && defined(U_LINUX)
+      (void) sk->setSockOpt(SOL_TCP, TCP_CORK, (const void*)&value);
 #  endif
       }
 
@@ -472,22 +472,22 @@ public:
 
    void setTcpDeferAccept()
       {
-      U_TRACE(0, "USocket::setTcpDeferAccept()")
+      U_TRACE_NO_PARAM(0, "USocket::setTcpDeferAccept()")
 
-#  if defined(TCP_DEFER_ACCEPT) && !defined(_MSWINDOWS_)
-      (void) setSockOpt(SOL_TCP, TCP_DEFER_ACCEPT, (const int[]){ 1 }, sizeof(int));
+#  if defined(TCP_DEFER_ACCEPT) && defined(U_LINUX)
+      (void) setSockOpt(SOL_TCP, TCP_DEFER_ACCEPT, (const int[]){ 1 });
 #  endif
       }
 
    void setTcpFastOpen()
       {
-      U_TRACE(0, "USocket::setTcpFastOpen()")
+      U_TRACE_NO_PARAM(0, "USocket::setTcpFastOpen()")
 
-#  if !defined(U_SERVER_CAPTIVE_PORTAL) && !defined(_MSWINDOWS_) // && LINUX_VERSION_CODE >= KERNEL_VERSION(3,6,0)
-#     ifndef TCP_FASTOPEN
-#     define TCP_FASTOPEN 23 /* Enable FastOpen on listeners */
-#     endif
-      (void) setSockOpt(SOL_TCP, TCP_FASTOPEN, (const int[]){ 5 }, sizeof(int));
+#  if !defined(U_SERVER_CAPTIVE_PORTAL) && defined(U_LINUX) // && LINUX_VERSION_CODE >= KERNEL_VERSION(3,6,0)
+#    ifndef TCP_FASTOPEN
+#    define TCP_FASTOPEN 23 /* Enable FastOpen on listeners */
+#    endif
+      (void) setSockOpt(SOL_TCP, TCP_FASTOPEN, (const int[]){ 5 });
 #  endif
       }
 
@@ -495,17 +495,17 @@ public:
       {
       U_TRACE(0, "USocket::setTcpQuickAck(%d)", value)
 
-#  if defined(TCP_QUICKACK) && !defined(_MSWINDOWS_)
-      (void) setSockOpt(SOL_TCP, TCP_QUICKACK, &value, sizeof(int));
+#  if defined(TCP_QUICKACK) && defined(U_LINUX)
+      (void) setSockOpt(SOL_TCP, TCP_QUICKACK, &value);
 #  endif
       }
 
    void setTcpNoDelay()
       {
-      U_TRACE(0, "USocket::setTcpNoDelay()")
+      U_TRACE_NO_PARAM(0, "USocket::setTcpNoDelay()")
 
 #  ifdef TCP_NODELAY
-      (void) setSockOpt(SOL_TCP, TCP_NODELAY, (const int[]){ 1 }, sizeof(int));
+      (void) setSockOpt(SOL_TCP, TCP_NODELAY, (const int[]){ 1 });
 #  endif
       }
 
@@ -513,7 +513,7 @@ public:
       {
       U_TRACE(0, "USocket::setTcpCongestion(%S)", value)
 
-#  if defined(TCP_CONGESTION) && !defined(_MSWINDOWS_)
+#  if defined(TCP_CONGESTION) && defined(U_LINUX)
       (void) setSockOpt(IPPROTO_TCP, TCP_CONGESTION, (const void*)&value, u__strlen(value, __PRETTY_FUNCTION__) + 1);
 #  endif
       }
@@ -531,14 +531,7 @@ public:
     * Ref4: tcp_max_orphans [https://www.frozentux.net/ipsysctl-tutorial/chunkyhtml/tcpvariables.html#AEN388]
     */
 
-   void setTcpKeepAlive()
-      {
-      U_TRACE(0, "USocket::setTcpKeepAlive()")
-
-#  ifdef SO_KEEPALIVE
-      (void) setSockOpt(SOL_SOCKET, SO_KEEPALIVE, (const int[]){ 1 }, sizeof(int));
-#  endif
-      }
+   void setTcpKeepAlive();
 
    /**
     * Enables/disables the @c SO_TIMEOUT pseudo option
@@ -563,7 +556,7 @@ public:
    int recvFrom(void* pBuffer, uint32_t iBufLength, uint32_t uiFlags, UIPAddress& cSourceIP, unsigned int& iSourcePortNumber);
 
    /**
-    * The socket transmits the data to the remote socket.
+    * The socket transmits the data to the remote socket
     */
 
    int sendTo(void* pPayload, uint32_t iPayloadLength, uint32_t uiFlags, UIPAddress& cDestinationIP, unsigned int iDestinationPortNumber);
@@ -673,9 +666,9 @@ protected:
    void  closesocket();
    void _closesocket();
 
-   static bool tcp_reuseport;
    static SocketAddress* cLocal;
-   static int iBackLog, accept4_flags; // If flags is 0, then accept4() is the same as accept()
+   static bool tcp_reuseport, bincoming_cpu;
+   static int iBackLog, incoming_cpu, accept4_flags; // If flags is 0, then accept4() is the same as accept()
 
    /**
     * The _socket() function is called to create the socket of the specified type.
@@ -686,13 +679,7 @@ protected:
    void _socket(int iSocketType = 0, int domain = 0, int protocol = 0);
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   USocket(const USocket&) = delete;
-   USocket& operator=(const USocket&) = delete;
-#else
-   USocket(const USocket&)            {}
-   USocket& operator=(const USocket&) { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(USocket)
 
                       friend class UHTTP;
                       friend class UHTTP2;
@@ -707,6 +694,7 @@ private:
                       friend class UHttpClient_Base;
                       friend class UWebSocketPlugIn;
                       friend class UClientImage_Base;
+                      friend class UREDISClient_Base;
    template <class T> friend class UServer;
    template <class T> friend class UClientImage;
 };

@@ -49,16 +49,10 @@ protected:
 
    // define method VIRTUAL of class UEventFd
 
-   virtual int handlerRead() U_DECL_OVERRIDE;
+   virtual int handlerRead() U_DECL_FINAL;
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   URDBClientImage(const URDBClientImage&) = delete;
-   URDBClientImage& operator=(const URDBClientImage&) = delete;
-#else
-   URDBClientImage(const URDBClientImage&) : UClientImage<UTCPSocket>() {}
-   URDBClientImage& operator=(const URDBClientImage&)                   { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(URDBClientImage)
 
    friend class URDBServer;
 };

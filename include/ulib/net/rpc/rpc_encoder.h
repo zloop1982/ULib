@@ -23,8 +23,8 @@
 #define U_RPC_ENCODE_RES(tok,res)   URPCMethod::encoder->encodeResponse(tok, res)
 
 /**
-   @class URPCEncoder
-*/
+ * @class URPCEncoder
+ */
 
 class U_EXPORT URPCEncoder {
 public:
@@ -35,8 +35,6 @@ public:
    // Allocator e Deallocator
    U_MEMORY_ALLOCATOR
    U_MEMORY_DEALLOCATOR
-
-   // COSTRUTTORI
 
    URPCEncoder() : buffer(U_CAPACITY), encodedValue(U_CAPACITY)
       {
@@ -50,11 +48,9 @@ public:
       U_TRACE_UNREGISTER_OBJECT(0, URPCEncoder)
       }
 
-   // dipendenze di USOAPParser...
-
    void clearData()
       {
-      U_TRACE(0, "URPCEncoder::clearData()")
+      U_TRACE_NO_PARAM(0, "URPCEncoder::clearData()")
 
       arg.clear();
 
@@ -188,7 +184,7 @@ public:
       {
       U_TRACE(0, "URPCEncoder::encodeArgument(%V,%V,%f)", argName.rep, argType.rep, value)
 
-      buffer.snprintf("%f", value);
+      buffer.snprintf(U_CONSTANT_TO_PARAM("%f"), value);
 
       encodeArgument(argName, argType, buffer);
       }
@@ -197,7 +193,7 @@ public:
       {
       U_TRACE(0, "URPCEncoder::encodeArgument(%V,%V,%g)", argName.rep, argType.rep, value)
 
-      buffer.snprintf("%g", value);
+      buffer.snprintf(U_CONSTANT_TO_PARAM("%g"), value);
 
       encodeArgument(argName, argType, buffer);
       }
@@ -263,13 +259,7 @@ protected:
    virtual UString encodeMethod(URPCMethod& method, const UString& nsName); // namespace qualified element information
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   URPCEncoder(const URPCEncoder&) = delete;
-   URPCEncoder& operator=(const URPCEncoder&) = delete;
-#else
-   URPCEncoder(const URPCEncoder&)            {}
-   URPCEncoder& operator=(const URPCEncoder&) { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(URPCEncoder)
 };
 
 #endif

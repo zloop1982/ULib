@@ -16,8 +16,14 @@
 
 #include <ulib/options.h>
 
+#define U_PRINT_MEM_USAGE
+
 #ifdef DEBUG
 #define U_MAIN_END(value) return value
+#  ifdef U_STDCPP_ENABLE
+#     undef  U_PRINT_MEM_USAGE
+#     define U_PRINT_MEM_USAGE UApplication::printMemUsage();
+#  endif
 #else
 #define U_MAIN_END(value) ::exit(value)
 #endif
@@ -29,18 +35,9 @@ int U_EXPORT main(int argc, char* argv[], char* env[]) \
    U_TRACE(5, "::main(%d,%p,%p)", argc, argv, env) \
    Application application; \
    application.run(argc, argv, env); \
+   U_PRINT_MEM_USAGE \
    U_MAIN_END(UApplication::exit_value); \
 }
-
-#ifdef U_COMPILER_DELETE_MEMBERS
-#  define U_APPLICATION_PRIVATE \
-   Application(const Application&) = delete; \
-   Application& operator=(const Application&) = delete;
-#else
-#  define U_APPLICATION_PRIVATE \
-   Application(const Application& a) : UApplication(a) {} \
-   Application& operator=(const Application&)          { return *this; }
-#endif
 
 /*
 #define U_MAIN(_class) \
@@ -72,12 +69,10 @@ public:
    static int exit_value;
    static uint32_t num_args;
 
-   UString str; // NB: must be here to avoid DEAD OF SOURCE STRING WITH CHILD ALIVE...
+   UString _str; // NB: must be here to avoid DEAD OF SOURCE STRING WITH CHILD ALIVE...
    UOptions opt;
 
-   // COSTRUTTORI
-
-    UApplication();
+   UApplication();
 
 #ifdef U_COVERITY_FALSE_POSITIVE
    virtual ~UApplication();
@@ -93,7 +88,7 @@ public:
 
       U_DUMP_EXEC(argv, env)
 
-      // se esistono opzioni, queste vengono processate...
+      // if exist options, these are processed...
 
       is_options = (argc > 1);
 
@@ -128,9 +123,9 @@ public:
 #        define U_OPTIONS_3 ""
 #        endif
 
-         str = UString(U_CONSTANT_TO_PARAM(U_OPTIONS U_OPTIONS_1 U_OPTIONS_2 U_OPTIONS_3));
+         _str = UString(U_CONSTANT_TO_PARAM(U_OPTIONS U_OPTIONS_1 U_OPTIONS_2 U_OPTIONS_3));
 
-         if (str) opt.load(str);
+         if (_str) opt.load(_str);
 #     endif
 
          num_args = opt.getopt(argc, argv, &optind);
@@ -139,12 +134,14 @@ public:
 
    static bool isOptions()
       {
-      U_TRACE(0, "UApplication::isOptions()")
+      U_TRACE_NO_PARAM(0, "UApplication::isOptions()")
 
       U_RETURN(is_options);
       }
 
 #if defined(U_STDCPP_ENABLE) && defined(DEBUG)
+   static void printMemUsage();
+
    const char* dump(bool reset) const;
 #endif
 
@@ -154,13 +151,7 @@ protected:
    void usage() { opt.printHelp(0); }
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UApplication(const UApplication&) = delete;
-   UApplication& operator=(const UApplication&) = delete;
-#else
-   UApplication(const UApplication&) : opt(0)   {}
-   UApplication& operator=(const UApplication&) { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UApplication)
 
    friend class Application;
 };

@@ -22,7 +22,7 @@ __noreturn U_NO_EXPORT void UOrmSession::loadDriverFail(const char* ptr, uint32_
 {
    U_TRACE(0, "UOrmSession::loadDriverFail(%.*S,%u)", len, ptr, len)
 
-   U_MESSAGE("load of ORM driver failed: %.*S", len, ptr);
+   U_WARNING("Load of ORM driver failed: %.*S", len, ptr);
 
    U_EXIT(EXIT_FAILURE);   
 }
@@ -43,7 +43,7 @@ void UOrmSession::loadDriver(const char* backend, uint32_t len, const UString& o
       {
       UString name(32U);
 
-      name.snprintf("orm_driver_%.*s", len, backend);
+      name.snprintf(U_CONSTANT_TO_PARAM("orm_driver_%.*s"), len, backend);
 
       if (*UOrmDriver::driver_dir) UDynamic::setPluginDirectory(*UOrmDriver::driver_dir);
 
@@ -86,7 +86,7 @@ UOrmSession::UOrmSession(const char* dbname, uint32_t len)
 
       UString option(200U);
 
-      option.snprintf(UOrmDriver::env_option, len, dbname);
+      option.snprintf(UOrmDriver::env_option, strlen(UOrmDriver::env_option), len, dbname);
 
       loadDriver(UOrmDriver::env_driver, UOrmDriver::env_driver_len, option);
       }
@@ -95,7 +95,7 @@ UOrmSession::UOrmSession(const char* dbname, uint32_t len)
 
 __pure bool UOrmSession::isReady() const
 {
-   U_TRACE(0, "UOrmSession::isReady()")
+   U_TRACE_NO_PARAM(0, "UOrmSession::isReady()")
 
    if (pdrv != 0 &&
        UOrmDriver::env_driver_len)
@@ -135,7 +135,7 @@ bool UOrmSession::connect(const UString& option)
 
 __pure void* UOrmSession::getConnection()
 {
-   U_TRACE(0, "UOrmSession::getConnection()")
+   U_TRACE_NO_PARAM(0, "UOrmSession::getConnection()")
 
    U_INTERNAL_ASSERT_POINTER(pdrv)
 
@@ -160,7 +160,7 @@ bool UOrmSession::query(const char* stmt, uint32_t len)
 
 unsigned long long UOrmSession::affected()
 {
-   U_TRACE(0, "UOrmSession::affected()")
+   U_TRACE_NO_PARAM(0, "UOrmSession::affected()")
 
    U_INTERNAL_ASSERT_POINTER(pdrv)
 
@@ -212,7 +212,7 @@ __pure UOrmStatement::~UOrmStatement()
 
 void UOrmStatement::execute()
 {
-   U_TRACE(0, "UOrmStatement::execute()")
+   U_TRACE_NO_PARAM(0, "UOrmStatement::execute()")
 
 #if defined(USE_SQLITE) || defined(USE_MYSQL) || defined(USE_PGSQL)
    U_INTERNAL_ASSERT_POINTER(pdrv)
@@ -227,7 +227,7 @@ void UOrmStatement::execute()
 
 unsigned long long UOrmStatement::affected()
 {
-   U_TRACE(0, "UOrmStatement::affected()")
+   U_TRACE_NO_PARAM(0, "UOrmStatement::affected()")
 
    U_INTERNAL_ASSERT_POINTER(pdrv)
    U_INTERNAL_ASSERT_POINTER(pstmt)
@@ -255,7 +255,7 @@ unsigned long long UOrmStatement::last_insert_rowid(const char* sequence)
 
 unsigned int UOrmStatement::cols()
 {
-   U_TRACE(0, "UOrmStatement::cols()")
+   U_TRACE_NO_PARAM(0, "UOrmStatement::cols()")
 
    U_INTERNAL_ASSERT_POINTER(pdrv)
    U_INTERNAL_ASSERT_POINTER(pstmt)
@@ -267,7 +267,7 @@ unsigned int UOrmStatement::cols()
 
 bool UOrmStatement::nextRow()
 {
-   U_TRACE(0, "UOrmStatement::nextRow()")
+   U_TRACE_NO_PARAM(0, "UOrmStatement::nextRow()")
 
    U_INTERNAL_ASSERT_POINTER(pdrv)
    U_INTERNAL_ASSERT_POINTER(pstmt)
@@ -281,7 +281,7 @@ bool UOrmStatement::nextRow()
 
 void UOrmStatement::reset()
 {
-   U_TRACE(0, "UOrmStatement::reset()")
+   U_TRACE_NO_PARAM(0, "UOrmStatement::reset()")
 
    U_INTERNAL_ASSERT_POINTER(pdrv)
    U_INTERNAL_ASSERT_POINTER(pstmt)
@@ -293,7 +293,7 @@ void UOrmStatement::reset()
 
 void UOrmStatement::bindParam()
 {
-   U_TRACE(0, "UOrmStatement::bindParam()")
+   U_TRACE_NO_PARAM(0, "UOrmStatement::bindParam()")
 
 #if defined(USE_SQLITE) || defined(USE_MYSQL) || defined(USE_PGSQL)
    U_INTERNAL_ASSERT_POINTER(pdrv)
@@ -532,7 +532,7 @@ void UOrmStatement::bindParam(struct tm& v)
    buffer[0]     = 0;
    u_strftime_tm = v;
 
-   uint32_t n = u_strftime1(buffer, sizeof(buffer), "%Y-%m-%d %T");
+   uint32_t n = u_strftime1(buffer, sizeof(buffer), U_CONSTANT_TO_PARAM("%Y-%m-%d %T"));
 
    pdrv->bindParam(pstmt, buffer, n, false, -1);
 #endif

@@ -12,21 +12,24 @@ static void check(const UString& dati, const UString& file)
 {
    U_TRACE(5,"check(%p,%p)", &dati, &file)
 
-   uint32_t sz = dati.size() * 4;
+   if (u_isUrlEncodeNeeded(U_STRING_TO_PARAM(dati)))
+      {
+      uint32_t sz = dati.size() * 4;
 
-   UString buffer1(sz), buffer2(sz);
+      UString buffer1(sz), buffer2(sz);
 
-   Url::encode(dati,    buffer1);
-   Url::decode(buffer1, buffer2);
+      Url::encode(dati,    buffer1);
+      Url::decode(buffer1, buffer2);
 
-   U_INTERNAL_DUMP("buffer1 = %#.*S", U_STRING_TO_TRACE(buffer1))
-   U_INTERNAL_DUMP("dati    = %#.*S", U_STRING_TO_TRACE(dati))
-   U_INTERNAL_DUMP("buffer2 = %#.*S", U_STRING_TO_TRACE(buffer2))
+      U_INTERNAL_DUMP("buffer1 = %#.*S", U_STRING_TO_TRACE(buffer1))
+      U_INTERNAL_DUMP("dati    = %#.*S", U_STRING_TO_TRACE(dati))
+      U_INTERNAL_DUMP("buffer2 = %#.*S", U_STRING_TO_TRACE(buffer2))
 
-// (void) UFile::writeToTmp(U_STRING_TO_PARAM(buffer1), false, "url.encode", 0);
-// (void) UFile::writeToTmp(U_STRING_TO_PARAM(buffer2), false, "url.decode", 0);
- 
-   U_ASSERT( dati == buffer2 )
+   // (void) UFile::writeToTmp(U_STRING_TO_PARAM(buffer1), O_RDWR | O_TRUNC, U_CONSTANT_TO_PARAM("url.encode"), 0);
+   // (void) UFile::writeToTmp(U_STRING_TO_PARAM(buffer2), O_RDWR | O_TRUNC, U_CONSTANT_TO_PARAM("url.decode"), 0);
+
+      U_ASSERT( dati == buffer2 )
+      }
 }
 
 int U_EXPORT main(int argc, char* argv[])
@@ -44,7 +47,7 @@ int U_EXPORT main(int argc, char* argv[])
       check(dati, filename);
       }
 
-    Url url[] = {
+    Url url[20] = {
        Url(U_STRING_FROM_CONSTANT("http://www.cs.wustl.edu/")),
        Url(U_STRING_FROM_CONSTANT("http://www.cs.wustl.edu/index.html")),
        Url(U_STRING_FROM_CONSTANT("http://www.cs.wustl.edu/form?var=foo")),
@@ -64,11 +67,12 @@ int U_EXPORT main(int argc, char* argv[])
        Url(U_STRING_FROM_CONSTANT("mailto:nobody")),
        Url(U_STRING_FROM_CONSTANT("http://www.cs.wustl.edu")),
        Url(U_STRING_FROM_CONSTANT("file:/etc/passwd")),
-       Url(U_STRING_FROM_CONSTANT("http://www.cs.wustl.edu/form?var=foo&url=http%3a//www/%3fkkk//")) };
+       Url(U_STRING_FROM_CONSTANT("http://www.cs.wustl.edu/form?var=foo&url=http%3a//www/%3fkkk//"))
+    };
 
-   int i, nurl = sizeof(url)/sizeof(url[0]);
+   uint32_t i;
 
-   for (i = 0; i < nurl; ++i)
+   for (i = 0; i < 20; ++i)
       {
       cout  << '"' << url[i]              << "\" "
             << '"' << url[i].getService() << "\" "
@@ -79,7 +83,7 @@ int U_EXPORT main(int argc, char* argv[])
             << '"' << url[i].getQuery()   << "\"\n";
       }
 
-   for (i = 0; i < nurl; ++i)
+   for (i = 0; i < 20; ++i)
       {
       url[i].eraseUser();
       url[i].eraseQuery();
@@ -130,33 +134,33 @@ int U_EXPORT main(int argc, char* argv[])
 
 #define URL_ENDCODED_BASE64URL "U2FsdGVkX1808rcrEGMANm0PQYLvNaoTBgfLjgnPI68jOshyAcHRgBBe9OcJ-2sU-PoM_mFzlkMECF9fiXdbVf0CgVYc3AWmS43m9_tSPF7eFUlsWApYKv-LvPjbcNXLJltNgAXVc71XuVKqPqB6mSjIhmcJAtFZ86TB3FXLkNVz0QcQLcSCQ_UFQ0kNOe89TJ3dHvQ-Wkx8JfPu8qEotnxUourW6xVq3Vrp_9ArkB_1dK9Ag8Okz7AEv9v-AZw9011syWIY57E_jx_IkGNEWA"
 
-   bool result = u_isBase64(U_CONSTANT_TO_PARAM(URL_BASE64));
+   bool ok = u_isBase64(U_CONSTANT_TO_PARAM(URL_BASE64));
 
-   U_INTERNAL_ASSERT(result)
+   U_INTERNAL_ASSERT(ok)
 
-   result = u_isUrlEncodeNeeded(U_CONSTANT_TO_PARAM(URL_BASE64));
+   ok = u_isUrlEncodeNeeded(U_CONSTANT_TO_PARAM(URL_BASE64));
 
-   U_INTERNAL_ASSERT(result)
+   U_INTERNAL_ASSERT(ok)
 
-   result = u_isUrlEncodeNeeded(U_CONSTANT_TO_PARAM(URL_BASE64URL));
+   ok = u_isUrlEncodeNeeded(U_CONSTANT_TO_PARAM(URL_BASE64URL));
 
-   U_INTERNAL_ASSERT_EQUALS(result, false)
+   U_INTERNAL_ASSERT_EQUALS(ok, false)
 
-   result = u_isUrlEncoded(U_CONSTANT_TO_PARAM(URL_ENDCODED), false);
+   ok = u_isUrlEncoded(U_CONSTANT_TO_PARAM(URL_ENDCODED), false);
 
-   U_INTERNAL_ASSERT(result)
+   U_INTERNAL_ASSERT(ok)
 
-   result = u_isBase64(U_CONSTANT_TO_PARAM(URL_ENDCODED));
+   ok = u_isBase64(U_CONSTANT_TO_PARAM(URL_ENDCODED));
 
-   U_INTERNAL_ASSERT_EQUALS(result, false)
+   U_INTERNAL_ASSERT_EQUALS(ok, false)
 
-   result = u_isBase64(U_CONSTANT_TO_PARAM("name=stefano"));
+   ok = u_isBase64(U_CONSTANT_TO_PARAM("name=stefano"));
 
-   U_INTERNAL_ASSERT(result)
+   U_INTERNAL_ASSERT(ok)
 
-   result = u_isUrlEncoded(U_CONSTANT_TO_PARAM("name=stefano"), false);
+   ok = u_isUrlEncoded(U_CONSTANT_TO_PARAM("name=stefano"), false);
 
-   U_INTERNAL_ASSERT_EQUALS(result, false)
+   U_INTERNAL_ASSERT_EQUALS(ok, false)
 
    UString value_decoded(U_CAPACITY), output(U_CAPACITY);
 
@@ -164,21 +168,21 @@ int U_EXPORT main(int argc, char* argv[])
 
    U_INTERNAL_ASSERT(value_decoded.equal(U_CONSTANT_TO_PARAM(URL_BASE64)))
 
-   result = u_isUrlEncoded(U_CONSTANT_TO_PARAM(URL_BASE64), false);
+   ok = u_isUrlEncoded(U_CONSTANT_TO_PARAM(URL_BASE64), false);
 
-   U_INTERNAL_ASSERT_EQUALS(result, false)
+   U_INTERNAL_ASSERT_EQUALS(ok, false)
 
-   result = u_isUrlEncoded(U_CONSTANT_TO_PARAM(URL_BASE64URL), false);
+   ok = u_isUrlEncoded(U_CONSTANT_TO_PARAM(URL_BASE64URL), false);
 
-   U_INTERNAL_ASSERT_EQUALS(result, false)
+   U_INTERNAL_ASSERT_EQUALS(ok, false)
 
-   result = u_isUrlEncoded(U_CONSTANT_TO_PARAM("address+space+usage%3A12.81+MBytes+-+rss+usage%3A3.59+MBytes"), false);
+   ok = u_isUrlEncoded(U_CONSTANT_TO_PARAM("address+space+usage%3A12.81+MBytes+-+rss+usage%3A3.59+MBytes"), false);
 
-   U_INTERNAL_ASSERT(result)
+   U_INTERNAL_ASSERT(ok)
 
-   result = u_isUrlEncodeNeeded(U_CONSTANT_TO_PARAM(URL_ENDCODED));
+   ok = u_isUrlEncodeNeeded(U_CONSTANT_TO_PARAM(URL_ENDCODED));
 
-   U_INTERNAL_ASSERT_EQUALS(result, false)
+   U_INTERNAL_ASSERT_EQUALS(ok, false)
 
    UBase64::decode(U_CONSTANT_TO_PARAM(URL_BASE64), value_decoded);
 
@@ -199,9 +203,9 @@ int U_EXPORT main(int argc, char* argv[])
    U_INTERNAL_ASSERT(output)
    U_INTERNAL_ASSERT_EQUALS(value_decoded, output)
 
-   result = u_isUrlEncoded(U_CONSTANT_TO_PARAM(URL_ENDCODED_BASE64URL), false);
+   ok = u_isUrlEncoded(U_CONSTANT_TO_PARAM(URL_ENDCODED_BASE64URL), false);
 
-   U_INTERNAL_ASSERT_EQUALS(result, false)
+   U_INTERNAL_ASSERT_EQUALS(ok, false)
 
    UBase64::decodeUrl(U_CONSTANT_TO_PARAM(URL_ENDCODED_BASE64URL), value_decoded);
 
@@ -213,11 +217,11 @@ int U_EXPORT main(int argc, char* argv[])
 
    U_INTERNAL_ASSERT(output)
 
-   result = u_isUrlEncoded(U_STRING_TO_PARAM(output), true);
+   ok = u_isUrlEncoded(U_STRING_TO_PARAM(output), true);
 
    U_INTERNAL_DUMP("output = %#.*S", U_STRING_TO_TRACE(output))
 
-   U_INTERNAL_ASSERT(result)
+   U_INTERNAL_ASSERT(ok)
 
    UVector<UString> name_value(16);
 
@@ -229,9 +233,33 @@ int U_EXPORT main(int argc, char* argv[])
    U_INTERNAL_ASSERT_EQUALS(name_value[14], "redir_to")
    U_INTERNAL_ASSERT_EQUALS(name_value[15], "http%253A//www.mozilla.org/about/")
 
-   result = u_isUrlEncodeNeeded(U_STRING_TO_PARAM(name_value[1]));
+   ok = u_isUrlEncodeNeeded(U_STRING_TO_PARAM(name_value[1]));
 
-   U_INTERNAL_ASSERT(result)
+   U_INTERNAL_ASSERT(ok)
+
+   name_value.clear();
+
+#define URL_POSTLOGIN "http://wifi-aaa.comune.fi.it/postlogin?mac=5c%3A8d%3A4e%3Aa7%3A74%3A40&ip=172.23.2.161&redirect=U2FsdGVkX1-jGSSiNI6XOekzyr2xDlex52Qeh-fNJVtDONBxP0j0LeKlMabvbvUDH75M0L-gPcu0nq3pwcr8rQArIp_gKhB14kxy_I_zpIhx_orRFrC57gsE3SO_vUFe4YStiDZwMMwmBwq5PKqA38gRzOkO9A0xEX5YTBifJfrKakP6lv_W_VqecGL7_iDD0JU5Pj_C3sueeRkDm48CVDgGfeukuhOmYuyJ0WaBBR_uISr1pZOkiYlYDEbrcda-9xU4XNl4hiPJoLdQdsEcHQ&gateway=172.23.0.1%3A5280&timeout=0&token=3683958071&ap=315@U2FsdGVkX1_7rc7eJavUIWeMdzfYhxTv6NYyaEibEX0"
+
+   UString postlogin = U_STRING_FROM_CONSTANT(URL_POSTLOGIN);
+
+   Url post(postlogin);
+
+   ok = post.getQuery(name_value);
+
+   U_INTERNAL_ASSERT(ok)
+
+   info = post.get();
+
+   post.eraseQuery();
+
+   ok = post.setQuery(name_value);
+
+   U_INTERNAL_ASSERT(ok)
+
+   ok = post.get().equal(U_CONSTANT_TO_PARAM(URL_POSTLOGIN));
+
+   U_INTERNAL_ASSERT(ok)
 
    /*
    U_ASSERT( u.getService() == UString( u.getService(buffer, sizeof(buffer)) ) )

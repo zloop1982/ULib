@@ -17,12 +17,12 @@
 #include <ulib/utility/socket_ext.h>
 #include <ulib/utility/string_ext.h>
 
-// -----------------------------------------------------------------------------------------------------------------------------
+// -------------------------------------------------------------------------------------------------
 // Very simple RPC-like layer
 //
 // Requests and responses are build of little packets each containing a U_TOKEN_NM-byte ascii token,
-// an 8-byte hex value or length, and optionally data corresponding to the length.
-// -----------------------------------------------------------------------------------------------------------------------------
+// an 8-byte hex value or length, and optionally data corresponding to the length
+// -------------------------------------------------------------------------------------------------
 
 class U_EXPORT URPC {
 public:
@@ -33,16 +33,16 @@ public:
 
    static void allocate()
       {
-      U_TRACE(0, "URPC::allocate()")
+      U_TRACE_NO_PARAM(0, "URPC::allocate()")
 
       U_INTERNAL_ASSERT_EQUALS(rpc_info,0)
 
-      rpc_info = U_NEW(UVector<UString>);
+      U_NEW(UVector<UString>, rpc_info, UVector<UString>);
       }
 
    static void resetInfo()
       {
-      U_TRACE(0, "URPC::resetInfo()")
+      U_TRACE_NO_PARAM(0, "URPC::resetInfo()")
 
       U_INTERNAL_ASSERT_POINTER(rpc_info)
 
@@ -103,13 +103,7 @@ public:
       }
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   URPC(const URPC&) = delete;
-   URPC& operator=(const URPC&) = delete;
-#else
-   URPC(const URPC&)            {}
-   URPC& operator=(const URPC&) { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(URPC)
 };
 
 #endif

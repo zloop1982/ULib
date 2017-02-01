@@ -27,8 +27,6 @@ PROCESS_INFORMATION  UProcess::aProcessInformation;
 #  include <spawn.h>
 #endif
 
-#include <errno.h>
-
 int UProcess::filedes[6];
 
 // services for EXEC
@@ -58,7 +56,7 @@ void UProcess::setProcessGroup(pid_t pid, pid_t pgid)
 
 bool UProcess::fork()
 {
-   U_TRACE(1, "UProcess::fork()")
+   U_TRACE_NO_PARAM(1, "UProcess::fork()")
 
    U_CHECK_MEMORY
 
@@ -93,9 +91,10 @@ U_NO_EXPORT void UProcess::setStdInOutErr(bool fd_stdin, bool fd_stdout, bool fd
          hChildIn = hFile[0];
 
          // Duplicating as inheritable child-input pipe
-         // -------------------------------------------
+         // --------------------------------------------------------------------------------------------------------------------------------------
          // (void) U_SYSCALL(DuplicateHandle, "%p,%p,%p,%p,%lu,%b,%lu", hProcess, hFile[0], hProcess, &hChildIn, 0, TRUE, DUPLICATE_SAME_ACCESS);
          // (void) U_SYSCALL(    CloseHandle, "%p",                               hFile[0]);
+         // --------------------------------------------------------------------------------------------------------------------------------------
          }
       else
          {
@@ -124,9 +123,10 @@ U_NO_EXPORT void UProcess::setStdInOutErr(bool fd_stdin, bool fd_stdout, bool fd
          hChildOut = hFile[3];
 
          // Duplicating as inheritable child-output pipe
-         // -------------------------------------------
+         // --------------------------------------------------------------------------------------------------------------------------------------
          // (void) U_SYSCALL(DuplicateHandle, "%p,%p,%p,%p,%lu,%b,%lu", hProcess, hFile[3], hProcess, &hChildOut, 0, TRUE, DUPLICATE_SAME_ACCESS);
          // (void) U_SYSCALL(    CloseHandle, "%p",                               hFile[3]);
+         // --------------------------------------------------------------------------------------------------------------------------------------
          }
       else
          {
@@ -155,9 +155,10 @@ U_NO_EXPORT void UProcess::setStdInOutErr(bool fd_stdin, bool fd_stdout, bool fd
          hChildErr = hFile[5];
 
          // Duplicating as inheritable child-output pipe
-         // -------------------------------------------
+         // --------------------------------------------------------------------------------------------------------------------------------------
          // (void) U_SYSCALL(DuplicateHandle, "%p,%p,%p,%p,%lu,%b,%lu", hProcess, hFile[5], hProcess, &hChildErr, 0, TRUE, DUPLICATE_SAME_ACCESS);
          // (void) U_SYSCALL(    CloseHandle, "%p",                               hFile[5]);
+         // --------------------------------------------------------------------------------------------------------------------------------------
          }
       else
          {
@@ -289,7 +290,7 @@ pid_t UProcess::execute(const char* pathname, char* argv[], char* envp[], bool f
    // to the handles specified in the hStdInput, hStdOutput, and hStdError members of the STARTUPINFO structure.
    // For this to work properly, the handles must be inheritable and the CreateProcess function's fInheritHandles
    // parameter must be set to TRUE. If this value is not specified, the hStdInput, hStdOutput, and hStdError
-   // members of the STARTUPINFO structure are ignored.
+   // members of the STARTUPINFO structure are ignored
 
    if (fd_stdin || fd_stdout || fd_stderr)
       {
@@ -467,7 +468,7 @@ pid_t UProcess::execute(const char* pathname, char* argv[], char* envp[], bool f
 
    pid_t pid;
 
-#  ifdef HAVE_POSIX_SPAWN
+# ifdef HAVE_POSIX_SPAWN
    posix_spawn_file_actions_t action;
 
    (void) U_SYSCALL(posix_spawn_file_actions_init, "%p", &action);
@@ -511,7 +512,7 @@ pid_t UProcess::execute(const char* pathname, char* argv[], char* envp[], bool f
    (void) U_SYSCALL(posix_spawn, "%p,%S,%p,%p,%p,%p", &pid, pathname, &action, 0, argv, envp);
 
    (void) U_SYSCALL(posix_spawn_file_actions_destroy, "%p", &action);
-#  else
+# else
    pid = U_VFORK();
 
    if (pid == 0) // child
@@ -524,7 +525,7 @@ pid_t UProcess::execute(const char* pathname, char* argv[], char* envp[], bool f
    // parent
 
    if (u_exec_failed) U_RETURN(-1);
-#  endif
+# endif
 
    U_RETURN(pid);
    }
@@ -582,7 +583,7 @@ loop:
 
 void UProcess::wait()
 {
-   U_TRACE(0, "UProcess::wait()")
+   U_TRACE_NO_PARAM(0, "UProcess::wait()")
 
    U_CHECK_MEMORY
 
@@ -642,18 +643,18 @@ char* UProcess::exitInfo(char* buffer, int _status)
 
    if (WIFEXITED(_status))
       {
-      n = u__snprintf(buffer, 128, "Exit %d", WEXITSTATUS(_status));
+      n = u__snprintf(buffer, 128, U_CONSTANT_TO_PARAM("Exit %d"), WEXITSTATUS(_status));
       }
    else if (WIFSIGNALED(_status))
       {
 #  ifndef WCOREDUMP
 #  define WCOREDUMP(status) ((status) & 0200) // settimo bit
 #  endif
-      n = u__snprintf(buffer, 128, "Signal %Y%s", WTERMSIG(_status), (WCOREDUMP(_status) ? " - core dumped" : ""));
+      n = u__snprintf(buffer, 128, U_CONSTANT_TO_PARAM("Signal %Y%s"), WTERMSIG(_status), (WCOREDUMP(_status) ? " - core dumped" : ""));
       }
    else if (WIFSTOPPED(_status))
       {
-      n = u__snprintf(buffer, 128, "Signal %Y", WSTOPSIG(_status));
+      n = u__snprintf(buffer, 128, U_CONSTANT_TO_PARAM("Signal %Y"), WSTOPSIG(_status));
       }
 #  ifdef __clang__
 #  undef WIFCONTINUED // to avoid warning: equality comparison with extraneous parentheses...

@@ -5,7 +5,6 @@
 #include <ulib/notifier.h>
 
 #include <fcntl.h>
-#include <iostream>
 
 struct node {
    node* next;
@@ -231,7 +230,7 @@ public:
       U_RETURN(-1);
       }
 
-#ifdef DEBUG
+#if defined(U_STDCPP_ENABLE) && defined(DEBUG)
    const char* dump(bool _reset) const { return UEventTime::dump(_reset); }
 #endif
 };
@@ -264,7 +263,7 @@ public:
       U_RETURN(0);
       }
 
-#ifdef DEBUG
+#if defined(U_STDCPP_ENABLE) && defined(DEBUG)
    const char* dump(bool _reset) const { return MyAlarm1::dump(_reset); }
 #endif
 };
@@ -289,12 +288,14 @@ public:
       {
       U_TRACE(0, "handlerOutput::handlerWrite()")
 
+#  ifdef U_STDCPP_ENABLE
       cout << "receive message: " << message << endl;
+#  endif
 
       U_RETURN(0);
       }
 
-#ifdef DEBUG
+#if defined(U_STDCPP_ENABLE) && defined(DEBUG)
    const char* dump(bool _reset) const
       {
       *UObjectIO::os << "fd      " << fd << "\n"
@@ -340,7 +341,7 @@ public:
 
                if (handler_output == 0)
                   {
-                  handler_output = U_NEW(handlerOutput);
+                  U_NEW(handlerOutput, handler_output, handlerOutput);
 
                   UNotifier::insert(handler_output);
                   }
@@ -351,7 +352,7 @@ public:
       U_RETURN(0);
       }
 
-#ifdef DEBUG
+#if defined(U_STDCPP_ENABLE) && defined(DEBUG)
    const char* dump(bool _reset) const
       {
       *UObjectIO::os << "fd      " << fd << "\n"
@@ -389,12 +390,15 @@ int U_EXPORT main(int argc, char* argv[])
    fd_input  = fds[0];
    fd_output = fds[1];
 
-   handlerInput* c = U_NEW(handlerInput);
-   handlerInput* d = U_NEW(handlerInput);
+   handlerInput* c;
+   handlerInput* d;
 
-   UNotifier::init(false);
+   U_NEW(handlerInput, c, handlerInput);
+   U_NEW(handlerInput, d, handlerInput);
+
+   UNotifier::init();
    UNotifier::insert(c);
-   UNotifier::erase(c);
+   UNotifier::handlerDelete(c);
    UNotifier::insert(d);
 
 #ifdef __unix__
@@ -402,14 +406,20 @@ int U_EXPORT main(int argc, char* argv[])
 #endif
    U_ASSERT(UNotifier::waitForWrite(fds[1], 500) >= 1)
 
-   MyAlarm1* a = U_NEW(MyAlarm1(1L, 0L));
-   MyAlarm2* b = U_NEW(MyAlarm2(1L, 0L));
+   MyAlarm1* a;
+   MyAlarm2* b;
 
-   UTimer::init(true);
+   U_NEW(MyAlarm1, a, MyAlarm1(1L, 0L));
+   U_NEW(MyAlarm2, b, MyAlarm2(1L, 0L));
+
+   UTimer::init(UTimer::ASYNC);
+
    UTimer::insert(a);
    UTimer::insert(b);
 
-#ifdef DEBUG
+   UTimer::setTimer();
+
+#if defined(U_STDCPP_ENABLE) && defined(DEBUG)
    if (argc > 2) UTimer::printInfo(cout);
 #endif
 
@@ -424,22 +434,26 @@ int U_EXPORT main(int argc, char* argv[])
              UNotifier::waitForEvent(&timeout);
       (void) UNotifier::waitForRead(fds[0], 500);
 
-      (void) UTimer::insert(U_NEW(MyAlarm1(1L, 0L)));
+      U_NEW(MyAlarm1, a, MyAlarm1(1L, 0L));
 
+      UTimer::insert(a);
+
+      UTimer::setTimer();
+      
       timeout.nanosleep();
 
-#  ifdef DEBUG
+#  if defined(U_STDCPP_ENABLE) && defined(DEBUG)
       if (argc > 2) UTimer::printInfo(cout);
 #  endif
       }
 
-   UTimer::stop();
-
-#ifdef DEBUG
+#if defined(U_STDCPP_ENABLE) && defined(DEBUG)
    if (argc > 2) UTimer::printInfo(cout);
 #endif
-   UTimer::clear(false);
-#ifdef DEBUG
+
+   UTimer::clear();
+
+#if defined(U_STDCPP_ENABLE) && defined(DEBUG)
    if (argc > 2) UTimer::printInfo(cout);
 #endif
 

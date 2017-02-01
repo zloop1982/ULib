@@ -14,7 +14,6 @@
 #ifndef U_MOD_FCGI_H
 #define U_MOD_FCGI_H 1
 
-#include <ulib/string.h>
 #include <ulib/net/server/server_plugin.h>
 
 class UClient_Base;
@@ -25,8 +24,6 @@ public:
    // Check for memory error
    U_MEMORY_TEST
 
-   // COSTRUTTORI
-
             UFCGIPlugIn();
    virtual ~UFCGIPlugIn();
 
@@ -34,12 +31,12 @@ public:
 
    // Server-wide hooks
 
-   virtual int handlerConfig(UFileConfig& cfg) U_DECL_OVERRIDE;
-   virtual int handlerInit() U_DECL_OVERRIDE;
+   virtual int handlerConfig(UFileConfig& cfg) U_DECL_FINAL;
+   virtual int handlerInit() U_DECL_FINAL;
 
    // Connection-wide hooks
 
-   virtual int handlerRequest() U_DECL_OVERRIDE;
+   virtual int handlerRequest() U_DECL_FINAL;
 
    // DEBUG
 
@@ -48,20 +45,15 @@ public:
 #endif
 
 protected:
+   static bool fcgi_keep_conn;
+   static char environment_type;
    static UClient_Base* connection;
-   static bool fcgi_keep_conn, bphp;
 
-          void set_FCGIBeginRequest();
+          void  set_FCGIBeginRequest();
    static void fill_FCGIBeginRequest(u_char type, u_short content_length);
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UFCGIPlugIn(const UFCGIPlugIn&) = delete;
-   UFCGIPlugIn& operator=(const UFCGIPlugIn&) = delete;
-#else
-   UFCGIPlugIn(const UFCGIPlugIn&) : UServerPlugIn() {}
-   UFCGIPlugIn& operator=(const UFCGIPlugIn&)        { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UFCGIPlugIn)
 };
 
 #endif

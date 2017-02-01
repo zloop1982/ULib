@@ -16,6 +16,7 @@
 
 #include <ulib/string.h>
 
+class UValue;
 class UQueryParser;
 
 template <class T> class UVector;
@@ -30,14 +31,13 @@ public:
    U_MEMORY_ALLOCATOR
    U_MEMORY_DEALLOCATOR
 
-   // COSTRUTTORI
-
    UTokenizer(const char* d = 0)
       {
       U_TRACE_REGISTER_OBJECT(0, UTokenizer, "%S", d)
 
-      delim   = d;
-      s = end = 0;
+          s =
+        end = 0;
+      delim = d;
       }
 
    UTokenizer(const UString& data, const char* d = 0) : str(data)
@@ -45,7 +45,7 @@ public:
       U_TRACE_REGISTER_OBJECT(0, UTokenizer, "%V,%S", data.rep, d)
 
       s     = data.data();
-      end   = data.end();
+      end   = data.pend();
       delim = d;
       }
 
@@ -54,15 +54,13 @@ public:
       U_TRACE_UNREGISTER_OBJECT(0, UTokenizer)
       }
 
-   // VARIE
-
    bool atEnd()
       {
-      U_TRACE(0, "UTokenizer::atEnd()")
+      U_TRACE_NO_PARAM(0, "UTokenizer::atEnd()")
 
-      bool result = (s >= end);
+      if (s < end) U_RETURN(false);
 
-      U_RETURN(result);
+      U_RETURN(true);
       }
 
    void setDelimiter(const char* sep)
@@ -72,13 +70,24 @@ public:
       delim = sep;
       }
 
-   void setData(const UString& data);
+   void setData(const UString& data)
+      {
+      U_TRACE(0, "UTokenizer::setData(%V)", data.rep)
+
+      str = data;
+      end = (s = data.data()) + data.size();
+      }
 
    void skipSpaces()
       {
-      U_TRACE(0, "UTokenizer::skipSpaces()")
+      U_TRACE_NO_PARAM(0, "UTokenizer::skipSpaces()")
 
-      while (s < end && u__isspace(*s)) ++s;
+      if (u__isspace(*s))
+         {
+         while (u__isspace(*++s)) {} 
+
+         if (s > end) s = end;
+         }
       }
 
    void setPointer(const char* ptr)
@@ -92,16 +101,16 @@ public:
 
    const char* getPointer() const
       {
-      U_TRACE(0, "UTokenizer::getPointer()")
+      U_TRACE_NO_PARAM(0, "UTokenizer::getPointer()")
 
       U_RETURN(s);
       }
 
    const char* getEnd() const
       {
-      U_TRACE(0, "UTokenizer::getEnd()")
+      U_TRACE_NO_PARAM(0, "UTokenizer::getEnd()")
 
-      U_RETURN(end);
+      return end;
       }
 
    void setDistance(uint32_t pos)
@@ -109,6 +118,15 @@ public:
       U_TRACE(0, "UTokenizer::setDistance(%u)", pos)
 
       s = str.c_pointer(pos);
+      }
+
+   uint32_t getSize() const __pure
+      {
+      U_TRACE(0, "UTokenizer::getSize()")
+
+      uint32_t pos = str.size();
+
+      U_RETURN(pos);
       }
 
    uint32_t getDistance() const __pure
@@ -120,55 +138,127 @@ public:
       U_RETURN(pos);
       }
 
-   // get current char
+   // get prev char
 
-   char current()
+   char prev()
       {
-      U_TRACE(0, "UTokenizer::current()")
+      U_TRACE_NO_PARAM(0, "UTokenizer::prev()")
 
-      if (s >= end) U_RETURN('\0');
-
-      U_RETURN(*s);
+      U_RETURN(*(s-1));
       }
 
-   // go prev char
+   // go to prev position
 
    void back()
       {
-      U_TRACE(0, "UTokenizer::back()")
+      U_TRACE_NO_PARAM(0, "UTokenizer::back()")
 
       U_INTERNAL_ASSERT_MAJOR(s, str.data())
 
       --s;
       }
 
-   // get next char
+   // get current char
+
+   char current()
+      {
+      U_TRACE_NO_PARAM(0, "UTokenizer::current()")
+
+      U_INTERNAL_ASSERT(s <= end)
+
+      U_RETURN(*s);
+      }
+
+   // get current char and advance one position
 
    char next()
       {
-      U_TRACE(0, "UTokenizer::next()")
-
-      if (s >= end) U_RETURN('\0');
+      U_TRACE_NO_PARAM(0, "UTokenizer::next()")
+ 
+      U_INTERNAL_ASSERT(s < end)
 
       U_RETURN(*s++);
       }
+
+   void advance()
+      {
+      U_TRACE_NO_PARAM(0, "UTokenizer::advance()")
+ 
+      U_INTERNAL_ASSERT(s <= end)
+
+      ++s;
+      }
+
+   UTokenizer& operator++() { advance(); return *this; } // ++tok
 
    // get next token
 
    bool   next(UString& tok, char c);
    bool extend(UString& tok, char c); // extend the actual token to the next char 'c'... (see PEC_report.cpp)
 
-   bool   next(UString& tok, bPFi func);
-   bool   next(UString& tok, bool* bgroup);
+   bool next(UString& tok, bPFi func);
+   bool next(UString& tok, bool* bgroup);
 
    // EXT
 
-   UString getTokenQueryParser();
-   int     getTokenId(UString& token);
-   bool    tokenSeen(const UString* x);
+   bool skipToken();
+   bool skipToken(const char* token, uint32_t sz)
+      {
+      U_TRACE(0, "UTokenizer::skipToken(%.*S,%u)", sz, token, sz)
 
-   bool skipNumber(bool& isReal);
-   bool skipToken(const char* token, uint32_t sz);
+      if ((uint32_t)str.remain(s) >= sz &&
+          memcmp(s, token, sz) == 0)
+         {
+         s += sz;
+
+         U_RETURN(true);
+         }
+
+      U_RETURN(false);
+      }
+
+   void skipNumber()
+      {
+      U_TRACE_NO_PARAM(0, "UTokenizer::skipNumber()")
+
+      for (; s < end; ++s)
+         {
+         char c = *s;
+
+         if (u__isnumberchar(c) == false &&
+             u__toupper(c) != 'E') // scientific notation (Ex: 1.45e-10)
+            {
+            break;
+            }
+         }
+      }
+
+   UString substr() const
+      {
+      U_TRACE_NO_PARAM(0, "UTokenizer::substr()")
+
+      UString result;
+
+      if (s < end) result = str.substr(str.distance(s));
+
+      U_RETURN_STRING(result);
+      }
+
+   UString substr(const char* start) const
+      {
+      U_TRACE(0, "UTokenizer::substr(%p)", start)
+
+      UString result;
+
+      if (start < end) result = str.substr(start, s - start);
+
+      U_RETURN_STRING(result);
+      }
+
+   UString getTokenQueryParser();
+
+   int  getTokenId(UString* ptoken);
+   bool tokenSeen(const UString* x);
 
    static const char* group;
    static bool group_skip, avoid_punctuation;
@@ -210,13 +300,7 @@ protected:
    UString str;
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UTokenizer(const UTokenizer&) = delete;
-   UTokenizer& operator=(const UTokenizer&) = delete;
-#else
-   UTokenizer(const UTokenizer&)            {}
-   UTokenizer& operator=(const UTokenizer&) { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UTokenizer)
 
    friend class UQueryParser;
 };

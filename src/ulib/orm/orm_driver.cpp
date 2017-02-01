@@ -34,53 +34,6 @@ UVector<UString>*     UOrmDriver::vdriver_name;
 UVector<UString>*     UOrmDriver::vdriver_name_static;
 UVector<UOrmDriver*>* UOrmDriver::vdriver;
 
-const UString* UOrmDriver::str_host;
-const UString* UOrmDriver::str_port;
-const UString* UOrmDriver::str_root;
-const UString* UOrmDriver::str_UTF8;
-const UString* UOrmDriver::str_UTF16;
-const UString* UOrmDriver::str_dbname;
-const UString* UOrmDriver::str_timeout;
-const UString* UOrmDriver::str_compress;
-const UString* UOrmDriver::str_character_set;
-
-void UOrmDriver::str_allocate()
-{
-   U_TRACE(0, "UOrmDriver::str_allocate()")
-
-   U_INTERNAL_ASSERT_EQUALS(str_host,0)
-   U_INTERNAL_ASSERT_EQUALS(str_port,0)
-   U_INTERNAL_ASSERT_EQUALS(str_root,0)
-   U_INTERNAL_ASSERT_EQUALS(str_UTF8,0)
-   U_INTERNAL_ASSERT_EQUALS(str_UTF16,0)
-   U_INTERNAL_ASSERT_EQUALS(str_dbname,0)
-   U_INTERNAL_ASSERT_EQUALS(str_timeout,0)
-   U_INTERNAL_ASSERT_EQUALS(str_compress,0)
-   U_INTERNAL_ASSERT_EQUALS(str_character_set,0)
-
-   static ustringrep stringrep_storage[] = {
-      { U_STRINGREP_FROM_CONSTANT("host") },
-      { U_STRINGREP_FROM_CONSTANT("port") },
-      { U_STRINGREP_FROM_CONSTANT("root") },
-      { U_STRINGREP_FROM_CONSTANT("utf8") },
-      { U_STRINGREP_FROM_CONSTANT("utf16") },
-      { U_STRINGREP_FROM_CONSTANT("dbname") },
-      { U_STRINGREP_FROM_CONSTANT("timeout") },
-      { U_STRINGREP_FROM_CONSTANT("compress") },
-      { U_STRINGREP_FROM_CONSTANT("character-set") }
-   };
-
-   U_NEW_ULIB_OBJECT(str_host,          U_STRING_FROM_STRINGREP_STORAGE(0));
-   U_NEW_ULIB_OBJECT(str_port,          U_STRING_FROM_STRINGREP_STORAGE(1));
-   U_NEW_ULIB_OBJECT(str_root,          U_STRING_FROM_STRINGREP_STORAGE(2));
-   U_NEW_ULIB_OBJECT(str_UTF8,          U_STRING_FROM_STRINGREP_STORAGE(3));
-   U_NEW_ULIB_OBJECT(str_UTF16,         U_STRING_FROM_STRINGREP_STORAGE(4));
-   U_NEW_ULIB_OBJECT(str_dbname,        U_STRING_FROM_STRINGREP_STORAGE(5));
-   U_NEW_ULIB_OBJECT(str_timeout,       U_STRING_FROM_STRINGREP_STORAGE(6));
-   U_NEW_ULIB_OBJECT(str_compress,      U_STRING_FROM_STRINGREP_STORAGE(7));
-   U_NEW_ULIB_OBJECT(str_character_set, U_STRING_FROM_STRINGREP_STORAGE(8));
-}
-
 UOrmDriver::~UOrmDriver()
 {
    U_TRACE_UNREGISTER_OBJECT(0, UOrmDriver)
@@ -88,7 +41,7 @@ UOrmDriver::~UOrmDriver()
 
 void UOrmDriver::clear()
 {
-   U_TRACE(0, "UOrmDriver::clear()")
+   U_TRACE_NO_PARAM(0, "UOrmDriver::clear()")
 
    if (driver_dir) delete driver_dir;
 
@@ -111,15 +64,15 @@ U_NO_EXPORT void UOrmDriver::loadStaticLinkedModules(const char* name)
    UString x(name);
    UOrmDriver* _driver = 0;
 
-#  ifdef U_STATIC_ORM_DRIVER_SQLITE
-   if (x.equal(U_CONSTANT_TO_PARAM("sqlite"))) { _driver = U_NEW(UOrmDriverSqlite); goto next; }
-#  endif
-#  ifdef U_STATIC_ORM_DRIVER_MYSQL
-   if (x.equal(U_CONSTANT_TO_PARAM("mysql")))  { _driver = U_NEW(UOrmDriverMySql);  goto next; }
-#  endif
-#  ifdef U_STATIC_ORM_DRIVER_PGSQL
-   if (x.equal(U_CONSTANT_TO_PARAM("pgsql")))  { _driver = U_NEW(UOrmDriverPgSql);  goto next; }
-#  endif
+# ifdef U_STATIC_ORM_DRIVER_SQLITE
+   if (x.equal(U_CONSTANT_TO_PARAM("sqlite"))) { U_NEW(UOrmDriverSqlite, _driver, UOrmDriverSqlite);  goto next; }
+# endif
+# ifdef U_STATIC_ORM_DRIVER_MYSQL
+   if (x.equal(U_CONSTANT_TO_PARAM("mysql")))  { U_NEW(UOrmDriverMySql, _driver, UOrmDriverMySql); goto next; }
+# endif
+# ifdef U_STATIC_ORM_DRIVER_PGSQL
+   if (x.equal(U_CONSTANT_TO_PARAM("pgsql")))  { U_NEW(UOrmDriverPgSql, _driver, UOrmDriverPgSql); goto next; }
+# endif
 next:
    if (_driver)
       {
@@ -127,7 +80,7 @@ next:
       vdriver_name_static->push_back(x);
 
 #  ifndef U_LOG_DISABLE
-      if (UServer_Base::isLog()) ULog::log("[%s] Link of static driver ok", name);
+      if (UServer_Base::isLog()) ULog::log(U_CONSTANT_TO_PARAM("[%s] Link of static driver ok"), name);
 #  endif
       }
 #endif
@@ -139,7 +92,7 @@ void UOrmDriver::setDriverDirectory(const UString& dir)
 
    U_INTERNAL_ASSERT_EQUALS(driver_dir, 0)
 
-   driver_dir = U_NEW(UString);
+   U_NEW(UString, driver_dir, UString);
 
    // NB: we can't use relativ path because after we call chdir()...
 
@@ -157,17 +110,18 @@ bool UOrmDriver::loadDriver(const UString& dir, const UString& driver_list)
    U_TRACE(0, "UOrmDriver::loadDriver(%V,%V)", dir.rep, driver_list.rep)
 
 #if defined(USE_SQLITE) || defined(USE_MYSQL) || defined(USE_PGSQL)
-   if (str_host) U_RETURN(true);
-
-   str_allocate();
+   if (vdriver) U_RETURN(true);
 
    if (dir) setDriverDirectory(dir);
 
    if (driver_dir) UDynamic::setPluginDirectory(*driver_dir);
 
-   vdriver             = U_NEW(UVector<UOrmDriver*>(10U));
-   vdriver_name        = U_NEW(UVector<UString>(10U));
-   vdriver_name_static = U_NEW(UVector<UString>(20U));
+   UString::str_allocate(STR_ALLOCATE_ORM);
+
+   U_NEW(UVector<UOrmDriver*>, vdriver, UVector<UOrmDriver*>(10U));
+
+   U_NEW(UVector<UString>, vdriver_name,        UVector<UString>(10U));
+   U_NEW(UVector<UString>, vdriver_name_static, UVector<UString>(20U));
 
    uint32_t i, n;
    UOrmDriver* _driver;
@@ -180,7 +134,7 @@ bool UOrmDriver::loadDriver(const UString& dir, const UString& driver_list)
    /**
     * I do know that to include code in the middle of a function is hacky and dirty,
     * but this is the best solution that I could figure out. If you have some idea to
-    * clean it up, please, don't hesitate and let me know.
+    * clean it up, please, don't hesitate and let me know
     */
 
 #  include "driver/loader.autoconf.cpp"
@@ -197,7 +151,7 @@ bool UOrmDriver::loadDriver(const UString& dir, const UString& driver_list)
          {
          _name.setBuffer(32U);
 
-         _name.snprintf("orm_driver_%v", item.rep);
+         _name.snprintf(U_CONSTANT_TO_PARAM("orm_driver_%v"), item.rep);
 
          _driver = UPlugIn<UOrmDriver*>::create(U_STRING_TO_PARAM(_name));
 
@@ -211,8 +165,8 @@ bool UOrmDriver::loadDriver(const UString& dir, const UString& driver_list)
          vdriver->push_back(_driver);
          vdriver_name_static->push_back(item);
 
-#     ifdef U_LOG_ENABLE
-         if (UServer_Base::isLog()) ULog::log("[%v] Load of driver success", item.rep);
+#     ifndef U_LOG_DISABLE
+         if (UServer_Base::isLog()) ULog::log(U_CONSTANT_TO_PARAM("[%v] Load of driver success"), item.rep);
 #     endif
          }
       }
@@ -233,7 +187,7 @@ bool UOrmDriver::loadDriver(const UString& dir, const UString& driver_list)
    env_driver = (const char*) U_SYSCALL(getenv, "%S", "ORM_DRIVER");
    env_option = (const char*) U_SYSCALL(getenv, "%S", "ORM_OPTION");
 
-   if (env_driver) env_driver_len = u__strlen((char*)env_driver, __PRETTY_FUNCTION__);
+   if (env_driver) env_driver_len = u__strlen(env_driver, __PRETTY_FUNCTION__);
 #endif
 
    U_RETURN(true);
@@ -254,7 +208,7 @@ void UOrmDriver::printError(const char* function)
 
    buffer[0] = 0;
 
-   uint32_t len = u__snprintf(buffer, sizeof(buffer), "%V on %V at %S - %s%s(%d, %s)%s%s",
+   uint32_t len = u__snprintf(buffer, sizeof(buffer), U_CONSTANT_TO_PARAM("%V on %V at %S - %s%s(%d, %s)%s%s"),
                               name.rep, dbname.rep, function, errname, ptr1, errcode, errmsg, ptr2, SQLSTATE);
 
    if (UOrmDriver::bexit == false)
@@ -303,7 +257,7 @@ bool UOrmDriver::setOption(const UString& option)
    if (n == 1) dbname = vopt[0];
    else
       {
-      n = vopt.find(*str_dbname, false);
+      n = vopt.find(*UString::str_dbname, false);
 
       if (n != U_NOT_FOUND) dbname = vopt[n+1];
       }
@@ -328,7 +282,7 @@ UString UOrmDriver::getOptionValue(const char* _name, uint32_t len)
    U_TRACE(0, "UOrmDriver::getOptionValue(%*S,%u)", len, _name, len)
 
    if (vopt.size() == 1 &&
-       str_dbname->equal(_name, len))
+       UString::str_dbname->equal(_name, len))
       {
       U_RETURN_STRING(dbname);
       }
@@ -360,7 +314,8 @@ USqlStatementBindParam::USqlStatementBindParam(const char* s, int n, bool bstati
       }
    else
       {
-      pstr   = U_NEW(UString((void*)s, n));
+      U_NEW(UString, pstr, UString((void*)s, n));
+
       buffer = pstr->data();
       }
 }
@@ -395,7 +350,8 @@ USqlStatementBindParam* UOrmDriver::creatSqlStatementBindParam(USqlStatement* ps
    if (bstatic) param->buffer = (void*)s;
    else
       {
-      param->pstr   = U_NEW(UString((void*)s, n));
+      U_NEW(UString, param->pstr, UString((void*)s, n));
+
       param->buffer = param->pstr->data();
       }
 

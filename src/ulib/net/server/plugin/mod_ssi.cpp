@@ -24,10 +24,11 @@
 #include <ulib/utility/string_ext.h>
 #include <ulib/net/server/plugin/mod_ssi.h>
 
-// Server Side Include (SSI) commands are executed by the server as it parses your HTML file.
-// Server side includes can be used to include the value of various server environment variables
-// within your HTML such as the local date and time. One might use a server side include to add
-// a signature file to an HTML file or company logo. 
+/**
+ * Server Side Include (SSI) commands are executed by the server as it parses your HTML file. Server side includes can be used to include
+ * the value of various server environment variables within your HTML such as the local date and time. One might use a server side include
+ * to add a signature file to an HTML file or company logo for example
+ */
 
 U_CREAT_FUNC(server_plugin_ssi, USSIPlugIn)
 
@@ -42,34 +43,15 @@ UString* USSIPlugIn::header;
 UString* USSIPlugIn::environment;
 UString* USSIPlugIn::alternative_include;
 
-const UString* USSIPlugIn::str_cgi;
-const UString* USSIPlugIn::str_var;
-
-void USSIPlugIn::str_allocate()
-{
-   U_TRACE(0, "USSIPlugIn::str_allocate()")
-
-   U_INTERNAL_ASSERT_EQUALS(str_cgi, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_var, 0)
-
-   static ustringrep stringrep_storage[] = {
-      { U_STRINGREP_FROM_CONSTANT("cgi") },
-      { U_STRINGREP_FROM_CONSTANT("var") }
-   };
-
-   U_NEW_ULIB_OBJECT(str_cgi, U_STRING_FROM_STRINGREP_STORAGE(0));
-   U_NEW_ULIB_OBJECT(str_var, U_STRING_FROM_STRINGREP_STORAGE(1));
-}
-
 USSIPlugIn::USSIPlugIn()
 {
    U_TRACE_REGISTER_OBJECT(0, USSIPlugIn, "")
 
-   errmsg  = U_NEW(UString);
-   timefmt = U_NEW(UString);
-   docname = U_NEW(UString);
+   U_NEW(UString, errmsg,  UString);
+   U_NEW(UString, timefmt, UString);
+   U_NEW(UString, docname, UString);
 
-   str_allocate();
+   UString::str_allocate(STR_ALLOCATE_SSI);
 }
 
 USSIPlugIn::~USSIPlugIn()
@@ -100,9 +82,7 @@ void USSIPlugIn::setAlternativeRedirect(const char* fmt, ...)
    va_list argp;
    va_start(argp, fmt);
 
-   (void) u__snprintf(format, sizeof(format), U_CTYPE_HTML "\r\nRefresh: 0; url=%s\r\n", fmt);
-
-   buffer.vsnprintf(format, argp);
+   buffer.vsnprintf(format, u__snprintf(format, sizeof(format), U_CONSTANT_TO_PARAM(U_CTYPE_HTML "\r\nRefresh: 0; url=%s\r\n"), fmt), argp);
 
    va_end(argp);
 
@@ -111,12 +91,12 @@ void USSIPlugIn::setAlternativeRedirect(const char* fmt, ...)
 
    UClientImage_Base::setCloseConnection();
 
-   UHTTP::setResponse(&buffer, 0);
+   UHTTP::setResponse(buffer, 0);
 }
 
 void USSIPlugIn::setBadRequest()
 {
-   U_TRACE(0, "USSIPlugIn::setBadRequest()")
+   U_TRACE_NO_PARAM(0, "USSIPlugIn::setBadRequest()")
 
    alternative_response = 1;
 
@@ -125,7 +105,7 @@ void USSIPlugIn::setBadRequest()
 
 void USSIPlugIn::setAlternativeResponse()
 {
-   U_TRACE(0, "USSIPlugIn::setAlternativeResponse()")
+   U_TRACE_NO_PARAM(0, "USSIPlugIn::setAlternativeResponse()")
 
    alternative_response = 1;
 
@@ -133,7 +113,7 @@ void USSIPlugIn::setAlternativeResponse()
 
    UClientImage_Base::setCloseConnection();
 
-   UHTTP::setResponse(0, 0);
+   UHTTP::setResponse();
 }
 
 void USSIPlugIn::setAlternativeResponse(UString& _body)
@@ -148,14 +128,33 @@ void USSIPlugIn::setAlternativeResponse(UString& _body)
       {
       U_http_info.nResponseCode = HTTP_NO_CONTENT;
 
-      UHTTP::setResponse(0, 0);
+      UHTTP::setResponse();
       }
    else
       {
       U_http_info.nResponseCode = HTTP_OK;
 
-      UHTTP::setResponse(u_is_know(UHTTP::mime_index) ? UHTTP::str_ctype_txt : UHTTP::str_ctype_html, &_body);
+      UHTTP::setResponse(*(u_is_know(UHTTP::mime_index) ? UString::str_ctype_txt : UString::str_ctype_html), &_body);
       }
+}
+
+void USSIPlugIn::setAlternativeInclude(const char* title_txt, const UString& output)
+{
+   U_TRACE(0, "USSIPlugIn::setAlternativeInclude(%S,%V)", title_txt, output.rep)
+
+   U_INTERNAL_ASSERT_POINTER(title_txt)
+
+   *alternative_include = output;
+
+   U_http_info.nResponseCode = HTTP_NO_CONTENT;
+
+   UString buffer(U_CAPACITY);
+
+   buffer.snprintf(U_CONSTANT_TO_PARAM("'TITLE_TXT=%s'\n"), title_txt);
+
+   (void) UClientImage_Base::environment->append(buffer);
+
+   UClientImage_Base::wbuffer->setBuffer(U_CAPACITY); // NB: to avoid append on output...
 }
 
 void USSIPlugIn::setAlternativeInclude(const UString& tmpl, uint32_t estimated_size, bool bprocess, const char* title_txt, const char* ssi_head, const char* body_style, ...)
@@ -172,7 +171,7 @@ void USSIPlugIn::setAlternativeInclude(const UString& tmpl, uint32_t estimated_s
    va_list argp;
    va_start(argp, body_style);
 
-   alternative_include->vsnprintf(tmpl.data(), argp);
+   alternative_include->vsnprintf(U_STRING_TO_PARAM(tmpl), argp);
 
    va_end(argp);
 
@@ -180,9 +179,9 @@ void USSIPlugIn::setAlternativeInclude(const UString& tmpl, uint32_t estimated_s
 
    UString buffer(U_CAPACITY);
 
-                   buffer.snprintf(    "'TITLE_TXT=%s'\n", title_txt);
-   if (ssi_head)   buffer.snprintf_add("'SSI_HEAD=%s'\n",  ssi_head);
-   if (body_style) buffer.snprintf_add("BODY_STYLE=%s\n",  body_style);
+                   buffer.snprintf(    U_CONSTANT_TO_PARAM("'TITLE_TXT=%s'\n"), title_txt);
+   if (ssi_head)   buffer.snprintf_add(U_CONSTANT_TO_PARAM("'SSI_HEAD=%s'\n"),  ssi_head);
+   if (body_style) buffer.snprintf_add(U_CONSTANT_TO_PARAM("BODY_STYLE=%s\n"),  body_style);
 
    (void) UClientImage_Base::environment->append(buffer);
 
@@ -191,16 +190,16 @@ void USSIPlugIn::setAlternativeInclude(const UString& tmpl, uint32_t estimated_s
    UClientImage_Base::wbuffer->setBuffer(U_CAPACITY); // NB: to avoid append on output...
 }
 
-void USSIPlugIn::setMessagePageWithVar(const UString& tmpl, const char* title_txt, const char* fmt, ...)
+void USSIPlugIn::setMessagePageWithVar(const UString& tmpl, const char* title_txt, const char* fmt, uint32_t fmt_size, ...)
 {
-   U_TRACE(0, "USSIPlugIn::setMessagePageWithVar(%V,%S,%S)", tmpl.rep, title_txt, fmt)
+   U_TRACE(0, "USSIPlugIn::setMessagePageWithVar(%V,%S,%.*S,%u)", tmpl.rep, title_txt, fmt_size, fmt, fmt_size)
 
    char format[4096];
 
    va_list argp;
-   va_start(argp, fmt);
+   va_start(argp, fmt_size);
 
-   (void) u__vsnprintf(format, sizeof(format), fmt, argp);
+   (void) u__vsnprintf(format, sizeof(format), fmt, fmt_size, argp);
 
    va_end(argp);
 
@@ -264,7 +263,7 @@ U_NO_EXPORT bool USSIPlugIn::callService(const UString& name, const UString& val
       U_RETURN(true);
       }
 
-   U_ASSERT(name == *str_cgi ||
+   U_ASSERT(name == *UString::str_cgi ||
             name.equal(U_CONSTANT_TO_PARAM("servlet")))
 
    UClientImage_Base::wbuffer->setBuffer(U_CAPACITY); // NB: we need this to avoid to accumulate output from services...
@@ -277,7 +276,7 @@ U_NO_EXPORT bool USSIPlugIn::callService(const UString& name, const UString& val
 
    if (result == false      ||
        alternative_response ||
-       U_ClientImage_parallelization == 2) // 2 => parent of parallelization
+       U_ClientImage_parallelization == U_PARALLELIZATION_PARENT)
       {
       alternative_response = 1; // 1 => response already complete (nothing to do)
 
@@ -312,7 +311,7 @@ U_NO_EXPORT UString USSIPlugIn::processSSIRequest(const UString& content, int in
       // Find next SSI tag
 
       uint32_t distance = t.getDistance(),
-               pos      = content.find("<!--#", distance);
+               pos      = U_STRING_FIND(content, distance, "<!--#");
 
       if (pos)
          {
@@ -392,65 +391,84 @@ U_NO_EXPORT UString USSIPlugIn::processSSIRequest(const UString& content, int in
 
       int op = SSI_NONE;
 
-      if (strncmp(directive, U_CONSTANT_TO_PARAM("include ")) == 0)
+      if (u_get_unalignedp16(directive) == U_MULTICHAR_CONSTANT16('i','f'))
          {
-         op = SSI_INCLUDE;
-         i += U_CONSTANT_SIZE("include ");
-         }
-      else if (strncmp(directive, U_CONSTANT_TO_PARAM("if ")) == 0)
-         {
+         U_INTERNAL_ASSERT_EQUALS(directive[2], ' ')
+
          op = SSI_IF;
          i += U_CONSTANT_SIZE("if ");
          }
-      else if (strncmp(directive, U_CONSTANT_TO_PARAM("else ")) == 0)
+      else if (u_get_unalignedp32(directive) == U_MULTICHAR_CONSTANT32('s','e','t',' '))
          {
+         op = SSI_SET;
+         i += U_CONSTANT_SIZE("set ");
+         }
+      else if (u_get_unalignedp32(directive) == U_MULTICHAR_CONSTANT32('e','l','s','e'))
+         {
+         U_INTERNAL_ASSERT_EQUALS(directive[4], ' ')
+
          op = SSI_ELSE;
          i += U_CONSTANT_SIZE("else ");
          }
-      else if (strncmp(directive, U_CONSTANT_TO_PARAM("elif ")) == 0)
+      else if (u_get_unalignedp32(directive) == U_MULTICHAR_CONSTANT32('e','l','i','f'))
          {
+         U_INTERNAL_ASSERT_EQUALS(directive[4], ' ')
+
          op = SSI_ELIF;
          i += U_CONSTANT_SIZE("elif ");
          }
-      else if (strncmp(directive, U_CONSTANT_TO_PARAM("endif ")) == 0)
+      else if (u_get_unalignedp32(directive) == U_MULTICHAR_CONSTANT32('e','x','e','c'))
+         {
+         U_INTERNAL_ASSERT_EQUALS(directive[4], ' ')
+
+         op = SSI_EXEC;
+         i += U_CONSTANT_SIZE("exec ");
+         }
+      else if (u_get_unalignedp32(directive) == U_MULTICHAR_CONSTANT32('e','c','h','o'))
+         {
+         U_INTERNAL_ASSERT_EQUALS(directive[4], ' ')
+
+         op = SSI_ECHO;
+         i += U_CONSTANT_SIZE("echo ");
+         }
+      else if (u_get_unalignedp32(directive)   == U_MULTICHAR_CONSTANT32('e','n','d','i') &&
+               u_get_unalignedp16(directive+4) == U_MULTICHAR_CONSTANT16('f',' '))
          {
          op = SSI_ENDIF;
          i += U_CONSTANT_SIZE("endif ");
          }
-      else if (strncmp(directive, U_CONSTANT_TO_PARAM("exec ")) == 0)
-         {
-         op = SSI_EXEC;
-         i += U_CONSTANT_SIZE("exec ");
-         }
-      else if (strncmp(directive, U_CONSTANT_TO_PARAM("echo ")) == 0)
-         {
-         op = SSI_ECHO;
-         i += U_CONSTANT_SIZE("echo ");
-         }
-      else if (strncmp(directive, U_CONSTANT_TO_PARAM("config ")) == 0)
-         {
-         op = SSI_CONFIG;
-         i += U_CONSTANT_SIZE("config ");
-         }
-      else if (strncmp(directive, U_CONSTANT_TO_PARAM("flastmod ")) == 0)
-         {
-         op = SSI_FLASTMOD;
-         i += U_CONSTANT_SIZE("flastmod ");
-         }
-      else if (strncmp(directive, U_CONSTANT_TO_PARAM("fsize ")) == 0)
+      else if (u_get_unalignedp32(directive)   == U_MULTICHAR_CONSTANT32('f','s','i','z') &&
+               u_get_unalignedp16(directive+4) == U_MULTICHAR_CONSTANT16('e',' '))
          {
          op = SSI_FSIZE;
          i += U_CONSTANT_SIZE("fsize ");
          }
-      else if (strncmp(directive, U_CONSTANT_TO_PARAM("printenv ")) == 0)
+      else if (u_get_unalignedp32(directive)   == U_MULTICHAR_CONSTANT32('c','o','n','f') &&
+               u_get_unalignedp16(directive+4) == U_MULTICHAR_CONSTANT16('i','g'))
          {
+         U_INTERNAL_ASSERT_EQUALS(directive[6], ' ')
+
+         op = SSI_CONFIG;
+         i += U_CONSTANT_SIZE("config ");
+         }
+      else if (u_get_unalignedp64(directive) == U_MULTICHAR_CONSTANT64('i','n','c','l','u','d','e',' '))
+         {
+         op = SSI_INCLUDE;
+         i += U_CONSTANT_SIZE("include ");
+         }
+      else if (u_get_unalignedp64(directive) == U_MULTICHAR_CONSTANT64('f','l','a','s','t','m','o','d'))
+         {
+         U_INTERNAL_ASSERT_EQUALS(directive[8], ' ')
+
+         op = SSI_FLASTMOD;
+         i += U_CONSTANT_SIZE("flastmod ");
+         }
+      else if (u_get_unalignedp64(directive) == U_MULTICHAR_CONSTANT64('p','r','i','n','t','e','n','v'))
+         {
+         U_INTERNAL_ASSERT_EQUALS(directive[8], ' ')
+
          op = SSI_PRINTENV;
          i += U_CONSTANT_SIZE("printenv ");
-         }
-      else if (strncmp(directive, U_CONSTANT_TO_PARAM("set ")) == 0)
-         {
-         op = SSI_SET;
-         i += U_CONSTANT_SIZE("set ");
          }
 
       int n = token.size() - i;
@@ -480,13 +498,13 @@ U_NO_EXPORT UString USSIPlugIn::processSSIRequest(const UString& content, int in
 
       switch (op)
          {
-         /*
-         <!--#if expr="${Sec_Nav}" -->
-            <!--#include virtual="secondary_nav.txt" -->
-         <!--#elif expr="${Pri_Nav}" -->
-            <!--#include virtual="primary_nav.txt" -->
-         <!--#endif -->
-         */
+         /**
+          * <!--#if expr="${Sec_Nav}" -->
+          *    <!--#include virtual="secondary_nav.txt" -->
+          * <!--#elif expr="${Pri_Nav}" -->
+          *    <!--#include virtual="primary_nav.txt" -->
+          * <!--#endif -->
+          */
 
          case SSI_IF:
          case SSI_ELIF:
@@ -575,16 +593,16 @@ U_NO_EXPORT UString USSIPlugIn::processSSIRequest(const UString& content, int in
 
       switch (op)
          {
-         /*
-         <!--#printenv -->
-         */
+         /**
+          * <!--#printenv -->
+          */
          case SSI_PRINTENV: (void) output.append(U_STRING_TO_PARAM(*UClientImage_Base::environment)); break;
 
-         /*
-         <!--#config sizefmt="bytes" -->
-         <!--#config timefmt="%y %m %d" -->
-         <!--#config errmsg="SSI command failed!" -->
-         */
+         /**
+          * <!--#config sizefmt="bytes" -->
+          * <!--#config timefmt="%y %m %d" -->
+          * <!--#config errmsg="SSI command failed!" -->
+          */
          case SSI_CONFIG:
             {
             for (i = 0; i < n; i += 2)
@@ -599,10 +617,10 @@ U_NO_EXPORT UString USSIPlugIn::processSSIRequest(const UString& content, int in
             }
          break;
 
-         /*
-         <!--#echo var=$BODY_STYLE -->
-         <!--#echo [encoding="..."] var="..." [encoding="..."] var="..." ... -->
-         */
+         /**
+          * <!--#echo var=$BODY_STYLE -->
+          * <!--#echo [encoding="..."] var="..." [encoding="..."] var="..." ... -->
+          */
          case SSI_ECHO:
             {
             encode = E_NONE;
@@ -612,15 +630,15 @@ U_NO_EXPORT UString USSIPlugIn::processSSIRequest(const UString& content, int in
                name  = name_value[i];
                value = name_value[i+1];
 
-               if (name == *UString::str_encoding)
+               if (name.equal(U_CONSTANT_TO_PARAM("encoding")))
                   {
                        if (value.equal(U_CONSTANT_TO_PARAM("none")))   encode = E_NONE;
                   else if (value.equal(U_CONSTANT_TO_PARAM("url")))    encode = E_URL;
                   else if (value.equal(U_CONSTANT_TO_PARAM("entity"))) encode = E_ENTITY;
                   }
-               else if (name == *str_var)
+               else if (name == *UString::str_var)
                   {
-                  U_INTERNAL_ASSERT_MAJOR(u_user_name_len,0)
+                  U_INTERNAL_ASSERT_MAJOR(u_user_name_len, 0)
 
                   /**
                    * DATE_GMT       The current date in Greenwich Mean Time.
@@ -629,18 +647,28 @@ U_NO_EXPORT UString USSIPlugIn::processSSIRequest(const UString& content, int in
                    * USER_NAME      Contains the owner of the file which included it.
                    * DOCUMENT_NAME  The filename (excluding directories) of the document requested by the user.
                    * DOCUMENT_URI   The URL path of the document requested by the user. Note that in the case of
-                   *                nested include files, this is not then URL for the current document.
+                   *                nested include files, this is not then URL for the current document
                    */
 
-                       if (value.equal(U_CONSTANT_TO_PARAM("DATE_GMT")))      x = UTimeDate::strftime(timefmt->data(), u_now->tv_sec);
-                  else if (value.equal(U_CONSTANT_TO_PARAM("DATE_LOCAL")))    x = UTimeDate::strftime(timefmt->data(), u_now->tv_sec, true);
-                  else if (value.equal(U_CONSTANT_TO_PARAM("LAST_MODIFIED"))) x = UTimeDate::strftime(timefmt->data(), last_modified);
-                  else if (value.equal(U_CONSTANT_TO_PARAM("USER_NAME")))     (void) x.assign(u_user_name, u_user_name_len);
-                  else if (value.equal(U_CONSTANT_TO_PARAM("DOCUMENT_URI")))  (void) x.assign(U_HTTP_URI_TO_PARAM);
-                  else if (value.equal(U_CONSTANT_TO_PARAM("DOCUMENT_NAME"))) x = *docname;
+                  bool blocal = false;
+
+                  if (          value.equal(U_CONSTANT_TO_PARAM("DATE_GMT")) ||
+                      (blocal = value.equal(U_CONSTANT_TO_PARAM("DATE_LOCAL"))))
+                     {
+                     U_gettimeofday // NB: optimization if it is enough a time resolution of one second...
+
+                     x = UTimeDate::strftime(U_STRING_TO_PARAM(*timefmt), u_now->tv_sec, blocal);
+                     }
                   else
                      {
-                     x = UStringExt::expandEnvironmentVar(value, UClientImage_Base::environment);
+                          if (value.equal(U_CONSTANT_TO_PARAM("LAST_MODIFIED"))) x = UTimeDate::strftime(U_STRING_TO_PARAM(*timefmt), last_modified);
+                     else if (value.equal(U_CONSTANT_TO_PARAM("USER_NAME")))     (void) x.assign(u_user_name, u_user_name_len);
+                     else if (value.equal(U_CONSTANT_TO_PARAM("DOCUMENT_URI")))  (void) x.assign(U_HTTP_URI_TO_PARAM);
+                     else if (value.equal(U_CONSTANT_TO_PARAM("DOCUMENT_NAME"))) x = *docname;
+                     else
+                        {
+                        x = UStringExt::expandEnvironmentVar(value, UClientImage_Base::environment);
+                        }
                      }
 
                   if (x.empty()) continue;
@@ -669,10 +697,10 @@ U_NO_EXPORT UString USSIPlugIn::processSSIRequest(const UString& content, int in
             }
          break;
 
-         /*
-         <!--#fsize file="script.pl" -->
-         <!--#flastmod virtual="index.html" -->
-         */
+         /**
+          * <!--#fsize file="script.pl" -->
+          * <!--#flastmod virtual="index.html" -->
+          */
          case SSI_FSIZE:
          case SSI_FLASTMOD:
             {
@@ -713,14 +741,14 @@ U_NO_EXPORT UString USSIPlugIn::processSSIRequest(const UString& content, int in
                }
             else
                {
-               (void) output.append(UTimeDate::strftime(timefmt->data(), UHTTP::file->st_mtime)); // SSI_FLASTMOD
+               (void) output.append(UTimeDate::strftime(U_STRING_TO_PARAM(*timefmt), UHTTP::file->st_mtime)); // SSI_FLASTMOD
                }
             }
          break;
 
-         /*
-         <!--#include file=footer.html -->
-         */
+         /**
+          * <!--#include file=footer.html -->
+          */
          case SSI_INCLUDE:
             {
             if (n == 2)
@@ -787,11 +815,11 @@ U_NO_EXPORT UString USSIPlugIn::processSSIRequest(const UString& content, int in
             }
          break;
 
-         /*
-         <!--#exec cmd="ls -l" -->
-         <!--#exec cgi=/cgi-bin/foo.cgi -->
-         <!--#exec servlet=/servlet/mchat -->
-         */
+         /**
+          * <!--#exec cmd="ls -l" -->
+          * <!--#exec cgi=/cgi-bin/foo.cgi -->
+          * <!--#exec servlet=/servlet/mchat -->
+          */
          case SSI_EXEC:
             {
             if (n == 2)
@@ -803,18 +831,18 @@ U_NO_EXPORT UString USSIPlugIn::processSSIRequest(const UString& content, int in
             }
          break;
 
-         /*
-         <!--#set cmd="env -l" -->
-         <!--#set var="foo" value="bar" -->
-         <!--#set cgi=$VIRTUAL_HOST/cgi-bin/main.bash -->
-         */
+         /**
+          * <!--#set cmd="env -l" -->
+          * <!--#set var="foo" value="bar" -->
+          * <!--#set cgi=$VIRTUAL_HOST/cgi-bin/main.bash -->
+          */
          case SSI_SET:
             {
             bvar = false;
 
             for (i = 0; i < n; i += 4)
                {
-               if (name_value[i]   == *str_var &&
+               if (name_value[i]   == *UString::str_var &&
                    name_value[i+2].equal(U_CONSTANT_TO_PARAM("value")))
                   {
                   bvar = true;
@@ -832,7 +860,7 @@ U_NO_EXPORT UString USSIPlugIn::processSSIRequest(const UString& content, int in
 
                if (callService(name, name_value[1]) == false) return UString::getStringNull();
 
-               if (name == *str_cgi)
+               if (name == *UString::str_cgi)
                   {
                   // NB: check if we are in cgi shell script DEBUG mode...
 
@@ -919,21 +947,23 @@ int USSIPlugIn::handlerConfig(UFileConfig& cfg)
 
    if (cfg.loadTable())
       {
-      UString x = cfg[*UString::str_ENVIRONMENT];
+      UString x = cfg.at(U_CONSTANT_TO_PARAM("ENVIRONMENT"));
 
       if (x)
          {
-         environment = U_NEW(UString(UStringExt::prepareForEnvironmentVar(UFile::contentOf(x))));
+         U_NEW(UString, environment, UString(UStringExt::prepareForEnvironmentVar(UFile::contentOf(x))));
 
          const char* home = U_SYSCALL(getenv, "%S", "HOME");
 
-         if (home) environment->snprintf_add("HOME=%s\n", home);
+         if (home) environment->snprintf_add(U_CONSTANT_TO_PARAM("HOME=%s\n"), home);
 
          U_ASSERT_EQUALS(environment->isBinary(), false)
          }
 
 #  ifdef U_ALIAS
-      UHTTP::setGlobalAlias(cfg.at(U_CONSTANT_TO_PARAM("SSI_AUTOMATIC_ALIASING")));
+      x = cfg.at(U_CONSTANT_TO_PARAM("SSI_AUTOMATIC_ALIASING"));
+
+      if (x) UHTTP::setGlobalAlias(x); // NB: automatic alias of all uri request without suffix...
 #  endif
 
       U_RETURN(U_PLUGIN_HANDLER_PROCESSED | U_PLUGIN_HANDLER_GO_ON);
@@ -944,15 +974,15 @@ int USSIPlugIn::handlerConfig(UFileConfig& cfg)
 
 int USSIPlugIn::handlerInit()
 {
-   U_TRACE(0, "USSIPlugIn::handlerInit()")
+   U_TRACE_NO_PARAM(0, "USSIPlugIn::handlerInit()")
 
    U_INTERNAL_ASSERT_EQUALS(body, 0)
    U_INTERNAL_ASSERT_EQUALS(header, 0)
    U_INTERNAL_ASSERT_EQUALS(alternative_include, 0)
 
-   body                = U_NEW(UString);
-   header              = U_NEW(UString);
-   alternative_include = U_NEW(UString);
+   U_NEW(UString, body,  UString);
+   U_NEW(UString, header, UString);
+   U_NEW(UString, alternative_include, UString);
 
    U_RETURN(U_PLUGIN_HANDLER_PROCESSED | U_PLUGIN_HANDLER_GO_ON);
 }
@@ -961,7 +991,7 @@ int USSIPlugIn::handlerInit()
 
 int USSIPlugIn::handlerRequest()
 {
-   U_TRACE(0, "USSIPlugIn::handlerRequest()")
+   U_TRACE_NO_PARAM(0, "USSIPlugIn::handlerRequest()")
 
    U_INTERNAL_DUMP("uri = %.*S", U_HTTP_URI_TO_TRACE)
 
@@ -1000,14 +1030,28 @@ int USSIPlugIn::handlerRequest()
 
          // read the SSI file
 
-         if (bcache == false) *body = UHTTP::file->getContent();
+         if (bcache == false)
+            {
+            *body = UHTTP::file->getContent();
+
+            if (body->empty())
+               {
+               U_DEBUG("USSIPlugIn::handlerRequest() SSI file empty: %.*S", U_FILE_TO_TRACE(*UHTTP::file))
+
+               UClientImage_Base::environment->setEmpty();
+
+               UHTTP::setInternalError();
+
+               U_RETURN(U_PLUGIN_HANDLER_GO_ON);
+               }
+            }
          else
             {
             U_INTERNAL_DUMP("UClientImage_Base::body(%u) = %V", UClientImage_Base::body->size(), UClientImage_Base::body->rep)
 
             U_ASSERT(UHTTP::isDataFromCache())
             U_INTERNAL_ASSERT_POINTER(UHTTP::file_data->array)
-            U_INTERNAL_ASSERT_EQUALS( UHTTP::file_data->array->size(),2)
+            U_INTERNAL_ASSERT_EQUALS( UHTTP::file_data->array->size(), 2)
 
             (void) header->append(UHTTP::getHeaderFromCache()); // NB: after now 'file_data' can change...
 
@@ -1030,7 +1074,7 @@ int USSIPlugIn::handlerRequest()
             U_INTERNAL_ASSERT_MAJOR(size,0)
 
 #        ifdef USE_LIBZ
-            U_INTERNAL_DUMP("U_http_is_accept_gzip = %C", U_http_is_accept_gzip)
+            U_INTERNAL_DUMP("U_http_is_accept_gzip = %b", U_http_is_accept_gzip)
 
             if (U_http_is_accept_gzip &&
                 size > U_MIN_SIZE_FOR_DEFLATE)
@@ -1055,8 +1099,9 @@ int USSIPlugIn::handlerRequest()
 
             U_http_info.nResponseCode = HTTP_OK;
 
-            *UClientImage_Base::body    = output;
-            *UClientImage_Base::wbuffer = UHTTP::getHeaderForResponse();
+            *UClientImage_Base::body = output;
+
+            UHTTP::handlerResponse();
             }
          else if (alternative_response > 1)
             {

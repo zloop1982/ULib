@@ -20,15 +20,24 @@
 #include <ulib/net/ping.h>
 #include <ulib/net/tcpsocket.h>
 #include <ulib/net/client/http.h>
-#include <ulib/container/vector.h>
-#include <ulib/container/hash_map.h>
 #include <ulib/net/server/server_plugin.h>
+
+enum LogoutType {
+   U_LOGOUT_NO_TRAFFIC           = 1,
+   U_LOGOUT_NO_ARP_CACHE         = 2,
+   U_LOGOUT_NO_ARP_REPLY         = 3,
+   U_LOGOUT_NO_MORE_TIME         = 4,
+   U_LOGOUT_NO_MORE_TRAFFIC      = 5,
+   U_LOGOUT_CHECK_FIREWALL       = 6, 
+   U_LOGOUT_REQUEST_FROM_AUTH    = 7,
+   U_LOGOUT_DIFFERENT_MAC_FOR_IP = 8 
+};
 
 class UDirWalk;
 class UIptAccount;
 class UNoCatPlugIn;
 
-// sizeof(UModNoCatPeer) 32bit == 212
+// sizeof(UModNoCatPeer) 32bit == 216
 
 class UModNoCatPeer : public UEventTime, UIPAddress {
 public:
@@ -44,18 +53,18 @@ public:
 
    void init()
       {
-      U_TRACE(0, "UModNoCatPeer::init()")
+      U_TRACE_NO_PARAM(0, "UModNoCatPeer::init()")
+
+      next = 0;
 
       ctime        = connected = expire = u_now->tv_sec;
       ctraffic     = time_no_traffic    = time_remain = logout = 0L;
       traffic_done = traffic_available  = traffic_remain = 0ULL;
 
-      (void) U_SYSCALL(memset,"%p,%d,%u", flag, 0, sizeof(flag));
+      (void) U_SYSCALL(memset, "%p,%d,%u", flag, 0, sizeof(flag));
       }
 
    enum Status { PEER_DENY, PEER_PERMIT };
-
-   // COSTRUTTORI
 
    UModNoCatPeer() : UEventTime(0L,1L), mac(*UString::str_without_mac)
       {
@@ -71,7 +80,7 @@ public:
 
    // define method VIRTUAL of class UEventTime
 
-   virtual int handlerTime() U_DECL_OVERRIDE;
+   virtual int handlerTime() U_DECL_FINAL;
 
    // DEBUG
 
@@ -81,20 +90,17 @@ public:
 
 protected:
    UCommand fw;
+   UModNoCatPeer* next;
    UString ip, mac, token, user, ifname, label, gateway;
-   long connected, expire, logout, ctime, time_no_traffic, time_remain;
    uint64_t traffic_done, traffic_available, traffic_remain;
+   long connected, expire, logout, ctime, time_no_traffic, time_remain;
    unsigned char flag[8];
    uint32_t ctraffic;
 
-   bool checkPeerInfo(bool btraffic);
+   int checkPeerInfo(bool btraffic);
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UModNoCatPeer& operator=(const UModNoCatPeer&) = delete;
-#else
-   UModNoCatPeer& operator=(const UModNoCatPeer&) { return *this; }
-#endif
+   U_DISALLOW_ASSIGN(UModNoCatPeer)
 
    friend class UNoCatPlugIn;
 };
@@ -118,20 +124,12 @@ public:
    U_MEMORY_ALLOCATOR
    U_MEMORY_DEALLOCATOR
 
-   static const UString* str_without_label;
-   static const UString* str_allowed_members_default;
-// static const UString* str_IPHONE_SUCCESS;
-
-   static void str_allocate();
-
    enum CheckType {
       U_CHECK_ARP_CACHE = 0x001,
       U_CHECK_ARP_PING  = 0x002,
       U_CHECK_MAC       = 0x004,
       U_CHECK_FIREWALL  = 0x010
    };
-
-   // COSTRUTTORI
 
             UNoCatPlugIn();
    virtual ~UNoCatPlugIn();
@@ -140,18 +138,17 @@ public:
 
    // Server-wide hooks
 
-   virtual int handlerConfig(UFileConfig& cfg) U_DECL_OVERRIDE;
-   virtual int handlerInit() U_DECL_OVERRIDE;
-   virtual int handlerFork() U_DECL_OVERRIDE;
+   virtual int handlerConfig(UFileConfig& cfg) U_DECL_FINAL;
+   virtual int handlerInit() U_DECL_FINAL;
+   virtual int handlerFork() U_DECL_FINAL;
 
    // Connection-wide hooks
 
-   virtual int handlerRequest() U_DECL_OVERRIDE;
-   virtual int handlerReset() U_DECL_OVERRIDE;
+   virtual int handlerRequest() U_DECL_FINAL;
 
    // define method VIRTUAL of class UEventTime
 
-   virtual int handlerTime() U_DECL_OVERRIDE;
+   virtual int handlerTime() U_DECL_FINAL;
 
    // DEBUG
 
@@ -173,7 +170,6 @@ protected:
    static UString* arp_cache;
    static UString* auth_login;
    static UString* decrypt_key;
-   static UString* login_timeout;
    static UString* label_to_match;
    static UString* status_content;
    static UString* allowed_members;
@@ -187,6 +183,7 @@ protected:
    static UVector<UString>* varp_cache;
    static UVector<UString>* vinfo_data;
    static UVector<UIPAddress*>** vaddr;
+   static UVector<UString>* vroaming_data;
    static UHttpClient<UTCPSocket>* client;
    static UHashMap<UModNoCatPeer*>* peers;
    static UVector<UString>* vLoginValidate;
@@ -204,56 +201,62 @@ protected:
    static UModNoCatPeer* peer;
    static bool flag_check_system;
    static uint64_t traffic_available;
-   static UModNoCatPeer* peers_preallocate;
    static int fd_stderr, check_type, next_event_time;
    static long last_request_firewall, last_request_check;
-   static uint32_t total_connections, nfds, num_radio, num_peers_preallocate, time_available, check_expire;
+   static uint32_t total_connections, nfds, num_radio, idx_peers_preallocate, num_peers_preallocate, time_available, check_expire;
 
-   // VARIE
+   static UModNoCatPeer* peers_delete; // delete list 
+   static UModNoCatPeer* peers_preallocate;
 
    static void getTraffic();
    static void setNewPeer();
    static void checkSystem();
    static void checkOldPeer();
    static void creatNewPeer();
+   static bool setPeerLabel();
    static bool checkFirewall();
+   static void addPeerRoaming();
    static bool preallocatePeersFault();
-   static void deny(bool disconnected);
-   static void executeCommand(int type);
-   static void addPeerInfo(time_t logout);
    static bool getPeer(uint32_t i) __pure;
+   static void addPeerInfo(int disconnected);
    static void uploadFileToPortal(UFile& file);
    static bool creatNewPeer(uint32_t index_AUTH);
    static void sendInfoData(uint32_t index_AUTH);
    static bool getPeerFromMAC(const UString& mac);
+   static void sendRoamingData(uint32_t index_AUTH);
    static bool checkAuthMessage(const UString& msg);
    static void setStatusContent(const UString& label);
-   static void setHTTPResponse(const UString& content);
+   static void deny(int disconnected, bool bcheck_expire);
    static void notifyAuthOfUsersInfo(uint32_t index_AUTH);
    static bool getPeerStatus(UStringRep* key, void* value);
    static bool checkPeerInfo(UStringRep* key, void* value);
    static bool checkPeerStatus(UStringRep* key, void* value);
    static bool getPeerListInfo(UStringRep* key, void* value);
+   static void setHTTPResponse(const UString& content, int mime_index);
    static void permit(const UString& UserDownloadRate, const UString& UserUploadRate);
    static void sendMsgToPortal(uint32_t index_AUTH, const UString& msg, UString* poutput);
-   static void setFireWallCommand(UCommand& cmd, const UString& script, const UString& mac, const UString& ip);
+   static void sendData(uint32_t index_AUTH, const UString& data, const char* service, uint32_t service_len);
 
    static uint32_t checkFirewall(UString& output);
    static uint32_t getIndexAUTH(const char* ip_address) __pure;
    static UString  getIPAddress(const char* ptr, uint32_t len);
    static UString  getSignedData(const char* ptr, uint32_t len);
-   static UString  getUrlForSendMsgToPortal(uint32_t index_AUTH, const char* msg, uint32_t msg_len);
 
    static void preallocatePeers()
       {
-      U_TRACE(0+256, "UNoCatPlugIn::preallocatePeers()")
+      U_TRACE_NO_PARAM(0+256, "UNoCatPlugIn::preallocatePeers()")
 
       peers_preallocate = new UModNoCatPeer[num_peers_preallocate];
-      } 
+
+      // put the new preallocated peers on the delete list
+
+      peers_preallocate->next = peers_delete;
+                                peers_delete = peers_preallocate;
+      }
 
    static bool getARPCache()
       {
-      U_TRACE(0+256, "UNoCatPlugIn::getARPCache()")
+      U_TRACE_NO_PARAM(0+256, "UNoCatPlugIn::getARPCache()")
 
       return USocketExt::getARPCache(*arp_cache, *varp_cache);
       }
@@ -267,7 +270,7 @@ protected:
 
    static bool isPingAsyncPending()
       {
-      U_TRACE(0, "UNoCatPlugIn::isPingAsyncPending()")
+      U_TRACE_NO_PARAM(0, "UNoCatPlugIn::isPingAsyncPending()")
 
       U_INTERNAL_DUMP("check_type = %B nfds = %u paddrmask = %p", check_type, nfds, paddrmask)
 
@@ -276,14 +279,53 @@ protected:
       U_RETURN(result);
       }
 
+   static void executeCommand(int type)
+      {
+      U_TRACE(0, "UNoCatPlugIn::executeCommand(%d)", type)
+
+      U_INTERNAL_ASSERT_POINTER(peer)
+
+      peer->fw.setArgument(3, (type == UModNoCatPeer::PEER_PERMIT ? "permit" : "deny"));
+
+      (void) peer->fw.executeAndWait(0, -1, fd_stderr);
+
+#  ifndef U_LOG_DISABLE
+      UServer_Base::logCommandMsgError(peer->fw.getCommand(), false);
+#  endif
+
+      U_peer_status = type;
+      }
+
+   static UString getUrlForSendMsgToPortal(uint32_t index_AUTH, const char* service, uint32_t service_len)
+      {
+      U_TRACE(0, "UNoCatPlugIn::getUrlForSendMsgToPortal(%u,%.*S,%u)", index_AUTH, service_len, service, service_len)
+
+      Url* auth = (*vauth_url)[index_AUTH];
+      UString auth_host    = auth->getHost(),
+              auth_service = auth->getService(),
+              url(200U + auth_host.size() + auth_service.size() + service_len);
+
+      url.snprintf(U_CONSTANT_TO_PARAM("%v://%v%.*s"), auth_service.rep, auth_host.rep, service_len, service);
+
+      U_RETURN_STRING(url);
+      }
+
+   static void setFireWallCommand(UCommand& cmd, const UString& script, const UString& mac, const UString& ip)
+      {
+      U_TRACE(0, "UNoCatPlugIn::setFireWallCommand(%p,%V,%V,%V)", &cmd, script.rep, mac.rep, ip.rep)
+
+      // NB: request(arp|deny|clear|reset|permit|openlist|initialize) mac ip class(Owner|Member|Public) UserDownloadRate UserUploadRate
+
+      UString command(100U);
+
+      command.snprintf(U_CONSTANT_TO_PARAM("/bin/sh %v deny %v %v Member 0 0"), script.rep, mac.rep, ip.rep);
+
+      cmd.set(command, (char**)0);
+      cmd.setEnvironment(fw_env);
+      }
+
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UNoCatPlugIn(const UNoCatPlugIn&) = delete;
-   UNoCatPlugIn& operator=(const UNoCatPlugIn&) = delete;
-#else
-   UNoCatPlugIn(const UNoCatPlugIn&) : UServerPlugIn(), UEventTime() {}
-   UNoCatPlugIn& operator=(const UNoCatPlugIn&)                      { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UNoCatPlugIn)
 
    friend class UModNoCatPeer;
 };

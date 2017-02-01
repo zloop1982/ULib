@@ -18,6 +18,7 @@
 #include <ulib/utility/lock.h>
 
 class UHTTP;
+class UHTTP2;
 class Application;
 class UTimeThread;
 class UProxyPlugIn;
@@ -53,22 +54,19 @@ public:
    static ULog* pthis;
    static log_date date;
    static const char* prefix;
+   static uint32_t prefix_len;
    static struct iovec iov_vec[5];
    static log_date* ptr_shared_date;
-#ifdef ENABLE_THREAD
+#if defined(ENABLE_THREAD) && !defined(_MSWINDOWS_)
    static pthread_rwlock_t* prwlock;
 #endif
-
-   // COSTRUTTORI
 
     ULog(const UString& path, uint32_t size, const char* dir_log_gz = 0);
    ~ULog();
 
-   // VARIE
-
    void reopen()
       {
-      U_TRACE(0, "ULog::reopen()")
+      U_TRACE_NO_PARAM(0, "ULog::reopen()")
 
       U_INTERNAL_ASSERT_EQUALS(U_Log_syslog(this), false)
 
@@ -77,7 +75,7 @@ public:
 
    void msync() // flushes changes made to memory mapped log file back to disk
       {
-      U_TRACE(0, "ULog::msync()")
+      U_TRACE_NO_PARAM(0, "ULog::msync()")
 
       U_INTERNAL_ASSERT_EQUALS(U_Log_syslog(this), false)
 
@@ -91,14 +89,14 @@ public:
    void closeLog();
    void setShared(log_data* ptr, uint32_t size, bool breference = true);
 
-   void      init(const char* _prefix); // server
-   void setPrefix(const char* _prefix); // client
+   void      init(const char* prefix, uint32_t prefix_len); // server
+   void setPrefix(const char* prefix, uint32_t prefix_len); // client
 
    // manage shared log
 
    static bool isMemoryMapped()
       {
-      U_TRACE(0, "ULog::isMemoryMapped()")
+      U_TRACE_NO_PARAM(0, "ULog::isMemoryMapped()")
 
       U_INTERNAL_ASSERT_POINTER(pthis)
 
@@ -109,18 +107,18 @@ public:
 
    // write with prefix
 
-   static void log(const char* format, ...); // (buffer write == 8196)
    static void write(const char* msg, uint32_t len);
+   static void log(const char* format, uint32_t fmt_size, ...);   // (buffer write == 8196)
 
    // write without prefix
 
-   static void log(int _fd, const char* format, ...); // (buffer write == 8196)
+   static void log(int _fd, const char* format, uint32_t fmt_size, ...);   // (buffer write == 8196)
 
    // logger
 
    static int getPriorityForLogger(const char* s) __pure; // decode a symbolic name to a numeric value
 
-   static void logger(const char* ident, int priority, const char* format, ...); // (buffer write == 4096)
+   static void logger(const char* ident, int priority, const char* format, uint32_t fmt_size, ...); // (buffer write == 4096)
 
 #if defined(U_STDCPP_ENABLE) && defined(DEBUG)
    const char* dump(bool reset) const;
@@ -134,9 +132,10 @@ protected:
 #ifdef USE_LIBZ
    UString*   buf_path_compress;
    uint32_t index_path_compress;
-   bool checkForLogRotateDataToWrite();
+   void checkForLogRotateDataToWrite();
 #endif
 
+   static uint32_t log_data_sz;
    static long tv_sec_old_1, tv_sec_old_2, tv_sec_old_3;
 
    void write(const struct iovec* iov, int n);
@@ -150,22 +149,17 @@ protected:
    static void initDate();
    static void updateDate1();
    static void updateDate2();
-   static void updateDate3();
-   static void logResponse(const UString& data, const char* name,                                                                  const char* format, ...);
-   static void log(const struct iovec* iov,     const char* name, const char* type, int ncount, const char* msg, uint32_t msg_len, const char* format, ...);
+   static void updateDate3(char* ptr_date);
+   static void logResponse(const UString& data, const char* name,                                                                  const char* format, uint32_t fmt_size, ...);
+   static void log(const struct iovec* iov,     const char* name, const char* type, int ncount, const char* msg, uint32_t msg_len, const char* format, uint32_t fmt_size, ...);
 
 private:
    static int decode(const char* name, uint32_t len, bool bfacility) __pure U_NO_EXPORT;
 
-#ifdef U_COMPILER_DELETE_MEMBERS
-   ULog(const ULog&) = delete;
-   ULog& operator=(const ULog&) = delete;
-#else
-   ULog(const ULog&) : UFile()  {}
-   ULog& operator=(const ULog&) { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(ULog)
 
    friend class UHTTP;
+   friend class UHTTP2;
    friend class Application;
    friend class UTimeThread;
    friend class UProxyPlugIn;

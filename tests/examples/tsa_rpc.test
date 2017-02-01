@@ -7,9 +7,10 @@
 start_msg tsa_rpc
 
 #UTRACE="0 50M 0"
+#UTRACE_SIGNAL="0 10M -1"
 #UOBJDUMP="0 1M 100"
 #USIMERR="error.sim"
- export UTRACE UOBJDUMP USIMERR
+export UTRACE UOBJDUMP USIMERR UTRACE_SIGNAL
 
 DOC_ROOT=TSA
 
@@ -21,13 +22,12 @@ rm -rf $DOC_ROOT/*log \
 CAPATH="../ulib/CA/CApath"
 CACERT="../ulib/CA/username.crt"
 USER_KEY="../ulib/CA/username.key"
-LCMD="$OPENSSL s_client -no_ssl2 -quiet -cert $CACERT -key $USER_KEY -pass pass:caciucco -CApath $CAPATH -verify 0 -connect localhost:443"
+LCMD="$OPENSSL s_client -quiet -cert $CACERT -key $USER_KEY -pass pass:caciucco -CApath $CAPATH -connect localhost:443"
 
 creat_link . $DOC_ROOT/$DOC_ROOT
 
 cat <<EOF >inp/webserver.cfg
 userver {
- PORT 443
  REQ_TIMEOUT 5
  MAX_KEEP_ALIVE 256
  LOG_FILE tsa_rpc.log
@@ -55,7 +55,7 @@ $SLEEP
 
 rm -f TSA/response/rpc*
 
-TIMEOUT 4 $LCMD <TSA/request/rpc.req.bin >TSA/response/rpc.res 2>>err/tsa_rpc.err
+TIMEOUT 4 $LCMD <TSA/request/rpc.req.bin >TSA/response/rpc.res 2>>err/userver_ssl.err
 tail -c +13 TSA/response/rpc.res > TSA/response/rpc.tsr
 
 TSA/bin/openssl ts -verify -queryfile TSA/request/tsq.req \
@@ -63,7 +63,7 @@ TSA/bin/openssl ts -verify -queryfile TSA/request/tsq.req \
 
 rm -f TSA/response/rpc*
 
-TIMEOUT 4 $LCMD <TSA/request/rpc.req.b64 >TSA/response/rpc.res 2>>err/tsa_rpc.err
+TIMEOUT 4 $LCMD <TSA/request/rpc.req.b64 >TSA/response/rpc.res 2>>err/userver_ssl.err
 tail -c +13 TSA/response/rpc.res > TSA/response/rpc.tsr
 
 $SLEEP

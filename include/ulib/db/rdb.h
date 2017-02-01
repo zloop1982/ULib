@@ -70,9 +70,7 @@ class URDBClientImage;
 class U_EXPORT URDB : public UCDB {
 public:
 
-   // COSTRUTTORI
-
-   URDB(int _ignore_case) : UCDB(_ignore_case)
+   URDB(int _ignore_case = false) : UCDB(_ignore_case)
       {
       U_TRACE_REGISTER_OBJECT(0, URDB, "%d", _ignore_case)
 
@@ -119,7 +117,7 @@ public:
 
    uint32_t size() const
       {
-      U_TRACE(0, "URDB::size()")
+      U_TRACE_NO_PARAM(0, "URDB::size()")
 
       U_INTERNAL_DUMP("UCDB::nrecord = %u RDB_nrecord = %u", UCDB::nrecord, RDB_nrecord(this))
 
@@ -190,8 +188,6 @@ public:
    // ----------------------------------------------------------------------
 
    int substitute(const UString& _key, const UString& new_key, const UString& _data, int flag = RDB_INSERT);
-
-   // Ricerche
 
    bool fetch();
    bool find(const UString& _key)                   { return find(U_STRING_TO_PARAM(_key)); }
@@ -271,9 +267,9 @@ public:
 
    // DEBUG
 
-#  ifdef DEBUG
+# ifdef DEBUG
    const char* dump(bool reset) const;
-#  endif
+# endif
 #endif
 
 protected:
@@ -327,7 +323,7 @@ protected:
 
    void resetReference()
       {
-      U_TRACE(0, "URDB::resetReference()")
+      U_TRACE_NO_PARAM(0, "URDB::resetReference()")
 
       U_CHECK_MEMORY
 
@@ -338,7 +334,7 @@ protected:
 
    bool cdbLookup() // NB: set the value of struct UCDB::data...
       {
-      U_TRACE(0, "URDB::cdbLookup()")
+      U_TRACE_NO_PARAM(0, "URDB::cdbLookup()")
 
       U_CHECK_MEMORY
 
@@ -384,13 +380,7 @@ private:
    static void htInsert(URDB* prdb) U_NO_EXPORT;      // Insert one key/data pair in the cache
    static void htRemoveAlloc(URDB* prdb) U_NO_EXPORT; // remove one node allocated for the hash tree
 
-#ifdef U_COMPILER_DELETE_MEMBERS
-   URDB(const URDB&) = delete;
-   URDB& operator=(const URDB&) = delete;
-#else
-   URDB(const URDB& r) : UCDB(r) {}
-   URDB& operator=(const URDB&)  { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(URDB)
 
    friend class UHTTP;
    friend class URDBServer;
@@ -406,15 +396,12 @@ private:
 template <> class U_EXPORT URDBObjectHandler<UDataStorage*> : public URDB {
 public:
 
-   // COSTRUTTORI
-
    URDBObjectHandler(const UString& pathdb, int _ignore_case, const UDataStorage* ptr) : URDB(pathdb, _ignore_case)
       {
       U_TRACE_REGISTER_OBJECT(0, URDBObjectHandler<UDataStorage*>, "%V,%d,%p", pathdb.rep, _ignore_case, ptr)
 
-      pDataStorage     = (UDataStorage*)ptr;
-      brecfound        = false;
-      function_to_call = 0;
+      pDataStorage = (UDataStorage*)ptr;
+      brecfound    = false;
       }
 
    // coverity[VIRTUAL_DTOR]
@@ -480,13 +467,14 @@ public:
       U_INTERNAL_ASSERT_POINTER(pDataStorage)
 
       data_buffer = pDataStorage->toBuffer();
+      data_len    = UDataStorage::buffer_len;
 
       return _insertDataStorage(op);
       }
 
-   bool insertDataStorage(const UString& _key)
+   bool insertDataStorage(const UString& _key, int _flag = RDB_INSERT_WITH_PADDING)
       {
-      U_TRACE(0, "URDBObjectHandler<UDataStorage*>::insertDataStorage(%V)", _key.rep)
+      U_TRACE(0, "URDBObjectHandler<UDataStorage*>::insertDataStorage(%V,%d)", _key.rep, _flag)
 
       U_CHECK_MEMORY
 
@@ -494,7 +482,7 @@ public:
 
       pDataStorage->setKeyIdDataSession(_key);
 
-      return insertDataStorage(RDB_INSERT_WITH_PADDING);
+      return insertDataStorage(_flag);
       }
 
    void insertDataStorage(const char* s, uint32_t n)
@@ -511,15 +499,21 @@ public:
       }
 
    UString getKeyID() const { return pDataStorage->keyid; }
+   void  resetKeyID() const {        pDataStorage->keyid.clear(); }
 
    bool          isRecordFound() const     { return brecfound; }
    UDataStorage* getPointerToDataStorage() { return pDataStorage; }
 
-   void setPointerToDataStorage(UDataStorage* ptr) { pDataStorage = ptr; }
+   void setPointerToDataStorage(UDataStorage* ptr)  { pDataStorage = ptr; }
 
    // Call function for all entry
 
    void callForAllEntry(iPFprpr function, vPF function_no_lock = 0, qcompare compare_obj = 0);
+
+   void callForAllEntryWithSetEntry(vPFprpr function, vPF function_no_lock = 0, qcompare compare_obj = 0)
+      { bsetEntry = true; callForAllEntry((iPFprpr)function, function_no_lock, compare_obj); bsetEntry = false; }
+
+   void callForAllEntryWithVector(iPFprpr function, vPF function_no_lock = (vPF)-1, qcompare compare_obj = 0) { callForAllEntry(function, function_no_lock, compare_obj); }
 
 #ifdef DEBUG
    const char* dump(bool _reset) const;
@@ -529,9 +523,10 @@ public:
    UDataStorage* pDataStorage;
    bool brecfound;
 protected:
-   iPFprpr function_to_call;
-
+   static bool bsetEntry;
    static char* data_buffer;
+   static uint32_t data_len;
+   static iPFpvpv ds_function_to_call;
    static URDBObjectHandler<UDataStorage*>* pthis;
 
    bool _insertDataStorage(int op);
@@ -540,13 +535,7 @@ protected:
    static int callEntryCheck(UStringRep* key, UStringRep* data);
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   URDBObjectHandler<UDataStorage*>(const URDBObjectHandler<UDataStorage*>&) = delete;
-   URDBObjectHandler<UDataStorage*>& operator=(const URDBObjectHandler<UDataStorage*>&) = delete;
-#else
-   URDBObjectHandler<UDataStorage*>(const URDBObjectHandler<UDataStorage*>&) : URDB(false) {}
-   URDBObjectHandler<UDataStorage*>& operator=(const URDBObjectHandler<UDataStorage*>&)    { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(URDBObjectHandler<UDataStorage*>)
 };
 
 template <class T> class U_EXPORT URDBObjectHandler<T*> : public URDBObjectHandler<UDataStorage*> {
@@ -569,13 +558,7 @@ public:
 #endif
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   URDBObjectHandler<T*>(const URDBObjectHandler<T*>&) = delete;
-   URDBObjectHandler<T*>& operator=(const URDBObjectHandler<T*>&) = delete;
-#else
-   URDBObjectHandler<T*>(const URDBObjectHandler<T*>&) : URDBObjectHandler<UDataStorage*>(UString::getStringNull(),0,0) {}
-   URDBObjectHandler<T*>& operator=(const URDBObjectHandler<T*>&)                                                       { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(URDBObjectHandler<T*>)
 };
 
 #endif

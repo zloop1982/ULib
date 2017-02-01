@@ -20,7 +20,7 @@
 /**
  * @class URDBServer
  *
- * @brief Handles incoming TCP/IP connections from URDBClient.
+ * @brief Handles incoming TCP/IP connections from URDBClient
  */
 
 class URDB;
@@ -46,20 +46,14 @@ protected:
 
    // method VIRTUAL to redefine
 
-   virtual void preallocate()  U_DECL_OVERRIDE;
+   virtual void preallocate()  U_DECL_FINAL;
 #ifdef DEBUG
-   virtual void  deallocate()  U_DECL_OVERRIDE;
-   virtual bool check_memory() U_DECL_OVERRIDE;
+   virtual void  deallocate()  U_DECL_FINAL;
+   virtual bool check_memory() U_DECL_FINAL;
 #endif
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   URDBServer(const URDBServer& s) = delete;
-   URDBServer& operator=(const URDBServer&) = delete;
-#else
-   URDBServer(const URDBServer& s) : UServer<UTCPSocket>(0) {}
-   URDBServer& operator=(const URDBServer&)                 { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(URDBServer)
 };
 
 #endif

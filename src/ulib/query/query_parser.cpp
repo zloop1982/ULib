@@ -1,4 +1,4 @@
-// ============================================================================
+// =================================================================================
 //
 // = LIBRARY
 //    ULib - c++ library
@@ -9,7 +9,7 @@
 // = AUTHOR
 //    Stefano Casazza
 //
-// ============================================================================
+// =================================================================================
 
 #include <ulib/query/parser.h>
 
@@ -18,37 +18,6 @@ uint32_t              UQueryParser::partial;
 UVector<UString>**    UQueryParser::positives;
 UVector<UString>**    UQueryParser::negatives;
 UVector<UQueryNode*>* UQueryParser::termRoots;
-
-const UString* UQueryParser::str_p1;
-const UString* UQueryParser::str_p2;
-const UString* UQueryParser::str_or;
-const UString* UQueryParser::str_and;
-const UString* UQueryParser::str_not;
-
-void UQueryParser::str_allocate()
-{
-   U_TRACE(0, "UQueryParser::str_allocate()")
-
-   U_INTERNAL_ASSERT_EQUALS(str_p1,0)
-   U_INTERNAL_ASSERT_EQUALS(str_p2,0)
-   U_INTERNAL_ASSERT_EQUALS(str_or,0)
-   U_INTERNAL_ASSERT_EQUALS(str_and,0)
-   U_INTERNAL_ASSERT_EQUALS(str_not,0)
-
-   static ustringrep stringrep_storage[] = {
-      { U_STRINGREP_FROM_CONSTANT("(") },
-      { U_STRINGREP_FROM_CONSTANT(")") },
-      { U_STRINGREP_FROM_CONSTANT("OR") },
-      { U_STRINGREP_FROM_CONSTANT("AND") },
-      { U_STRINGREP_FROM_CONSTANT("NOT") }
-   };
-
-   U_NEW_ULIB_OBJECT(str_p1,  U_STRING_FROM_STRINGREP_STORAGE(0));
-   U_NEW_ULIB_OBJECT(str_p2,  U_STRING_FROM_STRINGREP_STORAGE(1));
-   U_NEW_ULIB_OBJECT(str_or,  U_STRING_FROM_STRINGREP_STORAGE(2));
-   U_NEW_ULIB_OBJECT(str_and, U_STRING_FROM_STRINGREP_STORAGE(3));
-   U_NEW_ULIB_OBJECT(str_not, U_STRING_FROM_STRINGREP_STORAGE(4));
-}
 
 UQueryNode::UQueryNode(Type t, UQueryNode* l, UQueryNode* r) : left(l), right(r), type(t)
 {
@@ -70,7 +39,7 @@ UQueryNode::~UQueryNode()
 
 void UQueryParser::clear()
 {
-   U_TRACE(0, "UQueryParser::clear()")
+   U_TRACE_NO_PARAM(0, "UQueryParser::clear()")
 
    if (tree)
       {
@@ -124,7 +93,7 @@ bool UQueryParser::parse(const UString& query)
 
    if (tree)
       {
-      if (t.atEnd() == false) U_ERROR("syntax error on query - GARBAGE AT END");
+      if (t.atEnd() == false) U_ERROR("Syntax error on query - GARBAGE AT END");
 
       switch (tree->type)
          {
@@ -157,22 +126,24 @@ bool UQueryParser::parse(const UString& query)
 
 U_NO_EXPORT UQueryNode* UQueryParser::parseExpr()
 {
-   U_TRACE(0, "UQueryParser::parseExpr()")
+   U_TRACE_NO_PARAM(0, "UQueryParser::parseExpr()")
 
    UQueryNode* left = parseTerm();
 
-   if (isOR() == false) U_RETURN_POINTER(left,UQueryNode);
+   if (isOR() == false) U_RETURN_POINTER(left, UQueryNode);
 
    UQueryNode* right = parseExpr();
 
-   UQueryNode* result = U_NEW(UQueryNode(UQueryNode::OR, left, right));
+   UQueryNode* result;
 
-   U_RETURN_POINTER(result,UQueryNode);
+   U_NEW(UQueryNode, result, UQueryNode(UQueryNode::OR, left, right));
+
+   U_RETURN_POINTER(result, UQueryNode);
 }
 
 U_NO_EXPORT UQueryNode* UQueryParser::parseTerm()
 {
-   U_TRACE(0, "UQueryParser::parseTerm()")
+   U_TRACE_NO_PARAM(0, "UQueryParser::parseTerm()")
 
    UQueryNode* left = parseFactor();
 
@@ -180,14 +151,16 @@ U_NO_EXPORT UQueryNode* UQueryParser::parseTerm()
 
    UQueryNode* right = parseTerm();
 
-   UQueryNode* result = U_NEW(UQueryNode(UQueryNode::AND, left, right));
+   UQueryNode* result;
 
-   U_RETURN_POINTER(result,UQueryNode);
+   U_NEW(UQueryNode, result, UQueryNode(UQueryNode::AND, left, right));
+
+   U_RETURN_POINTER(result, UQueryNode);
 }
 
 U_NO_EXPORT UQueryNode* UQueryParser::parseFactor()
 {
-   U_TRACE(0, "UQueryParser::parseFactor()")
+   U_TRACE_NO_PARAM(0, "UQueryParser::parseFactor()")
 
    bool v = true;
 
@@ -195,40 +168,45 @@ U_NO_EXPORT UQueryNode* UQueryParser::parseFactor()
 
    UQueryNode* atom = parseAtom();
 
-   if (v) U_RETURN_POINTER(atom,UQueryNode);
+   if (v) U_RETURN_POINTER(atom, UQueryNode);
 
-   UQueryNode* result = U_NEW(UQueryNode(UQueryNode::NOT, 0, atom));
+   UQueryNode* result;
+   
+   U_NEW(UQueryNode, result, UQueryNode(UQueryNode::NOT, 0, atom));
 
-   U_RETURN_POINTER(result,UQueryNode);
+   U_RETURN_POINTER(result, UQueryNode);
 }
 
 U_NO_EXPORT UQueryNode* UQueryParser::parseAtom()
 {
-   U_TRACE(0, "UQueryParser::parseAtom()")
+   U_TRACE_NO_PARAM(0, "UQueryParser::parseAtom()")
 
    if (isBraceStart())
       {
       UQueryNode* expr = parseExpr();
 
-      if (isBraceEnd() == false) U_ERROR("syntax error on query - RUNAWAY PARENTHESIS");
+      if (isBraceEnd() == false)
+         {
+         U_ERROR("Syntax error on query - RUNAWAY PARENTHESIS");
+         }
 
-      U_RETURN_POINTER(expr,UQueryNode);
+      U_RETURN_POINTER(expr, UQueryNode);
       }
 
-   UQueryNode* node = U_NEW(UQueryNode(t.getTokenQueryParser()));
+   UQueryNode* node;
 
-   U_RETURN_POINTER(node,UQueryNode);
+   U_NEW(UQueryNode, node, UQueryNode(t.getTokenQueryParser()));
+
+   U_RETURN_POINTER(node, UQueryNode);
 }
 
-// SERVICES
-
-/*
-Determines if the tree rooted at this node is in the DNF
-*/
+/**
+ * Determines if the tree rooted at this node is in the DNF
+ */
 
 __pure bool UQueryNode::isDisjunctiveNormalForm() const
 {
-   U_TRACE(0, "UQueryNode::isDisjunctiveNormalForm()")
+   U_TRACE_NO_PARAM(0, "UQueryNode::isDisjunctiveNormalForm()")
 
    U_CHECK_MEMORY
 
@@ -238,20 +216,36 @@ __pure bool UQueryNode::isDisjunctiveNormalForm() const
       {
       if (left       ||
           right == 0 ||
-          !right->isDisjunctiveNormalForm()) U_RETURN(false);
+          !right->isDisjunctiveNormalForm())
+         {
+         U_RETURN(false);
+         }
 
-      U_RETURN(right->type == VALUE ||
-               right->type == NOT);
+      if (right->type == VALUE ||
+          right->type == NOT)
+         {
+         U_RETURN(true);
+         }
+
+      U_RETURN(false);
       }
 
    if (type == AND)
       {
       if (left == 0 || right == 0         ||
          !left->isDisjunctiveNormalForm() ||
-         !right->isDisjunctiveNormalForm()) U_RETURN(false);
+         !right->isDisjunctiveNormalForm())
+         {
+         U_RETURN(false);
+         }
 
-      U_RETURN(left->type  != OR &&
-               right->type != OR);
+      if (left->type  != OR &&
+          right->type != OR)
+         {
+         U_RETURN(true);
+         }
+
+      U_RETURN(false);
       }
 
    if (type == OR)
@@ -259,7 +253,10 @@ __pure bool UQueryNode::isDisjunctiveNormalForm() const
       if (left  == 0                       ||
           right == 0                       ||
           !left->isDisjunctiveNormalForm() ||
-          !right->isDisjunctiveNormalForm()) U_RETURN(false);
+          !right->isDisjunctiveNormalForm())
+         {
+         U_RETURN(false);
+         }
 
       U_RETURN(true);
       }
@@ -267,27 +264,29 @@ __pure bool UQueryNode::isDisjunctiveNormalForm() const
    U_RETURN(false);
 }
 
-/*
-Returns a copy of the designated tree. All nodes in the returned tree are independent copies of those in
-the original tree. All the cloned nodes are created with operator new. The caller must eventually destroy
-the cloned tree by calling operator delete on its root node
-*/
+/**
+ * Returns a copy of the designated tree. All nodes in the returned tree are independent copies of those in
+ * the original tree. All the cloned nodes are created with operator new. The caller must eventually destroy
+ * the cloned tree by calling operator delete on its root node
+ */
 
 U_NO_EXPORT UQueryNode* UQueryNode::cloneTree(const UQueryNode* root)
 {
    U_TRACE(0, "UQueryNode::cloneTree(%p)", root)
 
-   if (root == 0) U_RETURN_POINTER(0,UQueryNode);
+   if (root == 0) U_RETURN_POINTER(0, UQueryNode);
 
+   UQueryNode* cloneRoot;
    UQueryNode* leftClone  = cloneTree(root->left);
    UQueryNode* rightClone = cloneTree(root->right);
-   UQueryNode* cloneRoot  = U_NEW(UQueryNode(root->value));
+   
+   U_NEW(UQueryNode, cloneRoot, UQueryNode(root->value));
 
    cloneRoot->type  = root->type;
    cloneRoot->left  = leftClone;
    cloneRoot->right = rightClone;
 
-   U_RETURN_POINTER(cloneRoot,UQueryNode);
+   U_RETURN_POINTER(cloneRoot, UQueryNode);
 }
 
 /* Like getDisjunctiveNormalForm(), but without simplifications */
@@ -297,19 +296,20 @@ U_NO_EXPORT void UQueryNode::swap(UQueryNode*& a, UQueryNode*& b)
    U_TRACE(0, "UQueryNode::swap(%p,%p)", a, b)
 
    UQueryNode* tmp = a;
-   a               = b;
-   b               = tmp;
+
+   a = b;
+   b = tmp;
 }
 
 U_NO_EXPORT UQueryNode* UQueryNode::getRawDNF(UQueryNode* root)
 {
    U_TRACE(0, "UQueryNode::getRawDNF(%p)", root)
 
-   if (root == 0) U_RETURN_POINTER(0,UQueryNode);
+   if (root == 0) U_RETURN_POINTER(0, UQueryNode);
 
    // One-level trees
 
-   if (root->type == VALUE) U_RETURN_POINTER(root,UQueryNode);
+   if (root->type == VALUE) U_RETURN_POINTER(root, UQueryNode);
 
    // Two levels trees
 
@@ -321,7 +321,7 @@ U_NO_EXPORT UQueryNode* UQueryNode::getRawDNF(UQueryNode* root)
          {
          U_INTERNAL_ASSERT_EQUALS(root->left,0)
 
-         if (root->right->type == VALUE) U_RETURN_POINTER(root,UQueryNode);
+         if (root->right->type == VALUE) U_RETURN_POINTER(root, UQueryNode);
          }
       break;
 
@@ -331,7 +331,10 @@ U_NO_EXPORT UQueryNode* UQueryNode::getRawDNF(UQueryNode* root)
          U_INTERNAL_ASSERT_POINTER(root->left)
 
          if (root->left->type  == VALUE &&
-             root->right->type == VALUE) U_RETURN_POINTER(root,UQueryNode);
+             root->right->type == VALUE)
+            {
+            U_RETURN_POINTER(root, UQueryNode);
+            }
          }
       break;
 
@@ -354,23 +357,23 @@ U_NO_EXPORT UQueryNode* UQueryNode::getRawDNF(UQueryNode* root)
 
    if (root->type == NOT)
       {
-      U_INTERNAL_ASSERT_EQUALS(root->left,0)
+      U_INTERNAL_ASSERT_EQUALS(root->left, 0)
 
       if (root->right->type == NOT)
          {
          // Two NOTs make a positive
 
-         U_INTERNAL_ASSERT_EQUALS(root->left,0)
          U_INTERNAL_ASSERT_POINTER(root->right)
+         U_INTERNAL_ASSERT_EQUALS(root->left, 0)
 
          UQueryNode* newRoot = root->right->right;
-         root->right->right = 0;
+                               root->right->right = 0;
 
          delete root; // deletes two nodes
 
          UQueryNode* result = getRawDNF(newRoot);
 
-         U_RETURN_POINTER(result,UQueryNode);
+         U_RETURN_POINTER(result, UQueryNode);
          }
 
       if (root->right->type == OR)
@@ -380,18 +383,23 @@ U_NO_EXPORT UQueryNode* UQueryNode::getRawDNF(UQueryNode* root)
 
          // We have !(a | b), which becomes !a && !b:
 
-         root->right->left = root->right->right = 0;
+         root->right->left  =
+         root->right->right = 0;
 
          delete root->right;  // destroy the OR node
 
-         UQueryNode* notA    = root;
-         notA->right         = a;
-         UQueryNode* notB    = U_NEW(UQueryNode(NOT, 0, b));
-         UQueryNode* newRoot = U_NEW(UQueryNode(AND, notA, notB));
+         UQueryNode* notA = root;
+                     notA->right = a;
 
-         UQueryNode* result  = getRawDNF(newRoot);
+         UQueryNode* notB;
+         UQueryNode* newRoot;
 
-         U_RETURN_POINTER(result,UQueryNode);
+         U_NEW(UQueryNode, notB,    UQueryNode(NOT, 0, b));
+         U_NEW(UQueryNode, newRoot, UQueryNode(AND, notA, notB));
+
+         UQueryNode* result = getRawDNF(newRoot);
+
+         U_RETURN_POINTER(result, UQueryNode);
          }
 
       if (root->right->type == AND)
@@ -401,18 +409,23 @@ U_NO_EXPORT UQueryNode* UQueryNode::getRawDNF(UQueryNode* root)
 
          // We have !(a & b), which becomes !a | !b:
 
-         root->right->left = root->right->right = 0;
+         root->right->left  =
+         root->right->right = 0;
 
-         delete root->right;  // destroy the AND node
+         delete root->right; // destroy the AND node
 
-         UQueryNode* notA    = root;
-         notA->right         = a;
-         UQueryNode* notB    = U_NEW(UQueryNode(NOT, 0, b));
-         UQueryNode* newRoot = U_NEW(UQueryNode(OR, notA, notB));
+         UQueryNode* notA = root;
+                     notA->right = a;
 
-         UQueryNode* result  = getRawDNF(newRoot);
+         UQueryNode* notB;
+         UQueryNode* newRoot;
 
-         U_RETURN_POINTER(result,UQueryNode);
+         U_NEW(UQueryNode, notB,    UQueryNode(NOT, 0, b));
+         U_NEW(UQueryNode, newRoot, UQueryNode(OR, notA, notB));
+
+         UQueryNode* result = getRawDNF(newRoot);
+
+         U_RETURN_POINTER(result, UQueryNode);
          }
 
       U_INTERNAL_ASSERT(false)
@@ -424,16 +437,28 @@ U_NO_EXPORT UQueryNode* UQueryNode::getRawDNF(UQueryNode* root)
    // If one side is a value, make sure that this value is at the left
 
    if (root->left->type  != VALUE &&
-       root->right->type == VALUE) swap(root->left, root->right);
+       root->right->type == VALUE)
+      {
+      swap(root->left, root->right);
+      }
 
    // Permutate the left and right subtrees if they are not in our "conventional order"
 
-   if       (root->left->type  == NOT &&
-             root->right->type == OR)  swap(root->left, root->right);
-   else if  (root->left->type  == NOT &&
-             root->right->type == AND) swap(root->left, root->right);
-   else if  (root->left->type  == OR &&
-             root->right->type == AND) swap(root->left, root->right);
+   if (root->left->type  == NOT &&
+       root->right->type == OR)
+      {
+      swap(root->left, root->right);
+      }
+   else if (root->left->type  == NOT &&
+            root->right->type == AND)
+      {
+      swap(root->left, root->right);
+      }
+   else if (root->left->type  == OR &&
+            root->right->type == AND)
+      {
+      swap(root->left, root->right);
+      }
 
    /* Conventional order: root->left->type and root->right->type are expected to be equal or to be one of (OR, NOT), (AND, NOT), (AND, OR) */
 
@@ -444,37 +469,43 @@ U_NO_EXPORT UQueryNode* UQueryNode::getRawDNF(UQueryNode* root)
          {
          // Expected because of recursion step
 
-         U_INTERNAL_ASSERT_EQUALS(root->right->right->type,VALUE)
+         U_INTERNAL_ASSERT_EQUALS(root->right->right->type, VALUE)
 
-         U_RETURN_POINTER(root,UQueryNode);
+         U_RETURN_POINTER(root, UQueryNode);
          }
 
-      if (root->left->type == VALUE) U_RETURN_POINTER(root,UQueryNode);
+      if (root->left->type == VALUE)
+         {
+         U_RETURN_POINTER(root, UQueryNode);
+         }
 
       if (root->left->type  != NOT &&
-          root->right->type != NOT) U_RETURN_POINTER(root,UQueryNode);
+          root->right->type != NOT)
+         {
+         U_RETURN_POINTER(root, UQueryNode);
+         }
 
       if (root->left->type == NOT)
          {
-         U_INTERNAL_ASSERT_EQUALS(root->left->left,0)
-         U_INTERNAL_ASSERT_EQUALS(root->right->type,NOT)  // expected re: conv. order
-         U_INTERNAL_ASSERT_EQUALS(root->right->left,0)
+         U_INTERNAL_ASSERT_EQUALS(root->left->left, 0)
+         U_INTERNAL_ASSERT_EQUALS(root->right->left, 0)
+         U_INTERNAL_ASSERT_EQUALS(root->right->type, NOT) // expected re: conv. order
 
-         // Expected because of recursion step:
+         // Expected because of recursion step
 
-         U_INTERNAL_ASSERT_EQUALS(root->left->right->type,VALUE)
-         U_INTERNAL_ASSERT_EQUALS(root->right->right->type,VALUE)
+         U_INTERNAL_ASSERT_EQUALS(root->left->right->type,  VALUE)
+         U_INTERNAL_ASSERT_EQUALS(root->right->right->type, VALUE)
 
-         U_RETURN_POINTER(root,UQueryNode);
+         U_RETURN_POINTER(root, UQueryNode);
          }
 
       if (root->right->type != NOT) U_RETURN_POINTER(root,UQueryNode);
 
-      // Expected because of recursion step:
+      // Expected because of recursion step
 
-      U_INTERNAL_ASSERT_EQUALS(root->right->right->type,VALUE)
+      U_INTERNAL_ASSERT_EQUALS(root->right->right->type, VALUE)
 
-      U_RETURN_POINTER(root,UQueryNode);
+      U_RETURN_POINTER(root, UQueryNode);
       }
 
    if (root->type == AND)
@@ -482,15 +513,18 @@ U_NO_EXPORT UQueryNode* UQueryNode::getRawDNF(UQueryNode* root)
       if (root->left->type  == VALUE &&
           root->right->type == NOT)
          {
-         // Expected because of recursion step:
+         // Expected because of recursion step
 
-         U_INTERNAL_ASSERT_EQUALS(root->right->right->type,VALUE)
+         U_INTERNAL_ASSERT_EQUALS(root->right->right->type, VALUE)
 
-         U_RETURN_POINTER(root,UQueryNode);
+         U_RETURN_POINTER(root, UQueryNode);
          }
 
-      if (root->left->type == VALUE &&
-          root->right->type == AND) U_RETURN_POINTER(root,UQueryNode);
+      if (root->left->type  == VALUE &&
+          root->right->type == AND)
+         {
+         U_RETURN_POINTER(root, UQueryNode);
+         }
 
       if (root->left->type  == VALUE &&
           root->right->type == OR)
@@ -503,42 +537,51 @@ U_NO_EXPORT UQueryNode* UQueryNode::getRawDNF(UQueryNode* root)
 
          andNode->right = a;
 
-         UQueryNode* xClone     = U_NEW(UQueryNode(x->value));
-         UQueryNode* newAndNode = U_NEW(UQueryNode(AND, xClone, b));
+         UQueryNode* xClone;
+         UQueryNode* newAndNode;
+
+         U_NEW(UQueryNode, xClone,     UQueryNode(x->value));
+         U_NEW(UQueryNode, newAndNode, UQueryNode(AND, xClone, b));
 
          orNode->left  = andNode;
          orNode->right = newAndNode;
 
          UQueryNode* result = getRawDNF(orNode);
 
-         U_RETURN_POINTER(result,UQueryNode);
+         U_RETURN_POINTER(result, UQueryNode);
          }
 
       if (root->left->type  == AND &&
-          root->right->type == AND) U_RETURN_POINTER(root,UQueryNode);
+          root->right->type == AND)
+         {
+         U_RETURN_POINTER(root,UQueryNode);
+         }
 
       if (root->left->type  == VALUE &&
-          root->right->type == VALUE) U_RETURN_POINTER(root,UQueryNode);
+          root->right->type == VALUE)
+         {
+         U_RETURN_POINTER(root,UQueryNode);
+         }
 
       if (root->left->type == NOT)
          {
-         U_INTERNAL_ASSERT_EQUALS(root->left->left,0)
-         U_INTERNAL_ASSERT_EQUALS(root->right->type,NOT)  // expected re: conv. order
-         U_INTERNAL_ASSERT_EQUALS(root->right->left,0)
+         U_INTERNAL_ASSERT_EQUALS(root->left->left, 0)
+         U_INTERNAL_ASSERT_EQUALS(root->right->left, 0)
+         U_INTERNAL_ASSERT_EQUALS(root->right->type, NOT) // expected re: conv. order
 
-         // Expected because of recursion step:
+         // Expected because of recursion step
 
-         U_INTERNAL_ASSERT_EQUALS(root->left->right->type,VALUE)
-         U_INTERNAL_ASSERT_EQUALS(root->right->right->type,VALUE)
+         U_INTERNAL_ASSERT_EQUALS(root->left->right->type,  VALUE)
+         U_INTERNAL_ASSERT_EQUALS(root->right->right->type, VALUE)
 
-         U_RETURN_POINTER(root,UQueryNode);
+         U_RETURN_POINTER(root, UQueryNode);
          }
 
       if (root->right->type == NOT)
          {
-         U_INTERNAL_ASSERT_EQUALS(root->right->left,0)
          U_INTERNAL_ASSERT_POINTER(root->right->right)
-         U_INTERNAL_ASSERT_EQUALS(root->right->right->type,VALUE)
+         U_INTERNAL_ASSERT_EQUALS(root->right->left, 0)
+         U_INTERNAL_ASSERT_EQUALS(root->right->right->type, VALUE)
 
          if (root->left->type == AND) U_RETURN_POINTER(root,UQueryNode);
 
@@ -551,9 +594,13 @@ U_NO_EXPORT UQueryNode* UQueryNode::getRawDNF(UQueryNode* root)
 
          // We have (a|b) & !c, which becomes (a&!c) | (b&!c):
 
-         UQueryNode* newCNode   = U_NEW(UQueryNode(c->value));
-         UQueryNode* newNotNode = U_NEW(UQueryNode(NOT, 0, newCNode));
-         UQueryNode* newAndNode = U_NEW(UQueryNode(AND, b, newNotNode));
+         UQueryNode* newCNode;
+         UQueryNode* newNotNode;
+         UQueryNode* newAndNode;
+
+         U_NEW(UQueryNode, newCNode,   UQueryNode(c->value));
+         U_NEW(UQueryNode, newNotNode, UQueryNode(NOT, 0, newCNode));
+         U_NEW(UQueryNode, newAndNode, UQueryNode(AND, b, newNotNode));
 
          orNode->left   = andNode;
          orNode->right  = newAndNode;
@@ -563,10 +610,10 @@ U_NO_EXPORT UQueryNode* UQueryNode::getRawDNF(UQueryNode* root)
 
          UQueryNode* result = getRawDNF(orNode);
 
-         U_RETURN_POINTER(result,UQueryNode);
+         U_RETURN_POINTER(result, UQueryNode);
          }
 
-      U_INTERNAL_ASSERT_EQUALS(root->right->type,OR)
+      U_INTERNAL_ASSERT_EQUALS(root->right->type, OR)
 
       if (root->left->type == OR)
          {
@@ -583,15 +630,23 @@ U_NO_EXPORT UQueryNode* UQueryNode::getRawDNF(UQueryNode* root)
          andNode->left  = a;
          andNode->right = c;
 
-         UQueryNode* aClone           = cloneTree(a);
-         UQueryNode* firstNewAndNode  = U_NEW(UQueryNode(AND, aClone, d));
+         UQueryNode* newRoot;
+         UQueryNode* firstNewAndNode;
+         UQueryNode* secondNewAndNode;
+         UQueryNode* thirdNewAndNode;
 
-         UQueryNode* cClone           = cloneTree(c);
-         UQueryNode* secondNewAndNode = U_NEW(UQueryNode(AND, b, cClone));
+         UQueryNode* aClone = cloneTree(a);
 
-         UQueryNode* bClone           = cloneTree(b);
-         UQueryNode* dClone           = cloneTree(d);
-         UQueryNode* thirdNewAndNode  = U_NEW(UQueryNode(AND, bClone, dClone));
+         U_NEW(UQueryNode, firstNewAndNode, UQueryNode(AND, aClone, d));
+
+         UQueryNode* cClone = cloneTree(c);
+
+         U_NEW(UQueryNode, secondNewAndNode, UQueryNode(AND, b, cClone));
+
+         UQueryNode* bClone = cloneTree(b);
+         UQueryNode* dClone = cloneTree(d);
+
+         U_NEW(UQueryNode, thirdNewAndNode, UQueryNode(AND, bClone, dClone));
 
          leftOrNode->left  = andNode;
          leftOrNode->right = firstNewAndNode;
@@ -599,10 +654,11 @@ U_NO_EXPORT UQueryNode* UQueryNode::getRawDNF(UQueryNode* root)
          rightOrNode->left  = secondNewAndNode;
          rightOrNode->right = thirdNewAndNode;
 
-         UQueryNode* newRoot = U_NEW(UQueryNode(OR, leftOrNode, rightOrNode));
-         UQueryNode* result  = getRawDNF(newRoot);
+         U_NEW(UQueryNode, newRoot, UQueryNode(OR, leftOrNode, rightOrNode));
 
-         U_RETURN_POINTER(result,UQueryNode);
+         UQueryNode* result = getRawDNF(newRoot);
+
+         U_RETURN_POINTER(result, UQueryNode);
          }
 
       if (root->left->type == AND)
@@ -614,10 +670,14 @@ U_NO_EXPORT UQueryNode* UQueryNode::getRawDNF(UQueryNode* root)
          UQueryNode* topAndNode  = root;
          UQueryNode* rightOrNode = root->right;
 
-         UQueryNode* aClone         = cloneTree(a);
-         UQueryNode* bClone         = cloneTree(b);
-         UQueryNode* newLowAndNode  = U_NEW(UQueryNode(AND, aClone, bClone));
-         UQueryNode* newHighAndNode = U_NEW(UQueryNode(AND, newLowAndNode, d));
+         UQueryNode* aClone = cloneTree(a);
+         UQueryNode* bClone = cloneTree(b);
+
+         UQueryNode* newLowAndNode;
+         UQueryNode* newHighAndNode;
+
+         U_NEW(UQueryNode, newLowAndNode,  UQueryNode(AND, aClone, bClone));
+         U_NEW(UQueryNode, newHighAndNode, UQueryNode(AND, newLowAndNode, d));
 
          topAndNode->right = c;
 
@@ -632,7 +692,7 @@ U_NO_EXPORT UQueryNode* UQueryNode::getRawDNF(UQueryNode* root)
       U_INTERNAL_ASSERT(false)
       }
 
-   U_RETURN_POINTER(0,UQueryNode);
+   U_RETURN_POINTER(0, UQueryNode);
 }
 
 /**
@@ -641,7 +701,7 @@ U_NO_EXPORT UQueryNode* UQueryNode::getRawDNF(UQueryNode* root)
  * 'negatives' set will contain "a" and "c". When the intersection between the two sets is not empty
  * and the only binary operator used in the tree is AND, the tree always evaluates to false (because
  * we have an expression of the form (a&!a)&(whatever)). If the only binary operator is OR, the tree
- * always evaluates to true.
+ * always evaluates to true
  */
 
 void UQueryNode::getTreeVariables(UVector<UString>* positives, UVector<UString>* negatives) const
@@ -676,7 +736,7 @@ void UQueryNode::getTreeVariables(UVector<UString>* positives, UVector<UString>*
 
 U_NO_EXPORT bool UQueryNode::isDNFTermUseful() const
 {
-   U_TRACE(0, "UQueryNode::isDNFTermUseful()")
+   U_TRACE_NO_PARAM(0, "UQueryNode::isDNFTermUseful()")
 
    U_CHECK_MEMORY
 
@@ -686,7 +746,9 @@ U_NO_EXPORT bool UQueryNode::isDNFTermUseful() const
 
    uint32_t sz = intersection.intersection(positives, negatives);
 
-   U_RETURN(sz == 0);
+   if (sz == 0) U_RETURN(true);
+
+   U_RETURN(false);
 }
 
 U_NO_EXPORT void UQueryNode::destroyDNFOrNodes(UQueryNode* root)
@@ -694,7 +756,10 @@ U_NO_EXPORT void UQueryNode::destroyDNFOrNodes(UQueryNode* root)
    U_TRACE(0, "UQueryNode::destroyDNFOrNodes(%p)", root)
 
    if (root == 0 ||
-       root->type != OR) return;
+       root->type != OR)
+      {
+      return;
+      }
 
    // Detach the OR node's subtrees, so that 'delete' does not affect them:
 
@@ -721,20 +786,20 @@ U_NO_EXPORT UQueryNode* UQueryNode::joinTreesWithOrNodes(UVector<UQueryNode*>& t
 
    uint32_t sz = trees.size();
 
-   if (sz == 0) U_RETURN_POINTER(0,       UQueryNode);
-   if (sz == 1) U_RETURN_POINTER(trees[0],UQueryNode);
+   if (sz == 0) U_RETURN_POINTER(0,        UQueryNode);
+   if (sz == 1) U_RETURN_POINTER(trees[0], UQueryNode);
 
    uint32_t i = 0;
 
-   UQueryNode* result = U_NEW(UQueryNode(OR, trees[i++], 0));
+   UQueryNode* result;
 
-   result->right = trees[i++];
+   U_NEW(UQueryNode, result, UQueryNode(OR, trees[i], 0));
 
-   // *i++ not used twice in same statement because eval order is undef
+   result->right = trees[++i];
 
-   for (; i < sz; ++i) result = U_NEW(UQueryNode(OR, result, trees[i]));
+   for (++i; i < sz; ++i) U_NEW(UQueryNode, result, UQueryNode(OR, result, trees[i]));
 
-   U_RETURN_POINTER(result,UQueryNode);
+   U_RETURN_POINTER(result, UQueryNode);
 }
 
 /**
@@ -800,7 +865,7 @@ UQueryNode* UQueryNode::getDisjunctiveNormalForm(UQueryNode* root)
 
    // Nothing to do if all the terms are useful
 
-   if (usefulTerms.size() == sz) U_RETURN_POINTER(dnfRoot,UQueryNode);
+   if (usefulTerms.size() == sz) U_RETURN_POINTER(dnfRoot, UQueryNode);
 
    destroyDNFOrNodes(dnfRoot);
 
@@ -808,7 +873,7 @@ UQueryNode* UQueryNode::getDisjunctiveNormalForm(UQueryNode* root)
 
    UQueryNode* result = joinTreesWithOrNodes(usefulTerms);
 
-   U_RETURN_POINTER(result,UQueryNode);
+   U_RETURN_POINTER(result, UQueryNode);
 }
 
 /**
@@ -825,8 +890,9 @@ void UQueryParser::startEvaluate(bPFpr func)
    U_INTERNAL_ASSERT_POINTER(func)
    U_INTERNAL_ASSERT_EQUALS(termRoots,0)
 
-   function  = func;
-   termRoots = U_NEW(UVector<UQueryNode*>);
+   function = func;
+
+   U_NEW(UVector<UQueryNode*>, termRoots, UVector<UQueryNode*>);
 
    tree->getDNFTermRoots(termRoots);
 
@@ -837,8 +903,8 @@ void UQueryParser::startEvaluate(bPFpr func)
 
    for (uint32_t i = 0; i < sz; ++i)
       {
-      negatives[i] = U_NEW(UVector<UString>);
-      positives[i] = U_NEW(UVector<UString>);
+      U_NEW(UVector<UString>, negatives[i], UVector<UString>);
+      U_NEW(UVector<UString>, positives[i], UVector<UString>);
 
       UQueryNode* term = termRoots->at(i);
 
@@ -943,7 +1009,7 @@ inline bool UQueryParser::neg_evaluate(void* _word)
 
 bool UQueryParser::evaluate() const
 {
-   U_TRACE(0, "UQueryParser::evaluate()")
+   U_TRACE_NO_PARAM(0, "UQueryParser::evaluate()")
 
    U_INTERNAL_ASSERT_POINTER(termRoots)
 
@@ -987,13 +1053,13 @@ U_EXPORT ostream& operator<<(ostream& os, const UQueryNode& e)
          bool parent = (e.right->type == UQueryNode::AND ||
                         e.right->type == UQueryNode::OR);
 
-         os << ' ' << *UQueryParser::str_not << ' ';
+         os << ' ' << *UString::str_not << ' ';
 
-         if (parent) os << *UQueryParser::str_p1;
+         if (parent) os << *UString::str_p1;
 
          os << *(e.right);
 
-         if (parent) os << *UQueryParser::str_p2;
+         if (parent) os << *UString::str_p2;
          }
       break;
 
@@ -1001,7 +1067,7 @@ U_EXPORT ostream& operator<<(ostream& os, const UQueryNode& e)
          {
          os << *(e.left);
 
-         os << ' ' << *UQueryParser::str_or << ' ';
+         os << ' ' << *UString::str_or << ' ';
 
          os << *(e.right);
          }
@@ -1011,21 +1077,21 @@ U_EXPORT ostream& operator<<(ostream& os, const UQueryNode& e)
          {
          bool parent = (e.left->type == UQueryNode::OR);
 
-         if (parent) os << *UQueryParser::str_p1;
+         if (parent) os << *UString::str_p1;
 
          os << *(e.left);
 
-         if (parent) os << *UQueryParser::str_p2;
+         if (parent) os << *UString::str_p2;
 
-         os << ' ' << *UQueryParser::str_and << ' ';
+         os << ' ' << *UString::str_and << ' ';
 
          parent = (e.right->type == UQueryNode::OR);
 
-         if (parent) os << *UQueryParser::str_p1;
+         if (parent) os << *UString::str_p1;
 
          os << *(e.right);
 
-         if (parent) os << *UQueryParser::str_p2;
+         if (parent) os << *UString::str_p2;
          }
       break;
       }

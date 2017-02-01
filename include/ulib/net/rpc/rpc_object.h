@@ -56,8 +56,6 @@ public:
                              standard_output_binary = 4,
                        stdin_standard_output_binary = 5 };
 
-   // Costruttori
-
    URPCObject()
       {
       U_TRACE_REGISTER_OBJECT(0, URPCObject, "", 0)
@@ -74,9 +72,9 @@ public:
 
    virtual void setFailed()
       {
-      U_TRACE(0, "URPCObject::setFailed()")
+      U_TRACE_NO_PARAM(0, "URPCObject::setFailed()")
 
-      URPCMethod::pFault = U_NEW(URPCFault);
+      U_NEW(URPCFault, URPCMethod::pFault, URPCFault);
       }
 
    // GLOBAL SERVICES
@@ -156,19 +154,17 @@ protected:
 
    virtual void insertGenericMethod(const UString& n, const UString& ns, UCommand* cmd, int rtype)
       {
-   // U_TRACE(0, "URPCObject::insertGenericMethod(%V,%V,%p,%d)", n.rep, ns.rep, cmd, rtype) // problem with sanitize address
+      U_TRACE(0, "URPCObject::insertGenericMethod(%V,%V,%p,%d)", n.rep, ns.rep, cmd, rtype) // problem with sanitize address
 
-      methodList.push_back(U_NEW(URPCGenericMethod(n, ns, cmd, rtype)));
+      URPCMethod* pmethod;
+
+      U_NEW(URPCGenericMethod, pmethod, URPCGenericMethod(n, ns, cmd, rtype));
+
+      methodList.push_back(pmethod);
       }
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   URPCObject(const URPCObject&) = delete;
-   URPCObject& operator=(const URPCObject&) = delete;
-#else
-   URPCObject(const URPCObject&)            {}
-   URPCObject& operator=(const URPCObject&) { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(URPCObject)
 };
 
 #endif

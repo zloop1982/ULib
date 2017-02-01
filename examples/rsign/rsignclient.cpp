@@ -23,7 +23,7 @@ public:
 
    // COSTRUTTORE
 
-            UClientRSIGN(UFileConfig* cfg) : USOAPClient<T>(cfg) {}
+   explicit UClientRSIGN(UFileConfig* cfg) : USOAPClient<T>(cfg) {}
    virtual ~UClientRSIGN()                                       {}
 
    // OBJECT FOR METHOD REQUEST
@@ -106,6 +106,8 @@ public:
       U_TRACE(5, "Application::run(%d,%p,%p)", argc, argv, env)
 
       UApplication::run(argc, argv, env);
+
+      UString::str_allocate(STR_ALLOCATE_SOAP);
 
       // manage arg operation
 

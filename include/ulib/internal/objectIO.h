@@ -30,15 +30,15 @@ struct U_EXPORT UObjectIO {
    static uint32_t buffer_output_sz, buffer_output_len;
 
    static void output();
-   static void  init(char* t, uint32_t sz);
-   static void input(char* t, uint32_t tlen);
+   static void  init(      char* t, uint32_t sz);
+   static void input(const char* t, uint32_t tlen);
 
-   static UStringRep* create();
+   static UStringRep* create(bool bcopy);
 };
 
-template <class T> inline void UString2Object(char* t, uint32_t tlen, T& object)
+template <class T> inline void UString2Object(const char* t, uint32_t tlen, T& object)
 {
-   U_INTERNAL_TRACE("UString2Object(%s,%u,%p)", t, tlen, &object)
+   U_INTERNAL_TRACE("UString2Object(%.*s,%u,%p)", tlen, t, tlen, &object)
 
 #ifdef U_STDCPP_ENABLE
    UObjectIO::input(t, tlen);
@@ -47,11 +47,11 @@ template <class T> inline void UString2Object(char* t, uint32_t tlen, T& object)
 
    *UObjectIO::is >> object;
 
-#  ifdef HAVE_OLD_IOSTREAM
+# ifdef HAVE_OLD_IOSTREAM
    delete UObjectIO::is;
-#  else
+# else
    UObjectIO::is->~istrstream();
-#  endif
+# endif
 #endif
 }
 
@@ -59,7 +59,9 @@ template <class T> inline char* UObject2String(T& object)
 {
    U_INTERNAL_TRACE("UObject2String(%p)", &object)
 
-#ifdef U_STDCPP_ENABLE
+#ifndef U_STDCPP_ENABLE
+   return 0;
+#else
    U_INTERNAL_ASSERT_POINTER(UObjectIO::os)
 
    *UObjectIO::os << object;
@@ -67,23 +69,21 @@ template <class T> inline char* UObject2String(T& object)
    UObjectIO::output();
 
    return UObjectIO::buffer_output;
-#else
-   return 0;
 #endif
 }
 
-template <class T> inline UStringRep* UObject2StringRep(T* object)
+template <class T> inline UStringRep* UObject2StringRep(T& object, bool bcopy)
 {
-   U_INTERNAL_TRACE("UObject2StringRep(%p)", object)
+   U_INTERNAL_TRACE("UObject2StringRep(%p,%b)", &object, bcopy)
 
-#ifdef U_STDCPP_ENABLE
+#ifndef U_STDCPP_ENABLE
+   return 0;
+#else
    U_INTERNAL_ASSERT_POINTER(UObjectIO::os)
 
-   *UObjectIO::os << *object;
+   *UObjectIO::os << object;
 
-   return UObjectIO::create();
-#else
-   return 0;
+   return UObjectIO::create(bcopy);
 #endif
 }
 
@@ -91,11 +91,11 @@ template <class T> inline uint32_t UObject2String(T& object, char* _buffer, uint
 {
    U_INTERNAL_TRACE("UObject2String(%p,%p,%u)", &object, _buffer, buffer_size)
 
+#ifndef U_STDCPP_ENABLE
+   return 0;
+#else
    uint32_t len;
 
-#ifndef U_STDCPP_ENABLE
-   len = 0;
-#else
    ostrstream _os(_buffer, buffer_size);
 
    _os << object;
@@ -103,24 +103,27 @@ template <class T> inline uint32_t UObject2String(T& object, char* _buffer, uint
    len = _os.pcount();
 
    U_INTERNAL_PRINT("_os.pcount() = %u", len)
-#endif
 
    U_INTERNAL_ASSERT_MINOR(len, buffer_size)
 
    return len;
+#endif
 }
 
 #ifdef U_OBJECT_TO_TRACE
 #undef U_OBJECT_TO_TRACE
 #endif
 
-#ifdef U_STDCPP_ENABLE
+#ifndef U_STDCPP_ENABLE
+#  define U_OBJECT_TO_TRACE(obj) "not available"
+#else
 template <class T> inline char* U_OBJECT_TO_TRACE(T& object)
 {
    U_INTERNAL_TRACE("U_OBJECT_TO_TRACE(%p)", &object)
 
 #ifdef DEBUG
-   bool status = UTrace::suspend();
+   int status = u_trace_suspend;
+                u_trace_suspend = 1;
 #endif
 
    char* str = UObject2String<T>(object);
@@ -128,13 +131,11 @@ template <class T> inline char* U_OBJECT_TO_TRACE(T& object)
    str = strndup(str, UObjectIO::buffer_output_len);
 
 #ifdef DEBUG
-   UTrace::resume(status);
+   u_trace_suspend = status;
 #endif
 
    return str;
 }
-#else
-#  define U_OBJECT_TO_TRACE(obj) "non available"
 #endif
 
 #endif

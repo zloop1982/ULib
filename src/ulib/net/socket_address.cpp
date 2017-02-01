@@ -21,7 +21,7 @@
 /* structures used by many IP socket commands. The class allows us to set    */
 /* parts of the structures and retrieve their contents. This class is mainly */
 /* used for convenience and to minimise rewriting of code to support both    */
-/* IPv4 and IPv6.                                                            */
+/* IPv4 and IPv6                                                             */
 /*****************************************************************************/
 
 // ------------------------------------
@@ -96,7 +96,7 @@ public:
 
    void setIPAddress(UIPAddress& cAddr)
       {
-      U_TRACE(0, "SocketAddress::setIPAddress()")
+      U_TRACE(0, "SocketAddress::setIPAddress(%p)", &cAddr)
 
       addr.psaGeneric.sa_family = cAddr.getAddressFamily();
 
@@ -198,13 +198,7 @@ protected:
    union uusockaddr addr;
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   SocketAddress(const SocketAddress&) = delete;
-   SocketAddress& operator=(const SocketAddress&) = delete;
-#else
-   SocketAddress(const SocketAddress&)            {}
-   SocketAddress& operator=(const SocketAddress&) { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(SocketAddress)
 
    friend class USocket;
 };

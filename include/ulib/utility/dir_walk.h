@@ -23,13 +23,14 @@
  *       For each found entry in the tree, it calls foundFile()
  */
 
-                   class IR;
-                   class UFile;
-                   class UHTTP;
+class IR;
+class UFile;
+class UHTTP;
+class PEC_report;
+
 template <class T> class UTree;
 template <class T> class UVector;
 template <class T> class UHashMap;
-                   class PEC_report;
 
 class U_EXPORT UDirWalk {
 public:
@@ -53,27 +54,25 @@ public:
    U_MEMORY_ALLOCATOR
    U_MEMORY_DEALLOCATOR
 
-   // Costruttori
-
-   UDirWalk(const UString* dir = 0, const char* _filter = 0, uint32_t _filter_len = 0)
+   UDirWalk(const UString* dir = 0, const char* _filter = 0, uint32_t _filter_len = 0, int _filter_flags = 0)
       {
-      U_TRACE_REGISTER_OBJECT(0, UDirWalk, "%p,%.*S,%u", dir, _filter_len, _filter, _filter_len)
+      U_TRACE_REGISTER_OBJECT(0, UDirWalk, "%p,%.*S,%u,%d", dir, _filter_len, _filter, _filter_len, _filter_flags)
 
-      ctor(dir, _filter, _filter_len);
+      ctor(dir, _filter, _filter_len, _filter_flags);
       }
 
-   UDirWalk(const UString* dir, const UString& _filter)
+   UDirWalk(const UString* dir, const UString& _filter, int _filter_flags = 0)
       {
-      U_TRACE_REGISTER_OBJECT(0, UDirWalk, "%V,%V", dir->rep, _filter.rep)
+      U_TRACE_REGISTER_OBJECT(0, UDirWalk, "%V,%V,%d", dir->rep, _filter.rep, _filter_flags)
 
-      ctor(dir, U_STRING_TO_PARAM(_filter));
+      ctor(dir, U_STRING_TO_PARAM(_filter), _filter_flags);
       }
 
-   UDirWalk(const UString& dir, const char* _filter = 0, uint32_t _filter_len = 0)
+   UDirWalk(const UString& dir, const char* _filter = 0, uint32_t _filter_len = 0, int _filter_flags = 0)
       {
-      U_TRACE_REGISTER_OBJECT(0, UDirWalk, "%V,%.*S,%u", dir.rep, _filter_len, _filter, _filter_len)
+      U_TRACE_REGISTER_OBJECT(0, UDirWalk, "%V,%.*S,%u,%d", dir.rep, _filter_len, _filter, _filter_len, _filter_flags)
 
-      ctor(&dir, _filter, _filter_len);
+      ctor(&dir, _filter, _filter_len, _filter_flags);
       }
 
    virtual ~UDirWalk()
@@ -97,7 +96,7 @@ public:
 
    static bool isDirectory()
       {
-      U_TRACE(0, "UDirWalk::isDirectory()")
+      U_TRACE_NO_PARAM(0, "UDirWalk::isDirectory()")
 
       U_INTERNAL_ASSERT_POINTER(pthis)
 
@@ -106,7 +105,7 @@ public:
 
    static void setSortingForInode()
       {
-      U_TRACE(0, "UDirWalk::setSortingForInode()")
+      U_TRACE_NO_PARAM(0, "UDirWalk::setSortingForInode()")
 
       sort_by = cmp_inode;
       }
@@ -123,22 +122,20 @@ public:
       path.replace(pthis->pathname+2, pthis->pathlen-2);
       }
 
-   static void setFollowLinks(bool _bfollowlinks = true)
+   static void setFollowLinks(bool _bfollowlinks)
       {
       U_TRACE(0, "UDirWalk::setFollowLinks(%b)", _bfollowlinks)
 
       bfollowlinks = _bfollowlinks;
       }
 
-   static void setRecurseSubDirs(bool bcall_if_directory = true)
+   static void setRecurseSubDirs(bool recurse, bool bcall_if_directory)
       {
-      U_TRACE(0, "UDirWalk::setRecurseSubDirs(%b)", bcall_if_directory)
+      U_TRACE(0, "UDirWalk::setRecurseSubDirs(%b,%b)", recurse, bcall_if_directory)
 
-      brecurse          = true;
+      brecurse          = recurse;
       call_if_directory = bcall_if_directory;
       }
-
-   static void setSuffixFileType(const char* format, ...);
 
    static void setSuffixFileType(const char* str, uint32_t len)
       {
@@ -146,11 +143,24 @@ public:
 
       U_INTERNAL_ASSERT_EQUALS(suffix_file_type, 0)
 
-      suffix_file_type = U_NEW(UString(str, len));
+      U_NEW(UString, suffix_file_type, UString(str, len));
       }
 
-   static void setFilter(const char* _filter, uint32_t _filter_len);
-   static bool setDirectory(const UString& dir, const char* filter = 0, uint32_t filter_len = 0);
+   static void setFilter(const char* _filter, uint32_t _filter_len, int _filter_flags = 0)
+      {
+      U_TRACE(0, "UDirWalk::setFilter(%.*S,%u,%d)", _filter_len, _filter, _filter_len, _filter_flags)
+
+      filter       = _filter;
+      filter_flags = _filter_flags;
+
+      bfollowlinks = (filter_len = _filter_len);
+      }
+
+   static void setFilter(const UString& _filter, int _filter_flags = 0) { setFilter(U_STRING_TO_PARAM(_filter), _filter_flags); }
+
+   static bool setDirectory(const UString& dir, const char* f = 0, uint32_t flen = 0, int _filter_flags = 0);
+
+   static void setDirectory(const UString& dir, const UString& _filter, int _filter_flags = 0) { setDirectory(dir, U_STRING_TO_PARAM(_filter), _filter_flags); }
 
    // DEBUG
 
@@ -165,6 +175,7 @@ protected:
    char pathname[4000];
 
    static UDirWalk* pthis;
+   static int filter_flags;
    static qcompare sort_by;
    static const char* filter;
    static UTree<UString>* ptree;
@@ -175,7 +186,7 @@ protected:
    static UHashMap<UFile*>* cache_file_for_compare;
    static bool tree_root, call_if_directory, bfollowlinks, brecurse; // recurse subdirectories?
 
-   void ctor(const UString* dir, const char* filter, uint32_t filter_len);
+   void ctor(const UString* dir, const char* filter, uint32_t filter_len, int _filter_flags = 0);
 
    // foundFile() is called whenever another file or directory is
    // found that meets the criteria in effect for the object. This
@@ -183,7 +194,7 @@ protected:
 
    virtual void foundFile()
       {
-      U_TRACE(0, "UDirWalk::foundFile()")
+      U_TRACE_NO_PARAM(0, "UDirWalk::foundFile()")
 
       U_INTERNAL_ASSERT_EQUALS(pthis, this)
 
@@ -203,13 +214,7 @@ private:
 
    static int cmp_modify(const void* a, const void* b) U_NO_EXPORT;
 
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UDirWalk(const UDirWalk&) = delete;
-   UDirWalk& operator=(const UDirWalk&) = delete;
-#else
-   UDirWalk(const UDirWalk&)            {}
-   UDirWalk& operator=(const UDirWalk&) { return *this; }
-#endif      
+   U_DISALLOW_COPY_AND_ASSIGN(UDirWalk)
 
    friend class IR;
    friend class UHTTP;

@@ -39,6 +39,7 @@ class UProxyPlugIn;
 class UNoCatPlugIn;
 class UServer_Base;
 class UHttpClient_Base;
+class UElasticSearchClient;
 
 class U_EXPORT UClient_Base {
 public:
@@ -54,7 +55,7 @@ public:
 
    bool isOpen() const
       {
-      U_TRACE(0, "UClient_Base::isOpen()")
+      U_TRACE_NO_PARAM(0, "UClient_Base::isOpen()")
 
       if (socket->isOpen()) U_RETURN(true);
 
@@ -63,7 +64,7 @@ public:
 
    bool isClosed() const
       {
-      U_TRACE(0, "UClient_Base::isClosed()")
+      U_TRACE_NO_PARAM(0, "UClient_Base::isClosed()")
 
       if (socket->isClosed()) U_RETURN(true);
 
@@ -72,7 +73,7 @@ public:
 
    bool isConnected() const
       {
-      U_TRACE(0, "UClient_Base::isConnected()")
+      U_TRACE_NO_PARAM(0, "UClient_Base::isConnected()")
 
       if (socket->isOpen() &&
           socket->isConnected())
@@ -92,7 +93,7 @@ public:
 
    void close()
       {
-      U_TRACE(0, "UClient_Base::close()")
+      U_TRACE_NO_PARAM(0, "UClient_Base::close()")
 
       U_INTERNAL_ASSERT_POINTER(socket)
 
@@ -105,9 +106,9 @@ public:
 
       U_INTERNAL_ASSERT_POINTER(socket)
 
-      bool result = socket->shutdown(how);
+      if (socket->shutdown(how)) U_RETURN(true);
 
-      U_RETURN(result);
+      U_RETURN(false);
       }
 
    void setTimeOut(uint32_t t)
@@ -119,18 +120,16 @@ public:
 
    void adjustTimeOut()
       {
-      U_TRACE(0, "UClient_Base::adjustTimeOut()")
+      U_TRACE_NO_PARAM(0, "UClient_Base::adjustTimeOut()")
 
       if (timeoutMS < U_TIMEOUT_MS) timeoutMS = U_TIMEOUT_MS;
       }
 
    void reset()
       {
-      U_TRACE(0, "UClient_Base::reset()")
+      U_TRACE_NO_PARAM(0, "UClient_Base::reset()")
 
-#  ifdef DEBUG
       uri.clear(); // NB: to avoid DEAD OF SOURCE STRING WITH CHILD ALIVE... (uri can be a substr of url)
-#  endif
       url.clear();
       }
 
@@ -141,7 +140,7 @@ public:
 
    static bool isLogSharedWithServer()
       {
-      U_TRACE(0, "UClient_Base::isLogSharedWithServer()")
+      U_TRACE_NO_PARAM(0, "UClient_Base::isLogSharedWithServer()")
 
       U_RETURN(log_shared_with_server);
       }
@@ -155,12 +154,17 @@ public:
    const char*  getResponseData() const { return response.data(); }
    unsigned int getPort() const         { return port; }
 
-   bool remoteIPAddress(UIPAddress& addr);
-   bool setHostPort(const UString& host, unsigned int port);
-
    bool connect();
    void clearData();
+   bool remoteIPAddress(UIPAddress& addr);
    bool readResponse(uint32_t count = U_SINGLE_READ);
+   bool setHostPort(const UString& host, unsigned int port);
+
+   // NB: return if it has modified host or port...
+
+   bool setUrl(const char* str, uint32_t len);
+
+   bool setUrl(const UString& _url) { return setUrl(U_STRING_TO_PARAM(_url)); }
 
    /**
     * Establishes a TCP/IP socket connection with the host that will satisfy requests for the provided URL.
@@ -232,9 +236,26 @@ protected:
    static bool log_shared_with_server, bIPv6;
 
    bool readHTTPResponse();
-   bool setUrl(const UString& url); // NB: return if it has modified host or port...
 
-   void prepareRequest(const UString& req);
+   void prepareRequest(const char* req, uint32_t len)
+      {
+      U_TRACE(0, "UClient_Base::prepareRequest(%.*S,%u)", len, req, len)
+
+      iovcnt = 1;
+
+      iov[0].iov_base = (caddr_t)req;
+      iov[0].iov_len  =          len;
+
+      (void) U_SYSCALL(memset, "%p,%d,%u", iov+1, 0, sizeof(struct iovec) * 5);
+
+      U_INTERNAL_ASSERT_EQUALS(iov[1].iov_len, 0)
+      U_INTERNAL_ASSERT_EQUALS(iov[2].iov_len, 0)
+      U_INTERNAL_ASSERT_EQUALS(iov[3].iov_len, 0)
+      U_INTERNAL_ASSERT_EQUALS(iov[4].iov_len, 0)
+      U_INTERNAL_ASSERT_EQUALS(iov[5].iov_len, 0)
+      }
+
+   void prepareRequest(const UString& req) { request = req; prepareRequest(U_STRING_TO_PARAM(req)); }
 
    bool sendRequest(bool bread_response = false);
    bool sendRequestAndReadResponse() { return sendRequest(true); }
@@ -252,14 +273,11 @@ protected:
 
    void loadConfigParam();
 
-   // COSTRUTTORI
-
-    UClient_Base(UFileConfig* pcfg);
+    UClient_Base(UFileConfig* pcfg = 0);
    ~UClient_Base();
 
 private:
-   UClient_Base(const UClient_Base&)            {}
-   UClient_Base& operator=(const UClient_Base&) { return *this; }
+   U_DISALLOW_COPY_AND_ASSIGN(UClient_Base)
 
    friend class USSLSocket;
    friend class UFCGIPlugIn;
@@ -270,18 +288,17 @@ private:
    friend class UNoCatPlugIn;
    friend class UServer_Base;
    friend class UHttpClient_Base;
+   friend class UElasticSearchClient;
 };
 
 template <class Socket> class U_EXPORT UClient : public UClient_Base {
 public:
 
-   // COSTRUTTORI
-
    UClient(UFileConfig* pcfg) : UClient_Base(pcfg)
       {
       U_TRACE_REGISTER_OBJECT(0, UClient, "%p", pcfg)
 
-      socket = U_NEW(Socket(UClient_Base::bIPv6));
+      U_NEW(Socket, socket, Socket(UClient_Base::bIPv6));
       }
 
    ~UClient()
@@ -296,12 +313,10 @@ public:
 #endif
 
 private:
-   UClient(const UClient&) : UClient_Base(0) {}
-   UClient& operator=(const UClient&)        { return *this; }
+   U_DISALLOW_COPY_AND_ASSIGN(UClient)
 };
 
-#ifdef USE_LIBSSL // specializzazione con USSLSocket
-
+#ifdef USE_LIBSSL
 template <> class U_EXPORT UClient<USSLSocket> : public UClient_Base {
 public:
 
@@ -324,14 +339,7 @@ public:
 #endif
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UClient<USSLSocket>(const UClient<USSLSocket>&) = delete;
-   UClient<USSLSocket>& operator=(const UClient<USSLSocket>&) = delete;
-#else
-   UClient<USSLSocket>(const UClient<USSLSocket>&) : UClient_Base(0) {}
-   UClient<USSLSocket>& operator=(const UClient<USSLSocket>&)        { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UClient<USSLSocket>)
 };
-
 #endif
 #endif

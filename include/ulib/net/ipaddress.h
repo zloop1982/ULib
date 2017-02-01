@@ -73,8 +73,6 @@ public:
 
    UString spec, device, host;
 
-   // COSTRUTTORI
-
    UIPAllow()
       {
       U_TRACE_REGISTER_OBJECT(0, UIPAllow, "", 0)
@@ -87,8 +85,6 @@ public:
       {
       U_TRACE_UNREGISTER_OBJECT(0, UIPAllow)
       }
-
-   // ASSEGNAZIONE
 
    UIPAllow& operator=(const UIPAllow& a)
       {
@@ -123,11 +119,15 @@ public:
 
    bool isEmpty()
       {
-      U_TRACE(0, "UIPAllow::isEmpty()")
+      U_TRACE_NO_PARAM(0, "UIPAllow::isEmpty()")
 
-      bool result = (device.empty() || host.empty());
+      if (device.empty() ||
+           host.empty())
+         {
+         U_RETURN(true);
+         }
 
-      U_RETURN(result);
+      U_RETURN(false);
       }
 
    static bool getNetworkInterface(UVector<UIPAllow*>& vipallow);
@@ -182,14 +182,13 @@ public:
    U_MEMORY_ALLOCATOR
    U_MEMORY_DEALLOCATOR
 
-   // COSTRUTTORI
-
    UIPAddress()
       {
       U_TRACE_REGISTER_OBJECT(0, UIPAddress, "", 0)
 
       pcStrAddress[0] = '\0';
-      iAddressLength = iAddressType = 0;
+      iAddressLength  =
+         iAddressType = 0;
       }
 
    ~UIPAddress()
@@ -205,11 +204,11 @@ public:
 
    // Sets an UIPAddress by providing a pointer to an address
    // structure of the form in_addr or in6_addr. This pointer is cast to (void*).
-   // A boolean value is used to indicate if this points to an IPv6 or IPv4 address.
+   // A boolean value is used to indicate if this points to an IPv6 or IPv4 address
 
    void setAddress(void* address, bool bIPv6 = false);
 
-   // Returns a constant integer of the address family represented by the UIPAddress.
+   // Returns a constant integer of the address family represented by the UIPAddress
 
    u_short getAddressFamily() const { return iAddressType; }
 
@@ -292,16 +291,17 @@ public:
       {
       U_TRACE(0, "UIPAddress::operator==(%p)", &cOtherAddr)
 
-      bool result = (iAddressType   == cOtherAddr.iAddressType) &&
-                    (iAddressLength == cOtherAddr.iAddressLength) &&
-                    (memcmp(pcAddress.p, cOtherAddr.pcAddress.p, iAddressLength) == 0);
+      if (iAddressType   == cOtherAddr.iAddressType   &&
+          iAddressLength == cOtherAddr.iAddressLength &&
+          (memcmp(pcAddress.p, cOtherAddr.pcAddress.p, iAddressLength) == 0))
+         {
+         U_RETURN(true);
+         }
 
-      U_RETURN(result);
+      U_RETURN(false);
       }
 
    bool operator!=(const UIPAddress& cOtherAddr) const { return !operator==(cOtherAddr); }
-
-   // ASSEGNAZIONE
 
    void set(const UIPAddress& cOtherAddr);
 
@@ -347,7 +347,7 @@ protected:
    /* This method is used to set the contents of the iAddressLength and        */
    /* pcAddress member variables. Address Length bytes are copied from the     */
    /* source address to the pcAddress array. This array is 16 bytes long, long */
-   /* enough to hold both IPv4 and IPv6 addresses.                             */
+   /* enough to hold both IPv4 and IPv6 addresses                              */
    /****************************************************************************/
 
    void setAddress(const char* pcNewAddress, int iNewAddressLength);

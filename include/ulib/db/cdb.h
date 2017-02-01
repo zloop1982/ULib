@@ -41,7 +41,7 @@
  * A record is located as follows. Compute the hash value of the key in the record.
  * The hash value modulo 512 is the number of a hash table.
  * The hash value divided by 512, modulo the length of that table, is a slot number.
- * Probe that slot, the next higher slot, and so on, until you find the record or run into an empty slot.
+ * Probe that slot, the next higher slot, and so on, until you find the record or run into an empty slot
  */
 
 #define CDB_NUM_HASH_TABLE_POINTER 512
@@ -49,7 +49,8 @@
 class URDB;
 class UHTTP;
 
-typedef int (*iPFprpr)(UStringRep*, UStringRep*);
+typedef int  (*iPFprpr) (UStringRep*, UStringRep*);
+typedef void (*vPFprpr) (UStringRep*, UStringRep*);
 
 #define U_cdb_ignore_case(obj)         (obj)->UCDB::flag[0]
 #define U_cdb_shared(obj)              (obj)->UCDB::flag[1]
@@ -79,9 +80,7 @@ public:
       uint32_t pos;  // starting byte position of the record (0 -> slot empty)
    } cdb_hash_table_slot;
 
-   // COSTRUTTORI
-
-   UCDB(int ignore_case)
+   UCDB(int ignore_case = 0)
       {
       U_TRACE_REGISTER_OBJECT(0, UCDB, "%d", ignore_case)
 
@@ -118,8 +117,6 @@ public:
 
    bool ignoreCase() const  { return ignoreCase(this); }
 
-   // Ricerche
-
    void setKey(UStringRep* _key)                 { key.dptr = (void*) _key->data(); key.dsize = _key->size(); }
    void setKey(const UString&  _key)             { key.dptr = (void*) _key.data();  key.dsize = _key.size(); }
    void setKey(const void* dptr, uint32_t dsize) { key.dptr = (void*) dptr;         key.dsize = dsize; }
@@ -144,14 +141,14 @@ public:
 
    uint32_t size() const
       {
-      U_TRACE(0, "UCDB::size()")
+      U_TRACE_NO_PARAM(0, "UCDB::size()")
 
       U_RETURN(nrecord);
       }
 
    UString elem()
       {
-      U_TRACE(0, "UCDB::elem()")
+      U_TRACE_NO_PARAM(0, "UCDB::elem()")
 
       UString str((const char*)data.dptr, data.dsize);
 
@@ -191,12 +188,20 @@ public:
 
    char* getPattern() { return pattern; }
 
-   void addEntryToVector()               { U_cdb_add_entry_to_vector(this) = true; }
-   void setFunctionToCall(iPFprpr func)  { function_to_call = func; }
-   void setVector(UVector<UString>* ptr) { ptr_vector = ptr; }
+   void addEntryToVector() { U_cdb_add_entry_to_vector(this) = true; }
+
+   iPFprpr getFunctionToCall()             { return function_to_call; }
+   void    setFunctionToCall(iPFprpr func) { function_to_call  = func; }
+
+   UVector<UString>* getVector()                      { return ptr_vector; }
+   void              setVector(UVector<UString>* ptr) { ptr_vector = ptr; }
 
    void callForAllEntrySorted(     iPFprpr function);
    void callForAllEntryWithPattern(iPFprpr function, UString* pattern);
+
+   iPFprpr getFilterToFunctionToCall()                 { return filter_function_to_call; }
+   void  resetFilterToFunctionToCall()                 { filter_function_to_call = functionCall; }
+   void    setFilterToFunctionToCall(iPFprpr function) { filter_function_to_call = function; }
 
    uint32_t getValuesWithKeyNask(UVector<UString>& vec_values, const UString& mask_key, uint32_t* size = 0);
 
@@ -225,9 +230,9 @@ public:
 
    // DEBUG
 
-#  ifdef DEBUG
+# ifdef DEBUG
    const char* dump(bool reset) const;
-#  endif
+# endif
 #endif
 
 protected:
@@ -241,8 +246,8 @@ protected:
 
    char* pattern;
    UString* pbuffer;
-   iPFprpr function_to_call;
    UVector<UString>* ptr_vector;
+   iPFprpr function_to_call, filter_function_to_call;
 
    // when mmap not available we use this storage...
 
@@ -250,10 +255,10 @@ protected:
    cdb_record_header      hr_buf;
    cdb_hash_table_slot  slot_buf;
 
-   uint32_t loop,              // number of hash slots searched under key
-            nslot,             // initialized in find()
-            khash,             // initialized in find()
-            nrecord,           // initialized in makeStart()
+   uint32_t loop,    // number of hash slots searched under key
+            nslot,   // initialized in find()
+            khash,   // initialized in find()
+            nrecord, // initialized in makeStart()
             offset,
             start_hash_table_slot;
 
@@ -278,7 +283,8 @@ protected:
       U_RETURN(result);
       }
 
-   void cdb_hash()                            { khash = cdb_hash((const char*)key.dptr, key.dsize); }
+   void cdb_hash() { khash = cdb_hash((const char*)key.dptr, key.dsize); }
+
    void setHash(uint32_t _hash)               { khash = _hash; }
    void setHash(const char* t, uint32_t tlen) { khash = cdb_hash(t, tlen); }
 
@@ -291,6 +297,8 @@ protected:
 
    void callForAllEntry(vPFpvpc function);
 
+   static int functionCall(UStringRep* key, UStringRep* data) { return 1; }
+
    // Save memory hash table as Constant DataBase
 
    static bool writeTo(UCDB& cdb, UHashMap<void*>* table, uint32_t tbl_space, pvPFpvpb f = 0);
@@ -299,7 +307,7 @@ protected:
 
    void makeStart()
       {
-      U_TRACE(0, "UCDB::makeStart()")
+      U_TRACE_NO_PARAM(0, "UCDB::makeStart()")
 
       U_INTERNAL_ASSERT_DIFFERS(map, MAP_FAILED)
 
@@ -326,13 +334,7 @@ protected:
 private:
    inline bool match(uint32_t pos) U_NO_EXPORT;
 
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UCDB(const UCDB&) = delete;
-   UCDB& operator=(const UCDB&) = delete;
-#else
-   UCDB(const UCDB&) : UFile()  {}
-   UCDB& operator=(const UCDB&) { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UCDB)
 
    friend class URDB;
    friend class UHTTP;

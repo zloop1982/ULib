@@ -17,8 +17,7 @@
 #include <ulib/internal/common.h>
 
 /**
- * Functor used by UGenericHashMap class to generate a hashcode for an object of type T
- * It must be specialized for your own class
+ * Functor used by UGenericHashMap class to generate a hashcode for an object of type T. It must be specialized for your own class
  */
 
 template <typename T> struct UHashCodeFunctor;
@@ -31,7 +30,7 @@ template <typename T> struct UHashCodeFunctor;
 template <typename T> struct UEqualsFunctor { bool operator()(const T& a, const T& b) const { return (a == b); } };
 
 /**
- * UGenericHashMap is a general purpose templated hash table class.
+ * UGenericHashMap is a general purpose templated hash table class
  */
 
 template <typename K, typename I,
@@ -44,7 +43,6 @@ public:
    U_MEMORY_ALLOCATOR
    U_MEMORY_DEALLOCATOR
 
-protected:
    struct UGenericHashMapNode // structure for keeping a linked-list of elements
       {
       K key;
@@ -67,6 +65,7 @@ protected:
    UGenericHashMapNode** table;
    uint32_t _length, _capacity, index, hash;
 
+protected:
    // Find a elem in the array with <key>
 
    template <typename X> void lookup(const X& _key)
@@ -93,8 +92,6 @@ protected:
       }
 
 public:
-   // Costruttori e distruttore
-
    UGenericHashMap()
       {
       U_TRACE_REGISTER_OBJECT(0, UGenericHashMap, "", 0)
@@ -110,7 +107,7 @@ public:
       U_TRACE_UNREGISTER_OBJECT(0, UGenericHashMap)
       }
 
-   // allocate and deallocate methods
+   // Allocate and deallocate methods
 
    void allocate(uint32_t n = 53)
       {
@@ -124,7 +121,7 @@ public:
 
    void deallocate()
       {
-      U_TRACE(0, "UGenericHashMap<K,I>::deallocate()")
+      U_TRACE_NO_PARAM(0, "UGenericHashMap<K,I>::deallocate()")
 
       U_CHECK_MEMORY
 
@@ -135,32 +132,32 @@ public:
       _capacity = 0;
       }
 
-   // Size and Capacity
+   // Size and capacity
 
    uint32_t size() const
       {
-      U_TRACE(0, "UGenericHashMap<K,I>::size()")
+      U_TRACE_NO_PARAM(0, "UGenericHashMap<K,I>::size()")
 
       U_RETURN(_length);
       }
 
    uint32_t capacity() const
       {
-      U_TRACE(0, "UGenericHashMap<K,I>::capacity()")
+      U_TRACE_NO_PARAM(0, "UGenericHashMap<K,I>::capacity()")
 
       U_RETURN(_capacity);
       }
 
    bool empty() const
       {
-      U_TRACE(0, "UGenericHashMap<K,I>::empty()")
+      U_TRACE_NO_PARAM(0, "UGenericHashMap<K,I>::empty()")
 
       if (_length) U_RETURN(false);
 
       U_RETURN(true);
       }
 
-   // Ricerche
+   // Find
 
    template <typename X> bool find(const X& _key)
       {
@@ -192,11 +189,9 @@ public:
 
    const K& key() const { return node->key; }
 
-   // dopo avere chiamato find() (non effettuano il lookup)
-
    void eraseAfterFind()
       {
-      U_TRACE(0, "UGenericHashMap<K,I>::eraseAfterFind()")
+      U_TRACE_NO_PARAM(0, "UGenericHashMap<K,I>::eraseAfterFind()")
 
       U_CHECK_MEMORY
 
@@ -209,8 +204,8 @@ public:
          if (pnode == node)
             {
             /**
-             * lista self-organizing (move-to-front), antepongo l'elemento
-             * trovato all'inizio della lista delle collisioni...
+             * list self-organizing (move-to-front), we place before
+             * the element at the beginning of the list of collisions
              */
 
             if (prev)
@@ -231,8 +226,8 @@ public:
       U_INTERNAL_DUMP("prev = %p", prev)
 
       /**
-       * presuppone l'elemento da cancellare all'inizio della lista
-       * delle collisioni - lista self-organizing (move-to-front)...
+       * list self-organizing (move-to-front), we requires the
+       * item to be deleted at the beginning of the list of collisions
        */
 
       U_INTERNAL_ASSERT_EQUALS(node, table[index])
@@ -254,9 +249,14 @@ public:
 
       U_INTERNAL_ASSERT_EQUALS(node, 0)
 
-      // antepongo l'elemento all'inizio della lista delle collisioni
+      /**
+       * list self-organizing (move-to-front), we place before
+       * the element at the beginning of the list of collisions
+       */
 
-      node = table[index] = U_NEW(UGenericHashMapNode(_key, _elem, table[index], hash));
+      U_NEW(UGenericHashMapNode, table[index], UGenericHashMapNode(_key, _elem, table[index], hash));
+
+      node = table[index];
 
       ++_length;
 
@@ -312,7 +312,7 @@ public:
 
       allocate(new_capacity);
 
-      // inserisco i vecchi elementi
+      // we insert the old elements
 
       UGenericHashMapNode* _next;
 
@@ -328,7 +328,10 @@ public:
 
                U_INTERNAL_DUMP("i = %u index = %u hash = %u", i, index, node->hash)
 
-               // antepongo l'elemento all'inizio della lista delle collisioni
+               /**
+                * list self-organizing (move-to-front), we place before
+                * the element at the beginning of the list of collisions
+                */
 
                node->next   = table[index];
                table[index] = node;
@@ -340,11 +343,9 @@ public:
       UMemoryPool::_free(old_table, old_capacity, sizeof(UGenericHashMapNode*));
       }
 
-   // Cancellazione tabella
-
    void clear()
       {
-      U_TRACE(0, "UGenericHashMap<K,I>::clear()")
+      U_TRACE_NO_PARAM(0, "UGenericHashMap<K,I>::clear()")
 
       U_INTERNAL_DUMP("_length = %u", _length)
 
@@ -390,11 +391,11 @@ public:
       _length = 0;
       }
 
-   // Call function for all entry
+   // Traverse the hash table for all entry
 
-   bool first()
+   UGenericHashMapNode* first()
       {
-      U_TRACE(0, "UGenericHashMap<K,I>::first()")
+      U_TRACE_NO_PARAM(0, "UGenericHashMap<K,I>::first()")
 
       U_INTERNAL_DUMP("_length = %u", _length)
 
@@ -404,20 +405,20 @@ public:
             {
             node = table[index];
 
-            U_RETURN(true);
+            U_RETURN_POINTER(node, UGenericHashMapNode);
             }
          }
 
-      U_RETURN(false);
+      U_RETURN_POINTER(0, UGenericHashMapNode);
       }
 
    bool next()
       {
-      U_TRACE(0, "UGenericHashMap<K,I>::next()")
+      U_TRACE_NO_PARAM(0, "UGenericHashMap<K,I>::next()")
 
       U_INTERNAL_DUMP("index = %u node = %p next = %p", index, node, node->next)
 
-      if ((node = node->next)) U_RETURN(true);
+      if ((node = node->next)) U_RETURN_POINTER(node, UGenericHashMapNode);
 
       for (++index; index < _capacity; ++index)
          {
@@ -431,6 +432,31 @@ public:
 
       U_RETURN(false);
       }
+
+   // We need to pass the pointer because we can lost the internal pointer between the call...
+
+   UGenericHashMapNode* next(UGenericHashMapNode* _node)
+      {
+      U_TRACE(0, "UGenericHashMap<K,I>::next(%p)", _node)
+
+      U_INTERNAL_DUMP("index = %u", index)
+
+      if ((node = _node->next)) U_RETURN_POINTER(node, UGenericHashMapNode);
+
+      for (++index; index < _capacity; ++index)
+         {
+         if (table[index])
+            {
+            node = table[index];
+
+            U_RETURN_POINTER(node, UGenericHashMapNode);
+            }
+         }
+
+      U_RETURN_POINTER(0, UGenericHashMapNode);
+      }
+
+   // Call function for all entry
 
    void callForAllEntry(bPFpvpv function)
       {

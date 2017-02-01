@@ -152,7 +152,7 @@ UPing::UPing(int _timeoutMS, bool bSocketIsIPv6) : USocket(bSocketIsIPv6)
    (void) memset(&arp, 0, sizeof(arpmsg));
 #endif
 
-   if (proc     == 0) proc = U_NEW(UProcess);
+   if (proc     == 0) U_NEW(UProcess, proc, UProcess);
    if (addrmask == 0)
       {
       map_size = sizeof(fd_set) + sizeof(uint32_t);
@@ -228,11 +228,11 @@ inline void UPing::cksum(void* hdr, int len)
 // This method is called to test whether a particular host is reachable across an IP network; it is also used to self test the network interface card
 // of the computer, or as a latency test. It works by sending ICMP echo request packets to the target host and listening for ICMP echo response replies.
 // Note that ICMP (and therefore ping) resides on the Network layer (level 3) of the OSI (Open Systems Interconnection) model. This is the same layer as
-// IP (Internet Protocol). Consequently, ping does not use a port for communication.
+// IP (Internet Protocol). Consequently, ping does not use a port for communication
 
 bool UPing::initPing()
 {
-   U_TRACE(0, "UPing::initPing()")
+   U_TRACE_NO_PARAM(0, "UPing::initPing()")
 
    USocket::_socket(SOCK_RAW, 0, IPPROTO_ICMP);
 
@@ -291,9 +291,7 @@ bool UPing::ping(UIPAddress& addr)
 
          if (ret <= 0) U_RETURN(false);
 
-loop: // wait for response
-
-         ret = USocket::recvFrom(buf, sizeof(buf), 0, cResponseIP, iSourcePortNumber);
+loop:    ret = USocket::recvFrom(buf, sizeof(buf), 0, cResponseIP, iSourcePortNumber); // wait for response
 
          if (ret <= 0)
             {
@@ -349,7 +347,7 @@ loop: // wait for response
 
 fd_set* UPing::pingAsyncCompletion()
 {
-   U_TRACE(0, "UPing::pingAsyncCompletion()")
+   U_TRACE_NO_PARAM(0, "UPing::pingAsyncCompletion()")
 
    U_INTERNAL_ASSERT_POINTER(proc)
 
@@ -367,7 +365,7 @@ fd_set* UPing::checkForPingAsyncCompletion(uint32_t nfds)
    if (nfds &&
        SHM_counter < nfds)
       {
-      UTimeVal(1L).nanosleep();
+      UTimeVal::nanosleep(1L);
 
       U_INTERNAL_DUMP("SHM_counter = %u addrmask = %B", SHM_counter, __FDS_BITS(addrmask)[0])
 
@@ -430,7 +428,7 @@ fd_set* UPing::ping(UVector<UIPAddress*>& vaddr, bool async, const char* device)
 #ifdef HAVE_NETPACKET_PACKET_H
 int UPing::recvArpPing()
 {
-   U_TRACE(0, "UPing::recvArpPing()")
+   U_TRACE_NO_PARAM(0, "UPing::recvArpPing()")
 
    int ret;
    UPing::arpmsg reply;
@@ -531,7 +529,7 @@ void UPing::initArpPing(const char* device)
 #  ifdef U_ARP_WITH_BROADCAST
       uint32_t value = 1;
 
-      if (USocket::setSockOpt(SOL_SOCKET, SO_BROADCAST, (const void*)&value, sizeof(uint32_t)) == false) U_ERROR("can't enable bcast on packet socket");
+      if (USocket::setSockOpt(SOL_SOCKET, SO_BROADCAST, (const void*)&value) == false) U_ERROR("Can't enable bcast on packet socket");
 #  endif
 
       struct ifreq ifr;
@@ -546,7 +544,7 @@ void UPing::initArpPing(const char* device)
       U_INTERNAL_DUMP("ifr_ifindex = %u", ifr.ifr_ifindex)
 
 #  ifdef U_ARP_WITH_BROADCAST
-      arp.h_proto = htons(ETH_P_ARP);        // protocol type (Ethernet)
+      arp.h_proto = htons(ETH_P_ARP); // protocol type (Ethernet)
 #  else
       (void) U_SYSCALL(memset, "%p,%d,%u", &he, '\0', sizeof(he));
 
@@ -608,7 +606,7 @@ void UPing::initArpPing(const char* device)
    // --------------------------------------------------------------------------------------------
    // Target address - TODO...
    // --------------------------------------------------------------------------------------------
-   //           arp.tHaddr is zero-filled            // target hardware address
+   //          arp.tHaddr is zero-filled            // target hardware address
    // U_MEMCPY(arp.tInaddr, addr.get_in_addr(), 4); // target IP address
    // --------------------------------------------------------------------------------------------
 
@@ -652,7 +650,7 @@ retry:
    // -----------------------------------------------------------------------------------------------------------------------
    // Target address
    // -----------------------------------------------------------------------------------------------------------------------
-   //        arp.tHaddr is zero-filled            // target hardware address
+   //       arp.tHaddr is zero-filled            // target hardware address
    U_MEMCPY(arp.tInaddr, addr.get_in_addr(), 4); // target IP address
    // -----------------------------------------------------------------------------------------------------------------------
 

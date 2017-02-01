@@ -17,6 +17,8 @@
 
 #include <ulib/base/utility.h>
 
+#include <sched.h>
+
 #ifdef HAVE_SYSEXITS_H
 #  include <sysexits.h>
 #else
@@ -27,9 +29,18 @@
 #  include <fnmatch.h>
 #endif
 
+#ifdef ENABLE_THREAD
+#  if defined(__NetBSD__) || defined(__UNIKERNEL__)
+#     include <lwp.h>
+#  endif
+#  ifdef HAVE_SYS_SYSCALL_H
+#     include <sys/syscall.h>
+#  endif
+#endif
+
 #ifndef _MSWINDOWS_
 #  include <pwd.h>
-#  if defined(__linux__) && defined(HAVE_LIBCAP)
+#  if defined(U_LINUX) && defined(HAVE_LIBCAP)
 #     include <sys/prctl.h>
 #     include <sys/capability.h>
 #     ifdef SECBIT_KEEP_CAPS
@@ -37,105 +48,183 @@
 #     else
 #        define U_PR_SET_KEEPCAPS PR_SET_KEEPCAPS
 #     endif
+#  elif defined(__APPLE__)
+#     include <mach/mach.h>
+#     include <mach/mach_port.h>
+#     include <mach/mach_traps.h>
 #  endif
 #endif
 
-/* Match */
-int        u_pfn_flags;
-bPFpcupcud u_pfn_match = u_dosmatch_with_OR;
-
-/* Services */
-int u_num_cpu = -1;
-const char* u_short_units[] = { "B", "KB", "MB", "GB", "TB", 0 };
-
-/**
- * Random number generator
- * these values are not magical, just the default values
- * Marsaglia used. Any pair of unsigned integers should be fine
- */ 
-
-uint32_t u_m_w = 521288629,
-         u_m_z = 362436069;
-
-bool u_is_overlap(const char* restrict dst, const char* restrict src, size_t n)
+__pure unsigned long u_hex2int(const char* restrict s, const char* restrict e)
 {
-   U_INTERNAL_TRACE("u_is_overlap(%p,%p,%lu)", dst, src, n)
+   /* handle up to 16 digits */
 
-   U_INTERNAL_ASSERT_MAJOR(n,0)
+   uint32_t len = e-s;
+   unsigned long val = 0UL;
 
-        if (src < dst) return !((src + n - 1) < dst);
-   else if (dst < src) return !((dst + n - 1) < src);
-   else                return true; /* They start at same place. Since we know neither of them has zero length, they must overlap. */
-}
+   U_INTERNAL_TRACE("u_hex2int(%p,%p)", s, e)
 
-#ifdef DEBUG
-size_t u__strlen(const char* restrict s, const char* called_by_function)
-{
-   U_INTERNAL_TRACE("u__strlen(%s,%s)", s, called_by_function)
+   U_INTERNAL_ASSERT_POINTER(s)
+   U_INTERNAL_ASSERT_POINTER(e)
 
-   U_INTERNAL_ASSERT_POINTER(called_by_function)
-   U_INTERNAL_ASSERT_POINTER_MSG(s,called_by_function)
-
-   return strlen(s);
-}
-
-void u__strcpy(char* restrict dest, const char* restrict src)
-{
-   size_t n = u__strlen(src, __PRETTY_FUNCTION__);
-
-   U_INTERNAL_TRACE("u__strcpy(%p,%p,%lu)", dest, src, n)
-
-   U_INTERNAL_ASSERT_MAJOR(n, 0)
-   U_INTERNAL_ASSERT_POINTER(src)
-   U_INTERNAL_ASSERT_POINTER(dest)
-   U_INTERNAL_ASSERT_EQUALS(u_is_overlap(dest,src,n),false)
-
-   (void) strcpy(dest, src);
-}
-
-char* u__strncpy(char* restrict dest, const char* restrict src, size_t n)
-{
-   U_INTERNAL_TRACE("u__strncpy(%p,%p,%lu)", dest, src, n)
-
-   U_INTERNAL_ASSERT_MAJOR(n, 0)
-   U_INTERNAL_ASSERT_POINTER(src)
-   U_INTERNAL_ASSERT_POINTER(dest)
-   U_INTERNAL_ASSERT_EQUALS(u_is_overlap(dest,src,n),false)
-
-   (void) strncpy(dest, src, n);
-
-   return dest;
-}
-
-void* u__memcpy(void* restrict dst, const void* restrict src, size_t n, const char* called_by_function)
-{
-   U_INTERNAL_TRACE("u__memcpy(%p,%p,%lu,%s)", dst, src, n, called_by_function)
-
-   U_INTERNAL_ASSERT_POINTER(src)
-   U_INTERNAL_ASSERT_POINTER(dst)
-   U_INTERNAL_ASSERT_POINTER(called_by_function)
-
-   if (n == 0)
+#ifndef U_COVERITY_FALSE_POSITIVE /* Control flow issues (MISSING_BREAK) */
+   switch (len)
       {
-      U_WARNING("*** zero copy in memcpy *** - %s", called_by_function);
-
-      return 0;
+      case 16: val = (val << 4) | u__hexc2int(s[len-16]);
+      case 15: val = (val << 4) | u__hexc2int(s[len-15]);
+      case 14: val = (val << 4) | u__hexc2int(s[len-14]);
+      case 13: val = (val << 4) | u__hexc2int(s[len-13]);
+      case 12: val = (val << 4) | u__hexc2int(s[len-12]);
+      case 11: val = (val << 4) | u__hexc2int(s[len-11]);
+      case 10: val = (val << 4) | u__hexc2int(s[len-10]);
+      case  9: val = (val << 4) | u__hexc2int(s[len- 9]);
+      case  8: val = (val << 4) | u__hexc2int(s[len- 8]);
+      case  7: val = (val << 4) | u__hexc2int(s[len- 7]);
+      case  6: val = (val << 4) | u__hexc2int(s[len- 6]);
+      case  5: val = (val << 4) | u__hexc2int(s[len- 5]);
+      case  4: val = (val << 4) | u__hexc2int(s[len- 4]);
+      case  3: val = (val << 4) | u__hexc2int(s[len- 3]);
+      case  2: val = (val << 4) | u__hexc2int(s[len- 2]);
+      case  1: val = (val << 4) | u__hexc2int(s[len- 1]);
       }
-
-   if (u_is_overlap((const char* restrict)dst, (const char* restrict)src, n))
-      {
-      U_WARNING("*** Source and Destination OVERLAP in memcpy *** - %s", called_by_function);
-
-      (void) memmove(dst, src, n);
-
-      return 0;
-      }
-
-   (void) memcpy(dst, src, n);
-
-   return dst;
-}
 #endif
+
+   U_INTERNAL_PRINT("val = %lu", val)
+
+   return val;
+}
+
+__pure unsigned long u_strtoul(const char* restrict s, const char* restrict e)
+{
+   /* handle up to 10 digits */
+
+   uint32_t len = e-s;
+   unsigned long val = 0UL;
+
+   U_INTERNAL_TRACE("u_strtoul(%p,%p)", s, e)
+
+   U_INTERNAL_ASSERT_POINTER(s)
+   U_INTERNAL_ASSERT_POINTER(e)
+
+#ifndef U_COVERITY_FALSE_POSITIVE /* Control flow issues (MISSING_BREAK) */
+   switch (len)
+      {
+      case 10: val += (s[len-10] - '0') * 1000000000UL;
+      case  9: val += (s[len- 9] - '0') * 100000000UL;
+      case  8: val += (s[len- 8] - '0') * 10000000UL;
+      case  7: val += (s[len- 7] - '0') * 1000000UL;
+      case  6: val += (s[len- 6] - '0') * 100000UL;
+      case  5: val += (s[len- 5] - '0') * 10000UL;
+      case  4: val += (s[len- 4] - '0') * 1000UL;
+      case  3: val += (s[len- 3] - '0') * 100UL;
+      case  2: val += (s[len- 2] - '0') * 10UL;
+      case  1: val += (s[len- 1] - '0');
+      }
+#endif
+
+   U_INTERNAL_PRINT("val = %lu", val)
+
+   return val;
+}
+
+__pure uint64_t u_strtoull(const char* restrict s, const char* restrict e)
+{
+   uint32_t len = e-s;
+   uint64_t val = 0UL;
+
+   U_INTERNAL_TRACE("u_strtoul(%p,%p)", s, e)
+
+   U_INTERNAL_ASSERT_POINTER(s)
+   U_INTERNAL_ASSERT_POINTER(e)
+
+#ifndef U_COVERITY_FALSE_POSITIVE /* Control flow issues (MISSING_BREAK) */
+   switch (len)
+      {
+      case 20: val += (s[len-20] - '0') * 10000000000000000000ULL;
+      case 19: val += (s[len-19] - '0') * 1000000000000000000ULL;
+      case 18: val += (s[len-18] - '0') * 100000000000000000ULL;
+      case 17: val += (s[len-17] - '0') * 10000000000000000ULL;
+      case 16: val += (s[len-16] - '0') * 1000000000000000ULL;
+      case 15: val += (s[len-15] - '0') * 100000000000000ULL;
+      case 14: val += (s[len-14] - '0') * 10000000000000ULL;
+      case 13: val += (s[len-13] - '0') * 1000000000000ULL;
+      case 12: val += (s[len-12] - '0') * 100000000000ULL;
+      case 11: val += (s[len-11] - '0') * 10000000000ULL;
+      case 10: val += (s[len-10] - '0') * 1000000000ULL;
+      case  9: val += (s[len- 9] - '0') * 100000000ULL;
+      case  8: val += (s[len- 8] - '0') * 10000000ULL;
+      case  7: val += (s[len- 7] - '0') * 1000000ULL;
+      case  6: val += (s[len- 6] - '0') * 100000ULL;
+      case  5: val += (s[len- 5] - '0') * 10000ULL;
+      case  4: val += (s[len- 4] - '0') * 1000ULL;
+      case  3: val += (s[len- 3] - '0') * 100ULL;
+      case  2: val += (s[len- 2] - '0') * 10ULL;
+      case  1: val += (s[len- 1] - '0');
+      }
+#endif
+
+   U_INTERNAL_PRINT("val = %llu", val)
+
+   return val;
+}
+
+__pure long u_strtol(const char* restrict s, const char* restrict e)
+{
+   int sign = 1;
+
+   U_INTERNAL_TRACE("u_strtol(%p,%p)", s, e)
+
+   U_INTERNAL_ASSERT_POINTER(s)
+   U_INTERNAL_ASSERT_POINTER(e)
+
+// while (u__isspace(*s)) ++s;
+
+   if (*s == '-')
+      {
+      ++s;
+
+      sign = -1;
+      }
+   else
+      {
+      if (*s == '+' ||
+          *s == '0')
+         {
+         ++s;
+         }
+      }
+
+   return (sign * u_strtoul(s, e));
+}
+
+__pure int64_t u_strtoll(const char* restrict s, const char* restrict e)
+{
+   int sign = 1;
+
+   U_INTERNAL_TRACE("u_strtoll(%p,%p)", s, e)
+
+   U_INTERNAL_ASSERT_POINTER(s)
+   U_INTERNAL_ASSERT_POINTER(e)
+
+// while (u__isspace(*s)) ++s;
+
+   if (*s == '-')
+      {
+      ++s;
+
+      sign = -1;
+      }
+   else
+      {
+      if (*s == '+' ||
+          *s == '0')
+         {
+         ++s;
+         }
+      }
+
+   return (sign * u_strtoull(s, e));
+}
 
 /* To avoid libc locale overhead */
 
@@ -172,18 +261,47 @@ __pure int u__strncasecmp(const char* restrict s1, const char* restrict s2, size
    return 0;
 }
 
+uint32_t u_gettid(void)
+{
+#ifndef ENABLE_THREAD
+   return U_NOT_FOUND;
+#else
+   uint32_t tid =
+# ifdef _MSWINDOWS_
+   GetCurrentThreadId();
+# elif defined(HAVE_PTHREAD_GETTHREADID_NP)
+   pthread_getthreadid_np();
+# elif defined(U_LINUX)
+   syscall(SYS_gettid);
+# elif defined(__sun)
+   pthread_self();
+# elif defined(__APPLE__)
+   mach_thread_self();
+   mach_port_deallocate(mach_task_self(), tid);
+# elif defined(__NetBSD__) || defined(__UNIKERNEL__)
+   _lwp_self();
+# elif defined(__FreeBSD__)
+   thr_self(&tid);
+# elif defined(__DragonFly__)
+   lwp_gettid();
+# endif
+   return tid;
+#endif
+}
+
 /* Security functions */
 
 #ifndef _MSWINDOWS_
-static uid_t real_uid      = (uid_t)(-1);
-static gid_t real_gid      = (gid_t)(-1);
-static uid_t effective_uid = (uid_t)(-1);
-static gid_t effective_gid = (gid_t)(-1);
+static uid_t real_uid      = (uid_t)-1;
+static gid_t real_gid      = (gid_t)-1;
+static uid_t effective_uid = (uid_t)-1;
+static gid_t effective_gid = (gid_t)-1;
 #endif
 
 void u_init_security(void)
 {
-   /* Run this at the beginning of the program to initialize this code and
+   /**
+    * Run this at the beginning of the program to initialize this code and
     * to drop privileges before someone uses them to shoot us in the foot
     */
 #ifndef _MSWINDOWS_
@@ -198,10 +316,10 @@ void u_init_security(void)
 
    /* sanity check */
 
-   if (leffective_uid != (int) real_uid &&
+   if (leffective_uid != (int)real_uid &&
        leffective_uid != 0)
       {
-      U_WARNING("setuid but not to root (uid=%ld, euid=%d), dropping setuid privileges now", (long) real_uid, leffective_uid);
+      U_WARNING("Setuid but not to root (uid=%ld, euid=%d), dropping setuid privileges now", (long) real_uid, leffective_uid);
 
       u_never_need_root();
       }
@@ -229,10 +347,8 @@ void u_need_root(bool necessary)
 
    if (effective_uid)
       {
-      if (necessary) U_ERROR(  "require root privilege but not setuid root");
-#                 ifdef DEBUG
-                     U_WARNING("require root privilege but not setuid root");
-#                 endif
+      if (necessary) U_ERROR("Require root privilege but not setuid root");
+                     U_DEBUG("Require root privilege but not setuid root");
 
       return;
       }
@@ -244,10 +360,8 @@ void u_need_root(bool necessary)
    if (seteuid(effective_uid) == -1 ||
        geteuid()              !=  0)
       {
-      if (necessary) U_ERROR(  "did not get root privilege");
-#                 ifdef DEBUG
-                     U_WARNING("did not get root privilege");
-#                 endif
+      if (necessary) U_ERROR("Did not get root privilege");
+                     U_DEBUG("Did not get root privilege");
       }
 #endif
 }
@@ -268,9 +382,9 @@ void u_dont_need_root(void)
    if (geteuid() != 0) return; /* nothing to do */
 
    if (seteuid(real_uid) == -1 ||
-       geteuid()         != real_uid)
+       geteuid() != real_uid)
       {
-      U_ERROR("did not drop root privilege");
+      U_ERROR("Did not drop root privilege");
       }
 #endif
 }
@@ -280,7 +394,7 @@ void u_dont_need_root(void)
 void u_never_need_root(void)
 {
 #ifndef _MSWINDOWS_
-#  if defined(__linux__) && defined(HAVE_LIBCAP)
+#  if defined(U_LINUX) && defined(HAVE_LIBCAP)
 /*
 cap_list[] = {
    {"chown",               CAP_CHOWN},
@@ -339,11 +453,11 @@ cap_list[] = {
    };
 */
 
-#  ifdef DEBUG
+# ifdef DEBUG
    cap_value_t minimal_cap_values[] = { CAP_SETUID, CAP_SETGID, CAP_SETPCAP, CAP_SYS_PTRACE };
-#  else
+# else
    cap_value_t minimal_cap_values[] = { CAP_SETUID, CAP_SETGID, CAP_SETPCAP };
-#  endif
+# endif
 
    cap_t caps = cap_init();
 
@@ -360,7 +474,7 @@ cap_list[] = {
    (void) cap_free(caps);
 
    if (prctl(U_PR_SET_KEEPCAPS, 1, 0, 0, 0) < 0) U_ERROR("prctl() failed");
-#  endif
+# endif
 
    U_INTERNAL_TRACE("u_never_need_root()")
 
@@ -373,7 +487,7 @@ cap_list[] = {
    if (geteuid() != real_uid ||
        getuid()  != real_uid)
       {
-      U_ERROR("did not drop root privilege");
+      U_ERROR("Did not drop root privilege");
       }
 
    effective_uid = real_uid;
@@ -394,10 +508,10 @@ void u_need_group(bool necessary)
    if (getegid() == effective_gid) return; /* nothing to do */
 
     if (setegid(effective_gid) == -1 ||
-        getegid()              != effective_gid)
+        getegid() != effective_gid)
       {
-      if (necessary) U_ERROR(  "did not get group privilege");
-                     U_WARNING("did not get group privilege");
+      if (necessary) U_ERROR("Did not get group privilege");
+                     U_DEBUG("Did not get group privilege");
       }
 #endif
 }
@@ -416,9 +530,9 @@ void u_dont_need_group(void)
    if (getegid() != effective_gid) return; /* nothing to do */
 
     if (setegid(real_gid) == -1 ||
-        getegid()         != real_gid)
+        getegid() != real_gid)
       {
-      U_ERROR("did not drop group privilege");
+      U_ERROR("Did not drop group privilege");
       }
 #endif
 }
@@ -439,7 +553,7 @@ void u_never_need_group(void)
    if (getegid() != real_gid ||
        getgid()  != real_gid)
       {
-      U_ERROR("did not drop group privilege");
+      U_ERROR("Did not drop group privilege");
       }
 
     effective_gid = real_gid;
@@ -476,7 +590,7 @@ bool u_runAsUser(const char* restrict user, bool change_dir)
 
       u_getcwd(); /* get current working directory */
 
-      U_INTERNAL_ASSERT_EQUALS(strcmp(pw->pw_dir,u_cwd),0)
+      U_INTERNAL_ASSERT_EQUALS(strcmp(pw->pw_dir,u_cwd), 0)
       }
 
    return true;
@@ -543,41 +657,6 @@ char* u_getPathRelativ(const char* restrict path, uint32_t* restrict ptr_path_le
       }
 
    return (char*)path;
-}
-
-/* find sequence of U_CRLF2 */
-
-__pure uint32_t u_findEndHeader1(const char* restrict str, uint32_t n)
-{
-   const char* restrict p;
-   const char* restrict end = str + n;
-   const char* restrict ptr = str;
-
-   uint32_t pos, endHeader = U_NOT_FOUND;
-
-   U_INTERNAL_TRACE("u_findEndHeader1(%.*s,%u)", U_min(n,128), str, n)
-
-   U_INTERNAL_ASSERT_POINTER(str)
-
-   while (ptr < end)
-      {
-      p = (const char* restrict) memchr(ptr, '\r', end - ptr);
-
-      if (p == 0) break;
-
-      if (u_get_unalignedp32(p) == U_MULTICHAR_CONSTANT32('\r','\n','\r','\n'))
-         {
-         pos = p - str + 4;
-
-         if (pos <= n) endHeader = pos;
-
-         break;
-         }
-
-      ptr = p + 1;
-      }
-
-   return endHeader;
 }
 
 /* find sequence of U_LF2 or U_CRLF2 */
@@ -648,7 +727,7 @@ __pure int u_getScreenWidth(void)
 
    U_INTERNAL_TRACE("u_getScreenWidth()")
 
-   /* If there's a way to get the terminal size using POSIX tcgetattr(), somebody please tell me. */
+   /* If there's a way to get the terminal size using POSIX tcgetattr(), somebody please tell me */
 
 #ifdef TIOCGWINSZ
    if (ioctl(STDERR_FILENO, TIOCGWINSZ, &wsz) != -1)  /* most likely ENOTTY */
@@ -688,24 +767,32 @@ double u_calcRate(uint64_t bytes, uint32_t msecs, int* restrict units)
    return rate;
 }
 
-void u_printSize(char* restrict buffer, uint64_t bytes)
+uint32_t u_printSize(char* restrict buffer, uint64_t bytes)
 {
    int units;
    double size;
+   uint32_t len;
 
    U_INTERNAL_TRACE("u_printSize(%p,%llu)", buffer, bytes)
 
    if (bytes == 0)
       {
-      u__strcpy(buffer, "0 Byte");
+      u_put_unalignedp32(buffer,   U_MULTICHAR_CONSTANT32('0',' ','B','y'));
+      u_put_unalignedp16(buffer+4, U_MULTICHAR_CONSTANT16('t','e'));
 
-      return;
+      len = 6;
+      }
+   else
+      {
+      size = u_calcRate(bytes, 1000, &units);
+
+      len = (units ? sprintf(buffer, "%5.2f %s", size, u_short_units[units])
+                   : sprintf(buffer, "%7.0f Bytes", size));
       }
 
-   size = u_calcRate(bytes, 1000, &units);
+   buffer[len] = '\0';
 
-   if (units) (void) sprintf(buffer, "%5.2f %s",    size, u_short_units[units]);
-   else       (void) sprintf(buffer, "%7.0f Bytes", size);
+   return len;
 }
 
 uint32_t u_memory_dump(char* restrict bp, unsigned char* restrict cp, uint32_t n)
@@ -736,8 +823,9 @@ uint32_t u_memory_dump(char* restrict bp, unsigned char* restrict cp, uint32_t n
                {
                print_nothing = true;
 
-               *bp++ = '*';
-               *bp++ = '\n';
+               u_put_unalignedp16(bp, U_MULTICHAR_CONSTANT16('*','\n'));
+
+               bp += 2;
                }
 
             cp += 16;
@@ -748,6 +836,8 @@ uint32_t u_memory_dump(char* restrict bp, unsigned char* restrict cp, uint32_t n
 iteration:
       (void) sprintf(bp, "%07X|", offset);
 
+      U_INTERNAL_ASSERT_EQUALS(strlen(bp), 8)
+
       bp += 8;
 
       for (j = 0; j < 16; ++j)
@@ -756,24 +846,30 @@ iteration:
             {
             c = *cp++;
 
-            *bp++   = u_hex_lower[((c >> 4) & 0x0F)];
-            *bp++   = u_hex_lower[( c       & 0x0F)];
+            u_put_unalignedp16(bp, U_MULTICHAR_CONSTANT16("0123456789abcdef"[((c >> 4) & 0x0F)],
+                                                          "0123456789abcdef"[( c       & 0x0F)]));
+
+            bp += 2;
 
             text[j] = (u__isprint(c) ? c : '.');
             }
          else
             {
-            *bp++   = ' ';
-            *bp++   = ' ';
+            u_put_unalignedp16(bp, U_MULTICHAR_CONSTANT16(' ',' '));
+
+            bp += 2;
+
             text[j] = ' ';
             }
 
          *bp++ = (j == 7 ? ':' : ' ');
          }
 
-                               *bp++ = '|';
+      *bp++ = '|';
+
       for (j = 0; j < 16; ++j) *bp++ = text[j];
-                               *bp++ = '\n';
+
+      *bp++ = '\n';
       }
 
    if (remain &&
@@ -787,6 +883,8 @@ iteration:
    if (print_nothing)
       {
       (void) sprintf(bp, "%07X\n", offset);
+
+      U_INTERNAL_ASSERT_EQUALS(strlen(bp), 8)
 
       bp += 8;
       }
@@ -834,7 +932,7 @@ static inline const char* nexttoken(const char* q, int sep)
  *
  * The mask term just scanned was ok if and only if either the numbers
  * matching the %u were all of the input or if the next character in
- * the input past the numbers was one of the allowed next characters.
+ * the input past the numbers was one of the allowed next characters
  */
 
 static inline bool scan_was_ok(int sret, char nextc, const char* ok_next_chars) { return (sret == 1 || (sret == 2 && strchr(ok_next_chars, nextc))); }
@@ -933,9 +1031,9 @@ int u_get_num_cpu(void)
 
 /* Pin the process to a particular core */
 
-void u_bind2cpu(cpu_set_t* cpuset, pid_t pid, int n)
+void u_bind2cpu(cpu_set_t* cpuset, int n)
 {
-   U_INTERNAL_TRACE("u_bind2cpu(%p,%d,%d)", cpuset, pid, n)
+   U_INTERNAL_TRACE("u_bind2cpu(%p,%d)", cpuset, n)
 
    /**
     * CPU mask of CPUs available to this process,
@@ -948,26 +1046,26 @@ void u_bind2cpu(cpu_set_t* cpuset, pid_t pid, int n)
 #if !defined(U_SERVER_CAPTIVE_PORTAL) && defined(HAVE_SCHED_GETAFFINITY)
    CPU_SET(n, cpuset);
 
-   (void) sched_setaffinity(pid, sizeof(cpu_set_t), cpuset);
+   (void) sched_setaffinity(u_pid, sizeof(cpu_set_t), cpuset);
 
    CPU_ZERO(cpuset);
 
-   (void) sched_getaffinity(pid, sizeof(cpu_set_t), cpuset);
+   (void) sched_getaffinity(u_pid, sizeof(cpu_set_t), cpuset);
 
    U_INTERNAL_PRINT("cpuset = %ld", CPUSET_BITS(cpuset)[0])
 #endif
 }
 
-void u_switch_to_realtime_priority(pid_t pid)
+void u_switch_to_realtime_priority(void)
 {
 #if !defined(U_SERVER_CAPTIVE_PORTAL) && defined(_POSIX_PRIORITY_SCHEDULING) && (_POSIX_PRIORITY_SCHEDULING > 0) && (defined(HAVE_SCHED_H) || defined(HAVE_SYS_SCHED_H))
    struct sched_param sp;
 
-   U_INTERNAL_TRACE("u_switch_to_realtime_priority(%d)", pid)
+   U_INTERNAL_TRACE("u_switch_to_realtime_priority()")
 
-/* sched_getscheduler(pid); // SCHED_FIFO | SCHED_RR | SCHED_OTHER */
+/* sched_getscheduler(u_pid); // SCHED_FIFO | SCHED_RR | SCHED_OTHER */
 
-   (void) sched_getparam(pid, &sp);
+   (void) sched_getparam(u_pid, &sp);
 
    sp.sched_priority = sched_get_priority_max(SCHED_FIFO);
 
@@ -976,19 +1074,16 @@ void u_switch_to_realtime_priority(pid_t pid)
    /*
    struct rlimit rlim_old, rlim_new = { sp.sched_priority, sp.sched_priority };
 
-   (void) prlimit(pid, RLIMIT_RTPRIO, &rlim_new, &rlim_old);
+   (void) prlimit(u_pid, RLIMIT_RTPRIO, &rlim_new, &rlim_old);
 
    U_INTERNAL_PRINT("Previous RLIMIT_RTPRIO limits: soft=%lld; hard=%lld\n", (long long)rlim_old.rlim_cur, (long long)rlim_old.rlim_max);
 
-   (void) prlimit(pid, RLIMIT_RTPRIO, 0, &rlim_old);
+   (void) prlimit(u_pid, RLIMIT_RTPRIO, 0, &rlim_old);
 
    U_INTERNAL_PRINT("New RLIMIT_RTPRIO limits: soft=%lld; hard=%lld\n", (long long)rlim_old.rlim_cur, (long long)rlim_old.rlim_max);
    */
 
-   if (sched_setscheduler(pid, SCHED_FIFO, &sp) == -1)
-      {
-      U_WARNING("Cannot set posix realtime scheduling policy");
-      }
+   if (sched_setscheduler(u_pid, SCHED_FIFO, &sp) == -1) U_WARNING("Cannot set posix realtime scheduling policy");
 #endif
 }
 
@@ -1029,11 +1124,11 @@ void u_get_memusage(unsigned long* vsz, unsigned long* rss)
        * vsize %lu Virtual memory size in bytes.
        * rss %ld   Resident Set Size: number of pages the process has in real memory.
        *           This is just the pages which count toward text, data, or stack space.
-       *           This does not include pages which have not been demand-loaded in, or which are swapped out.
+       *           This does not include pages which have not been demand-loaded in, or which are swapped out
        * -----------------------------------------------------------------------------------------------------------------------------
        */
 
-      (void) fscanf(fp, "%*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %lu %ld", vsz, rss);
+      (void) fscanf(fp, "%*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %lu %lu", vsz, rss);
 
       (void) fclose(fp);
 
@@ -1088,38 +1183,6 @@ __pure bool u_rmatch(const char* restrict haystack, uint32_t haystack_len, const
    return false;
 }
 
-__pure void* u_find(const char* restrict s, uint32_t n, const char* restrict a, uint32_t n1)
-{
-   U_INTERNAL_TRACE("u_find(%.*s,%u,%.*s,%u)", U_min(n,128), s, n, U_min(n1,128), a, n1)
-
-   U_INTERNAL_ASSERT_POINTER(s)
-   U_INTERNAL_ASSERT_POINTER(a)
-   U_INTERNAL_ASSERT_MAJOR(n1,0)
-
-   if (n)
-      {
-      if (n1 == 1) return (void*) memchr(s, *a, n);
-
-#ifdef HAVE_MEMMEM
-      {
-      void* restrict p = memmem(s, n, a, n1);
-
-      U_INTERNAL_PRINT("memmem() = %p", p)
-
-      return p;
-      }
-#else
-      {
-      uint32_t pos = 0;
-
-      for (; (pos + n1) <= n; ++pos) if (memcmp(s + pos, a, n1) == 0) return (void*)(s+pos);
-      }
-#endif
-      }
-
-   return 0;
-}
-
 /**
  * Search a string for any of a set of characters.
  * Locates the first occurrence in the string s of any of the characters in the string accept
@@ -1133,7 +1196,7 @@ __pure const char* u__strpbrk(const char* restrict s, uint32_t slen, const char*
    U_INTERNAL_TRACE("u__strpbrk(%.*s,%u,%s)", U_min(slen,128), s, slen, _accept)
 
    U_INTERNAL_ASSERT_POINTER(s)
-   U_INTERNAL_ASSERT_MAJOR(slen,0)
+   U_INTERNAL_ASSERT_MAJOR(slen, 0)
    U_INTERNAL_ASSERT_POINTER(_accept)
 
    while (s < end)
@@ -1169,8 +1232,7 @@ __pure const char* u_strpend(const char* restrict s, uint32_t slen,
 
    while (s < end)
       {
-loop:
-      c = *++s;
+loop: c = *++s;
 
       if (u__isspace(c)) continue;
 
@@ -1182,7 +1244,8 @@ loop:
 
          if (s == 0) break;
          }
-      else if (c == group_delimitor[0] && *(s-1) != '\\')
+      else if (c == group_delimitor[0] &&
+               *(s-1) != '\\')
          {
          U_INTERNAL_PRINT("c = %c level = %d s = %.*s", c, level, 10, s)
 
@@ -1195,7 +1258,8 @@ loop:
 
          ++level;
          }
-      else if (c == group_delimitor[n] && *(s-1) != '\\')
+      else if (c == group_delimitor[n] &&
+               *(s-1) != '\\')
          {
          U_INTERNAL_PRINT("c = %c level = %d s = %.*s", c, level, 10, s)
 
@@ -1224,7 +1288,7 @@ __pure bool u_startsWith(const char* restrict a, uint32_t n1, const char* restri
    U_INTERNAL_TRACE("u_startsWith(%.*s,%u,%.*s,%u)", U_min(n1,128), a, n1, U_min(n2,128), b, n2)
 
    if (diff >= 0 &&
-       (strncmp(a, b, n2) == 0))
+       (memcmp(a, b, n2) == 0))
       {
       return true;
       }
@@ -1241,7 +1305,7 @@ __pure bool u_endsWith(const char* restrict a, uint32_t n1, const char* restrict
    U_INTERNAL_TRACE("u_endsWith(%.*s,%u,%.*s,%u)", U_min(n1,128), a, n1, U_min(n2,128), b, n2)
 
    if (diff >= 0 &&
-       (strncmp(a+diff, b, n2) == 0))
+       (memcmp(a+diff, b, n2) == 0))
       {
       return true;
       }
@@ -1277,33 +1341,35 @@ __pure bool u_isNumber(const char* restrict s, uint32_t n)
    return (s == end);
 }
 
-/* find char not quoted */
+/* find first char not quoted */
 
 __pure const char* u_find_char(const char* restrict s, const char* restrict end, char c)
 {
+   uint32_t i;
+
    U_INTERNAL_TRACE("u_find_char(%.*s,%p,%d)", U_min(end-s,128), s, end, c)
 
    U_INTERNAL_ASSERT_POINTER(s)
    U_INTERNAL_ASSERT_POINTER(end)
    U_INTERNAL_ASSERT_EQUALS(s[-1],c)
 
-   while (true)
-      {
-      s = (const char* restrict) memchr(s, c, end - s);
+loop:
+   s = (const char* restrict) memchr(s, c, end - s);
 
-      if (s == 0) s = end;
-      else
+   if (s == 0) s = end;
+   else
+      {
+      if (*(s-1) == '\\')
          {
-         if (*(s-1) == '\\' &&
-             *(s-2) != '\\')
+         for (i = 2; (*(s-i) == '\\'); ++i) {}
+
+         if ((i & 1) == 0)
             {
             ++s;
 
-            continue;
+            goto loop;
             }
          }
-
-      break;
       }
 
    return s;
@@ -1381,7 +1447,7 @@ const char* u_delimit_token(const char* restrict s, const char** restrict pold, 
       }
 
    *pold =  s;
-   c     = *s++;
+       c = *s++;
 
    /* NB: we don't search for delimiter in block text... */
 
@@ -1411,8 +1477,7 @@ const char* u_delimit_token(const char* restrict s, const char** restrict pold, 
 
    if (delim)
       {
-next:
-      s = (const char* restrict) (s < end ? u__strpbrk(s, end - s, delim) : 0);
+next: s = (const char* restrict) (s < end ? u__strpbrk(s, end - s, delim) : 0);
 
       if (s == 0) return end;
       }
@@ -1469,9 +1534,8 @@ uint32_t u_split(char* restrict s, uint32_t n, char** restrict argv, const char*
    return n;
 }
 
-/*
- * Match STRING against the filename pattern MASK, returning true if it matches,
- * false if not, inversion if flags contain FNM_INVERT
+/**
+ * Match STRING against the filename pattern MASK, returning true if it matches, false if not, inversion if flags contain FNM_INVERT
  *
  * '?' matches any single character
  * '*' matches any string, including the empty string
@@ -1490,9 +1554,9 @@ __pure bool u_dosmatch(const char* restrict s, uint32_t n1, const char* restrict
    U_INTERNAL_TRACE("u_dosmatch(%.*s,%u,%.*s,%u,%d)", U_min(n1,128), s, n1, n2, mask, n2, flags)
 
    U_INTERNAL_ASSERT_POINTER(s)
+   U_INTERNAL_ASSERT_MAJOR(n1, 0)
+   U_INTERNAL_ASSERT_MAJOR(n2, 0)
    U_INTERNAL_ASSERT_POINTER(mask)
-   U_INTERNAL_ASSERT_MAJOR(n1,0)
-   U_INTERNAL_ASSERT_MAJOR(n2,0)
 
    if (flags & FNM_IGNORECASE)
       {
@@ -1505,7 +1569,10 @@ __pure bool u_dosmatch(const char* restrict s, uint32_t n1, const char* restrict
          c1 = u__tolower(*s);
 
          if (c2 != c1 &&
-             c2 != '?') return (flags & FNM_INVERT ? true : false);
+             c2 != '?')
+            {
+            return ((flags & FNM_INVERT) != 0);
+            }
 
          ++s;
          ++mask;
@@ -1523,14 +1590,14 @@ __pure bool u_dosmatch(const char* restrict s, uint32_t n1, const char* restrict
 
             result = (mask >= end_mask);
 
-            return (flags & FNM_INVERT ? (result != true) : result);
+            return ((flags & FNM_INVERT) != 0 ? (result == false) : result);
             }
 
          c2 = (mask ? u__tolower(*mask) : 0);
 
          if (c2 == '*')
             {
-            if (++mask >= end_mask) return (flags & FNM_INVERT ? false : true);
+            if (++mask >= end_mask) return ((flags & FNM_INVERT) == 0);
 
             cp = s+1;
             mp = mask;
@@ -1566,7 +1633,10 @@ __pure bool u_dosmatch(const char* restrict s, uint32_t n1, const char* restrict
          c1 = *s;
 
          if (c2 != c1 &&
-             c2 != '?') return (flags & FNM_INVERT ? true : false);
+             c2 != '?')
+            {
+            return ((flags & FNM_INVERT) != 0);
+            }
 
          ++s;
          ++mask;
@@ -1582,14 +1652,14 @@ __pure bool u_dosmatch(const char* restrict s, uint32_t n1, const char* restrict
 
             result = (mask >= end_mask);
 
-            return (flags & FNM_INVERT ? (result != true) : result);
+            return ((flags & FNM_INVERT) != 0 ? (result == false) : result);
             }
 
          c2 = *mask;
 
          if (c2 == '*')
             {
-            if (++mask >= end_mask) return (flags & FNM_INVERT ? false : true);
+            if (++mask >= end_mask) return ((flags & FNM_INVERT) == 0);
 
             cp = s + 1;
             mp = mask;
@@ -1616,62 +1686,234 @@ __pure bool u_dosmatch(const char* restrict s, uint32_t n1, const char* restrict
       }
 }
 
-/*
- * Match STRING against the filename pattern MASK and multiple patterns separated by '|',
- * returning true if it matches, false if not, inversion if flags contain FNM_INVERT
- *
- * '?' matches any single character
- * '*' matches any string, including the empty string
- */
-
-__pure bool u_dosmatch_with_OR(const char* restrict s, uint32_t n1, const char* restrict mask, uint32_t n2, int flags)
+__pure bool u_dosmatch_ext(const char* restrict s, uint32_t n1, const char* restrict mask, uint32_t n2, int flags)
 {
-   bool result;
-   const char* restrict p_or;
-   const char* restrict end = mask + n2;
-
-   U_INTERNAL_TRACE("u_dosmatch_with_OR(%.*s,%u,%.*s,%u,%d)", U_min(n1,128), s, n1, n2, mask, n2, flags)
+   U_INTERNAL_TRACE("u_dosmatch_ext(%.*s,%u,%.*s,%u,%d)", U_min(n1,128), s, n1, n2, mask, n2, flags)
 
    U_INTERNAL_ASSERT_POINTER(s)
+   U_INTERNAL_ASSERT_MAJOR(n1, 0)
+   U_INTERNAL_ASSERT_MAJOR(n2, 0)
    U_INTERNAL_ASSERT_POINTER(mask)
-   U_INTERNAL_ASSERT_MAJOR(n1,0)
-   U_INTERNAL_ASSERT_MAJOR(n2,0)
+
+   while (n2)
+      {
+      U_INTERNAL_PRINT("switch: s[0] = %c n1 = %u mask[0] = %c n2 = %u", s[0], n1, mask[0], n2)
+
+      switch (mask[0])
+         {
+         case '*':
+            {
+            while (mask[1] == '*')
+               {
+               ++mask;
+               --n2;
+               }
+
+            if (n2 == 1) return ((flags & FNM_INVERT) == 0); /* match */
+
+            while (n1)
+               {
+               if (u_dosmatch_ext(s, n1, mask+1, n2-1, flags & ~FNM_INVERT)) return ((flags & FNM_INVERT) == 0); /* match */
+
+               ++s;
+               --n1;
+               }
+
+            return ((flags & FNM_INVERT) != 0); /* no match */
+            }
+         break;
+
+         case '?':
+            {
+            if (n1 == 0) return ((flags & FNM_INVERT) != 0); /* no match */
+
+            ++s;
+            --n1;
+            }
+         break;
+
+         case '[':
+            {
+            bool match = false,
+                  bnot = (mask[1] == '^');
+
+            if (bnot)
+               {
+               mask += 2;
+                 n2 -= 2;
+               }
+            else
+               {
+               ++mask;
+               --n2;
+               }
+
+            U_INTERNAL_PRINT("s[0] = %c n1 = %u mask[0] = %c n2 = %u", s[0], n1, mask[0], n2)
+
+            while (true)
+               {
+               if (mask[0] == '\\')
+                  {
+                  ++mask;
+                  --n2;
+
+                  if (mask[0] == s[0]) match = true;
+                  }
+               else
+                  {
+                  if (mask[0] == ']') break;
+
+                  if (n2 == 0)
+                     {
+                     --mask;
+                     ++n2;
+
+                     break;
+                     }
+
+                  if (n2 >= 3 && 
+                      mask[1] == '-')
+                     {
+                     int start = mask[0],
+                           end = mask[2],
+                             c =    s[0];
+
+                     if (start > end)
+                        {
+                        int t = start;
+                        start = end;
+                          end = t;
+                        }
+
+                     if (flags & FNM_IGNORECASE)
+                        {
+                        start = u__tolower((unsigned char)start);
+                          end = u__tolower((unsigned char)end);
+                            c = u__tolower((unsigned char)c);
+                        }
+
+                     mask += 2;
+                       n2 -= 2;
+
+                     if (c >= start &&
+                         c <= end)
+                        {
+                        match = true;
+                        }
+                     }
+                  else
+                     {
+                     if ((flags & FNM_IGNORECASE) == 0)
+                        {
+                        if (mask[0] == s[0]) match = true;
+                        }
+                     else
+                        {
+                        if (u__tolower((unsigned char)mask[0]) == u__tolower((unsigned char)s[0])) match = true;
+                        }
+                     }
+                  }
+
+               ++mask;
+               --n2;
+               }
+
+            U_INTERNAL_PRINT("match = %d bnot = %d", match, bnot)
+
+            if (match == false || bnot) return ((flags & FNM_INVERT) != 0); /* no match */
+
+            U_INTERNAL_PRINT("s[0] = %c n1 = %u mask[0] = %c n2 = %u", s[0], n1, mask[0], n2)
+
+            ++s;
+            --n1;
+            }
+         break;
+
+         case '\\':
+            {
+            if (n2 >= 2)
+               {
+               ++mask;
+               --n2;
+               }
+            }
+
+         /* fall through */
+
+         default:
+            {
+            U_INTERNAL_PRINT("default: s[0] = %c n1 = %u mask[0] = %c n2 = %u", s[0], n1, mask[0], n2)
+
+            if ((flags & FNM_IGNORECASE) == 0)
+               {
+               if (mask[0] != s[0]) return ((flags & FNM_INVERT) != 0); /* no match */
+               }
+            else
+               {
+               if (u__tolower((unsigned char)mask[0]) != u__tolower((unsigned char)s[0])) return ((flags & FNM_INVERT) != 0); /* no match */
+               }
+
+            ++s;
+            --n1;
+            }
+         break;
+         }
+
+      ++mask;
+      --n2;
+
+      if (n1 == 0)
+         {
+         while (*mask == '*')
+            {
+            ++mask;
+            --n2;
+            }
+
+         break;
+         }
+      }
+
+   U_INTERNAL_PRINT("n1 = %u n2 = %u", n1, n2)
+
+   if (n2 == 0 &&
+       n1 == 0)
+      {
+      return ((flags & FNM_INVERT) == 0);
+      }
+
+   return ((flags & FNM_INVERT) != 0);
+}
+
+__pure bool u_match_with_OR(bPFpcupcud pfn_match, const char* restrict s, uint32_t n1, const char* restrict pattern, uint32_t n2, int flags)
+{
+   const char* restrict p_or;
+   const char* restrict end = pattern + n2;
+
+   U_INTERNAL_TRACE("u_match_with_OR(%p,%.*s,%u,%.*s,%u,%d)", pfn_match, U_min(n1,128), s, n1, n2, pattern, n2, flags)
+
+   U_INTERNAL_ASSERT_POINTER(s)
+   U_INTERNAL_ASSERT_MAJOR(n1, 0)
+   U_INTERNAL_ASSERT_MAJOR(n2, 0)
+   U_INTERNAL_ASSERT_POINTER(pattern)
 
    while (true)
       {
-      p_or = (const char* restrict) memchr(mask, '|', n2);
+      p_or = (const char* restrict) memchr(pattern, '|', n2);
 
-      if (p_or == 0)
-         {
-         result = u_dosmatch(s, n1, mask, n2, flags);
+      if (p_or == 0) return pfn_match(s, n1, pattern, n2, flags);
 
-         U_INTERNAL_PRINT("result = %d", result)
+      if (pfn_match(s, n1, pattern, (p_or - pattern), (flags & ~FNM_INVERT))) return ((flags & FNM_INVERT) == 0);
 
-         return result;
-         }
-
-      result = u_dosmatch(s, n1, mask, (p_or - mask), flags);
-
-      U_INTERNAL_PRINT("result = %d", result)
-
-      if (flags & FNM_INVERT)
-         {
-         if (result == false) return false;
-         }
-      else
-         {
-         if (result) return true;
-         }
-
-      mask = p_or + 1;
-      n2   = end - mask;
+      pattern = p_or + 1;
+         n2   = end - pattern;
       }
 }
 
 /**
  * Verifies that the passed string is actually an e-mail address
  *
- * see also: http://www.remote.org/jochen/mail/info/chars.html
+ * see: http://www.remote.org/jochen/mail/info/chars.html
  */
 
 #define RFC822_SPECIALS "()<>@,;:\\\"[]"
@@ -1754,7 +1996,7 @@ __pure bool u_validate_email_address(const char* restrict address, uint32_t addr
    return (count >= 1);
 }
 
-/* Perform 'natural order' comparisons of strings. */
+/* Perform 'natural order' comparisons of strings */
 
 __pure int u_strnatcmp(char const* restrict a, char const* restrict b)
 {
@@ -1772,10 +2014,12 @@ __pure int u_strnatcmp(char const* restrict a, char const* restrict b)
       cb = b[bi];
 
       /* skip over leading spaces or zeros */
+
       while (u__isspace(ca) || ca == '0') ca = a[++ai];
       while (u__isspace(cb) || cb == '0') cb = b[++bi];
 
       /* process run of digits */
+
       if (u__isdigit(ca) &&
           u__isdigit(cb))
          {
@@ -1822,7 +2066,7 @@ done_number:
       if (!ca &&
           !cb)
          {
-         /* The strings compare the same. Perhaps the caller will want to call strcmp to break the tie. */
+         /* The strings compare the same. Perhaps the caller will want to call strcmp to break the tie */
 
          return 0;
          }
@@ -1850,8 +2094,8 @@ done_number:
 #endif
 
 /**
- * Given a string containing units of information separated by colons, return the next one pointed to by (P_INDEX),
- * or NULL if there are no more. Advance (P_INDEX) to the character after the colon
+ * Given a string containing units of information separated by colons, return the next one pointed to by (p_index),
+ * or NULL if there are no more. Advance (p_index) to the character after the colon
  */
 
 static inline char* extract_colon_unit(char* restrict pzDir, const char* restrict string, uint32_t string_len, uint32_t* restrict p_index)
@@ -1869,7 +2113,7 @@ static inline char* extract_colon_unit(char* restrict pzDir, const char* restric
 
    while (*pzSrc == PATH_LIST_SEP) pzSrc++;
 
-   for (;;)
+   while (true)
       {
       char ch = (*pzDest = *pzSrc);
 
@@ -1976,7 +2220,7 @@ bool u_pathfind(char* restrict result, const char* restrict path, uint32_t path_
       if (path) path_len = u__strlen(path, __PRETTY_FUNCTION__);
       else
          {
-         path     = U_PATH_DEFAULT;
+         path     =                 U_PATH_DEFAULT;
          path_len = U_CONSTANT_SIZE(U_PATH_DEFAULT);
          }
 
@@ -2007,7 +2251,7 @@ bool u_pathfind(char* restrict result, const char* restrict path, uint32_t path_
          {
          /* We can, so normalize the name and return it below */
 
-         (void) u_canonicalize_pathname(result);
+         (void) u_canonicalize_pathname(result, strlen(result));
 
          return true;
          }
@@ -2017,136 +2261,158 @@ bool u_pathfind(char* restrict result, const char* restrict path, uint32_t path_
 }
 
 /**
- * Canonicalize PATH, and build a new path. The new path differs from PATH in that:
+ * Canonicalize path, and build a new path. The new path differs from original in that:
  *
  * Multiple    '/'                     are collapsed to a single '/'
- * Leading     './'  and trailing '/.' are removed
  * Trailing    '/'                     are removed
- * Trailing    '/.'                    are removed
+ * Leading     './'  and trailing '/.' are removed
  * Non-leading '../' and trailing '..' are handled by removing portions of the path
  */
 
-bool u_canonicalize_pathname(char* restrict path)
+uint32_t u_canonicalize_pathname(char* restrict path, uint32_t sz)
 {
-   int len;
+   char c;
+   bool bflag;
+   uint32_t len;
    char* restrict p;
    char* restrict s;
    char* restrict src;
    char* restrict dst;
-   bool is_modified = false;
-   char* restrict lpath = path;
+   char* restrict end = path+sz;
 
-   U_INTERNAL_TRACE("u_canonicalize_pathname(%s)", path)
+   U_INTERNAL_TRACE("u_canonicalize_pathname(%.*s,%u)", U_min(sz,128), path, sz)
 
-#ifdef _MSWINDOWS_
-   if (u__isalpha(path[0]) && path[1] == ':') lpath += 2; /* Skip over the disk name in MSDOS pathnames */
-#endif
-
-   /* Collapse multiple slashes */
-
-   for (p = lpath; *p; ++p)
-      {
-      if (p[0] == '/' &&
-          p[1] == '/')
-         {
-         s = p + 1;
-
-         while (*(++s) == '/') {}
-
-         is_modified = true;
-
-         for (src = s, dst = p + 1; (*dst = *src); ++src, ++dst) {} /* u__strcpy(p + 1, s); */
-
-         U_INTERNAL_PRINT("path = %s", path)
-         }
-      }
-
-   /* Collapse "/./" -> "/" */
-
-   p = lpath;
-
-   while (*p)
-      {
-      if (p[0] == '/' &&
-          p[1] == '.' &&
-          p[2] == '/')
-         {
-         is_modified = true;
-
-         for (src = p + 2, dst = p; (*dst = *src); ++src, ++dst) {} /* u__strcpy(p, p + 2); */
-
-         U_INTERNAL_PRINT("path = %s", path)
-         }
-      else
-         {
-         ++p;
-         }
-      }
-
-   /* Remove trailing slashes */
-
-   p = lpath + u__strlen(lpath, __PRETTY_FUNCTION__) - 1;
-
-   if ( p > lpath &&
-       *p == '/')
-      {
-      is_modified = true;
-
-      do { *p-- = '\0'; } while (p > lpath && *p == '/');
-      }
+   U_INTERNAL_ASSERT_MAJOR(sz, 1)
+   U_INTERNAL_ASSERT_EQUALS(*end, '\0')
 
    /* Remove leading "./" */
 
-   if (lpath[0] == '.' &&
-       lpath[1] == '/')
+   if (u_get_unalignedp16(path) == U_MULTICHAR_CONSTANT16('.','/'))
       {
-      if (lpath[2] == 0)
+      for (p = path+2; p < end; p += 2)
          {
-         lpath[1] = 0;
-
-         return true;
+         if (u_get_unalignedp16(p) != U_MULTICHAR_CONSTANT16('.','/')) break;
          }
 
-      is_modified = true;
+       len = p-path;
+       sz -= len;
+      end -= len;
 
-      for (src = lpath + 2, dst = lpath; (*dst = *src); ++src, ++dst) {} /* u__strcpy(lpath, lpath + 2); */
-
-      U_INTERNAL_PRINT("path = %s", path)
-      }
-
-   /* Remove trailing "/" or "/." */
-
-   len = u__strlen(lpath, __PRETTY_FUNCTION__);
-
-   if (len < 2) goto end;
-
-   if (lpath[len - 1] == '/')
-      {
-      lpath[len - 1] = 0;
-
-      is_modified = true;
-      }
-   else
-      {
-      if (lpath[len - 1] == '.' &&
-          lpath[len - 2] == '/')
+      if (sz <= 2)
          {
-         if (len == 2)
-            {
-            lpath[1] = 0;
+end:     path[1] = '\0';
 
-            return true;
+         return 1;
+         }
+
+      for (dst = path, src = p; (*dst = *src); ++src, ++dst) {}
+
+      U_INTERNAL_PRINT("Remove leading \"./\": sz = %u path(%u) = %s", sz, strlen(path), path)
+
+      U_INTERNAL_ASSERT_EQUALS(*end, '\0')
+      }
+
+   /* Remove trailing "/." */
+
+   if (u_get_unalignedp16(end-2) == U_MULTICHAR_CONSTANT16('/','.'))
+      {
+      for (p = end-2; p > path; p -= 2)
+         {
+         if (u_get_unalignedp16(p) != U_MULTICHAR_CONSTANT16('/','.')) break;
+         }
+
+      sz -= end-p;
+
+      if (sz <= 2) goto end;
+
+      (end = p)[0] = '\0';
+
+      U_INTERNAL_PRINT("Remove trailing \"/.\": sz = %u path(%u) = %s", sz, strlen(path), path)
+      }
+
+   /* Remove trailing "/" */
+
+   if (end[-1] == '/')
+      {
+      for (p = end-2; p > path; --p)
+         {
+         if (*p != '/') break;
+         }
+
+      sz -= end - ++p;
+
+      if (sz <= 2) goto end;
+
+      (end = p)[0] = '\0';
+
+      U_INTERNAL_PRINT("Remove trailing \"/\": sz = %u path(%u) = %s", sz, strlen(path), path)
+      }
+
+   /* Collapse multiple slashes */
+
+   bflag = false;
+
+   for (p = path; p < end; ++p)
+      {
+      c = *p;
+
+           if (c == '.') bflag = true;
+      else if (c == '/')
+         {
+         if (u_get_unalignedp16(p) == U_MULTICHAR_CONSTANT16('/','/'))
+            {
+            s = ++p;
+
+            while (*++s == '/') {}
+
+            for (dst = p, src = s; (*dst = *src); ++src, ++dst) {}
+
+            sz -= s-p;
+
+            if (sz <= 2) goto end;
+
+            continue;
+            }
+         }
+      }
+
+   U_INTERNAL_PRINT("Collapse multiple slashes: sz = %u path(%u) = %s", sz, strlen(path), path)
+
+   if (bflag == false) return sz;
+
+   /* Collapse "/./" -> "/" */
+
+   end = (p = path) + sz;
+
+   while (p < end)
+      {
+      if (memcmp(p, U_CONSTANT_TO_PARAM("/./")) != 0) ++p;
+      else
+         {
+         s = p+3;
+
+loop:    if ((sz -= 2) <= 2) goto end;
+
+         end -= 2;
+
+         if (u_get_unalignedp16(s) == U_MULTICHAR_CONSTANT16('.','/'))
+            {
+            s += 2;
+
+            goto loop;
             }
 
-         is_modified = true;
-
-         lpath[len - 2] = 0;
+         for (dst = p+1, src = s; (*dst = *src); ++src, ++dst) {}
          }
       }
+
+   U_INTERNAL_ASSERT_EQUALS(*end, '\0')
+
+   U_INTERNAL_PRINT("Collapse \"/./\" -> \"/\": sz = %u path(%u) = %s", sz, strlen(path), path)
 
    /* Collapse "/.." with the previous part of path */
 
-   p = lpath;
+   p = path;
 
    while (p[0] &&
           p[1] &&
@@ -2156,7 +2422,7 @@ bool u_canonicalize_pathname(char* restrict path)
            p[1] != '.'  ||
            p[2] != '.') ||
           (p[3] != '/'  &&
-           p[3] != 0))
+           p[3] != '\0'))
          {
          ++p;
 
@@ -2165,17 +2431,20 @@ bool u_canonicalize_pathname(char* restrict path)
 
       /* search for the previous token */
 
-      s = p - 1;
+      s = p-1;
 
-      while (s >= lpath && *s != '/') --s;
+      while ( s >= path &&
+             *s != '/')
+         {
+         --s;
+         }
 
       ++s;
 
       /* If the previous token is "..", we cannot collapse it */
 
-      if (s[0]    == '.' &&
-          s[1]    == '.' &&
-          (s + 2) == p)
+      if ((s+2) == p &&
+          u_get_unalignedp16(s) == U_MULTICHAR_CONSTANT16('.','.'))
          {
          p += 3;
 
@@ -2187,44 +2456,50 @@ bool u_canonicalize_pathname(char* restrict path)
          /*      "/../foo" -> "/foo" */
          /* "token/../foo" ->  "foo" */
 
-         is_modified = true;
+         p += 4;
 
-         for (src = p + 4, dst = s + (s == lpath && *s == '/'); (*dst = *src); ++src, ++dst) {} /* u__strcpy(s + (s == lpath && *s == '/'), p + 4); */
+         bflag = (s == path && *s == '/');
 
-         U_INTERNAL_PRINT("path = %s", path)
+         for (dst = s+bflag, src = p; (*dst = *src); ++src, ++dst) {}
 
-         p = s - (s > lpath);
+         sz -= p-(s+bflag);
+
+         U_INTERNAL_PRINT("sz = %u path(%u) = %s", sz, strlen(path), path)
+
+         if (sz <= 2) goto end;
+
+         p = s - (s > path);
 
          continue;
          }
 
       /* trailing ".." */
 
-      is_modified = true;
-
-      if (s == lpath)
+      if (s == path)
          {
          /* "token/.." -> "." */
 
-         if (lpath[0] != '/') lpath[0] = '.';
+         if (path[0] != '/') path[0] = '.';
 
-         lpath[1] = 0;
+         return 1;
          }
-      else
-         {
-         /* "foo/token/.." -> "foo" */
 
-         if (s == (lpath + 1)) s[ 0] = '\0';
-         else                  s[-1] = '\0';
-         }
+      /* "foo/token/.." -> "foo" */
+
+      if (s != (path+1)) --s;
+
+      *s = '\0';
+
+      U_INTERNAL_PRINT("sz = %u s - path = %u", sz, s - path)
+
+      sz = (s - path);
 
       break;
       }
 
-end:
-   U_INTERNAL_PRINT("path = %s", path)
+   U_INTERNAL_PRINT("sz = %u path(%u) = %s", sz, strlen(path), path)
 
-   return is_modified;
+   return sz;
 }
 
 /* Prepare command for call to exec() */
@@ -2239,10 +2514,10 @@ int u_splitCommand(char* restrict s, uint32_t n, char** restrict argv, char* res
    U_INTERNAL_TRACE("u_splitCommand(%.*s,%u,%p,%p,%u)", U_min(n,128), s, n, argv, pathbuf, pathbuf_size)
 
    U_INTERNAL_ASSERT_POINTER(s)
-   U_INTERNAL_ASSERT_MAJOR(n,0)
-   U_INTERNAL_ASSERT_MAJOR(pathbuf_size,0)
+   U_INTERNAL_ASSERT_MAJOR(n, 0)
+   U_INTERNAL_ASSERT_MAJOR(pathbuf_size, 0)
 
-   /* check if command have path separator... */
+   /* check if command have path separator */
 
    while ((c = argv[1][i++]))
       {
@@ -2280,7 +2555,7 @@ int u_splitCommand(char* restrict s, uint32_t n, char** restrict argv, char* res
 /**
  * It uses George Marsaglia's MWC algorithm to produce an unsigned integer.
  *
- * See http://www.bobwheeler.com/statistics/Password/MarsagliaPost.txt
+ * see http://www.bobwheeler.com/statistics/Password/MarsagliaPost.txt
  */
 
 uint32_t u_get_num_random(uint32_t range)
@@ -2297,7 +2572,12 @@ uint32_t u_get_num_random(uint32_t range)
 
    result = (u_m_z << 16) + u_m_w;
 
-   if (range) result = ((result % range) + 1);
+   if (range)
+      {
+      result = ((result % range) + 1);
+
+      U_INTERNAL_ASSERT(result <= range)
+      }
 
    return result;
 }
@@ -2319,32 +2599,8 @@ double u_get_uniform(void)
    return (u + 1.0) * 2.328306435454494e-10;
 }
 
-/* The u_passwd_cb() function must write the password into the provided buffer buf which is of length 'size' */
-
-#ifdef USE_LIBSSL
-int u_passwd_cb(char* restrict buf, int size, int rwflag, void* restrict password)
-{
-   int written;
-
-   U_VAR_UNUSED(rwflag)
-
-   U_INTERNAL_TRACE("u_passwd_cb(%p,%d,%d,%p)", buf, size, rwflag, password)
-
-   written = u__strlen((const char* restrict)password, __PRETTY_FUNCTION__);
-
-   u__memcpy(buf, (const char* restrict)password, written+1, __PRETTY_FUNCTION__);
-
-   U_INTERNAL_ASSERT_MINOR(written, size)
-
-   U_INTERNAL_PRINT("buf(%d) = %.*s", written, U_min(written,128), buf)
-
-   return written;
-}
-#endif
-
 /**
- * Function fnmatch() as specified in POSIX 1003.2-1992, section B.6.
- * Compares a filename or pathname to a pattern
+ * Function fnmatch() as specified in POSIX 1003.2-1992, section B.6. Compares a filename or pathname to a pattern
  */
 
 static const char* restrict end_p;
@@ -2369,9 +2625,7 @@ static inline int rangematch(const char* restrict pattern, char test, int flags,
    if (flags & FNM_CASEFOLD) test = u__tolower((unsigned char)test);
 
    /**
-    * A right bracket shall lose its special meaning and represent
-    * itself in a bracket expression if it occurs first in the list.
-    * -- POSIX.2 2.8.3.2
+    * A right bracket shall lose its special meaning and represent itself in a bracket expression if it occurs first in the list. -- POSIX.2 2.8.3.2
     */
 
    ok = 0;
@@ -2384,23 +2638,29 @@ static inline int rangematch(const char* restrict pattern, char test, int flags,
 
       U_INTERNAL_PRINT("c = %c test = %c", c, test)
 
-      if (pattern > end_p) return (-1); /* if (c == EOS) return (RANGE_ERROR); */
+      if (pattern > end_p) return -1; /* if (c == EOS) return (RANGE_ERROR); */
 
       if (c == '/' && (flags & FNM_PATHNAME)) return 0;
 
       if (flags & FNM_CASEFOLD) c = u__tolower((unsigned char)c);
 
-      if (*pattern == '-' && (c2 = *(pattern+1)) != ']' && (pattern+1) != end_p)
+      if (      * pattern     == '-' &&
+          (c2 = *(pattern+1)) != ']' &&
+                 (pattern+1)  != end_p)
          {
          pattern += 2;
 
          if (c2 == '\\' && !(flags & FNM_NOESCAPE)) c2 = *pattern++;
 
-         if (pattern > end_p) return (-1); /* if (c2 == EOS) return (RANGE_ERROR); */
+         if (pattern > end_p) return -1; /* if (c2 == EOS) return (RANGE_ERROR); */
 
          if (flags & FNM_CASEFOLD) c2 = u__tolower((unsigned char)c2);
 
-         if (c <= test && test <= c2) ok = 1;
+         if (c    <= test &&
+             test <= c2)
+            {
+            ok = 1;
+            }
          }
       else if (c == test)
          {
@@ -2411,7 +2671,7 @@ static inline int rangematch(const char* restrict pattern, char test, int flags,
 
    *newp = (char* restrict) pattern;
 
-   return (ok == negate ? 0 : 1);
+   return (ok != negate);
 }
 
 __pure static int kfnmatch(const char* restrict pattern, const char* restrict string, int flags, int nesting)
@@ -2432,7 +2692,7 @@ __pure static int kfnmatch(const char* restrict pattern, const char* restrict st
          {
          if ((flags & FNM_LEADING_DIR) && *string == '/') return 0;
 
-         return (string == end_s ? 0 : 1);
+         return (string != end_s);
          }
 
       switch (c)
@@ -2457,7 +2717,7 @@ __pure static int kfnmatch(const char* restrict pattern, const char* restrict st
             {
             c = *pattern;
 
-            /* Collapse multiple stars. */
+            /* Collapse multiple stars */
 
             while (c == '*') c = *++pattern;
 
@@ -2467,7 +2727,7 @@ __pure static int kfnmatch(const char* restrict pattern, const char* restrict st
                return 1;
                }
 
-            /* Optimize for pattern with * at end or before /. */
+            /* Optimize for pattern with * at end or before / */
 
             if (pattern == end_p) /* if (c == EOS) */
                {
@@ -2483,7 +2743,7 @@ __pure static int kfnmatch(const char* restrict pattern, const char* restrict st
                break;
                }
 
-            /* General case, use recursion. */
+            /* General case, use recursion */
 
             while (string < end_s)
                {
@@ -2569,55 +2829,65 @@ bool u_fnmatch(const char* restrict string, uint32_t n1, const char* restrict pa
 
    U_INTERNAL_TRACE("u_fnmatch(%.*s,%u,%.*s,%u,%d)", U_min(n1,128), string, n1, n2, pattern, n2, flags)
 
-   U_INTERNAL_ASSERT_MAJOR(n1,0)
-   U_INTERNAL_ASSERT_MAJOR(n2,0)
+   U_INTERNAL_ASSERT_MAJOR(n1, 0)
+   U_INTERNAL_ASSERT_MAJOR(n2, 0)
    U_INTERNAL_ASSERT_POINTER(string)
    U_INTERNAL_ASSERT_POINTER(pattern)
-   U_INTERNAL_ASSERT_EQUALS((flags & ~__FNM_FLAGS),0)
+   U_INTERNAL_ASSERT_EQUALS(flags & ~__FNM_FLAGS, 0)
 
    end_s = string  + n1;
    end_p = pattern + n2;
 
    result = kfnmatch(pattern, string, flags, 0);
 
-   return (flags & FNM_INVERT ? (result != 0) : (result == 0));
+   return ((flags & FNM_INVERT) != 0 ? (result != 0) : (result == 0));
 }
 
 /* buffer type identification - Assumed an ISO-1 character set */
 
 #define U_LOOP_STRING( exec_code ) unsigned char c = *s; while (n--) { exec_code ; c = *(++s); }
 
-/*
-#if !defined(GCOV)
-
-* (Duff's device) This is INCREDIBLY ugly, but fast. We break the string up into 8 byte units. On the first
-* time through the loop we get the "leftover bytes" (strlen % 8). On every other iteration, we perform 8 BODY's
-* so we handle all 8 bytes. Essentially, this saves us 7 cmp & branch instructions. If this routine is heavily
-* used enough, it's worth the ugly coding
-
-#  undef  U_LOOP_STRING
-#  define U_LOOP_STRING( exec_code ) {     \
-   unsigned char c;                        \
-   uint32_t U_LOOP_CNT = (n + 8 - 1) >> 3; \
-   switch (n & (8 - 1)) {                  \
-      case 0:                              \
-         do { { c = *s++; exec_code; }     \
-      case 7: { c = *s++; exec_code; }     \
-      case 6: { c = *s++; exec_code; }     \
-      case 5: { c = *s++; exec_code; }     \
-      case 4: { c = *s++; exec_code; }     \
-      case 3: { c = *s++; exec_code; }     \
-      case 2: { c = *s++; exec_code; }     \
-      case 1: { c = *s++; exec_code; }     \
-         } while (--U_LOOP_CNT); } }
-#endif
-*/
+/**
+ * #if !defined(GCOV)
+ *
+ * (Duff's device) This is INCREDIBLY ugly, but fast. We break the string up into 8 byte units. On the first
+ * time through the loop we get the "leftover bytes" (strlen % 8). On every other iteration, we perform 8 BODY's
+ * so we handle all 8 bytes. Essentially, this saves us 7 cmp & branch instructions. If this routine is heavily
+ * used enough, it's worth the ugly coding
+ *
+ * #undef  U_LOOP_STRING
+ * #define U_LOOP_STRING( exec_code ) { \
+ * unsigned char c; \
+ * uint32_t U_LOOP_CNT = (n + 8 - 1) >> 3; \
+ * switch (n & (8 - 1)) { \
+ * case 0: \
+ * do {    { c = *s++; exec_code; } \
+ * case 7: { c = *s++; exec_code; } \
+ * case 6: { c = *s++; exec_code; } \
+ * case 5: { c = *s++; exec_code; } \
+ * case 4: { c = *s++; exec_code; } \
+ * case 3: { c = *s++; exec_code; } \
+ * case 2: { c = *s++; exec_code; } \
+ * case 1: { c = *s++; exec_code; } \
+ * } while (--U_LOOP_CNT); } }
+ *
+ * #endif
+ */
 
 __pure bool u_isName(const char* restrict s, uint32_t n)
 {
    U_LOOP_STRING( if (u__isname(c) == false) return false )
 
    U_INTERNAL_TRACE("u_isName(%.*s,%u)", U_min(n,128), s, n)
+
+   return true;
+}
+
+__pure bool u_isDigit(const char* restrict s, uint32_t n)
+{
+   U_LOOP_STRING( if (u__isdigit(c) == false) return false )
+
+   U_INTERNAL_TRACE("u_isDigit(%.*s,%u)", U_min(n,128), s, n)
 
    return true;
 }
@@ -2675,7 +2945,7 @@ __pure bool u_isPrintable(const char* restrict s, uint32_t n, bool bline)
 
 __pure bool u_isFileName(const char* restrict s, uint32_t n)
 {
-   U_LOOP_STRING( if (u__isfname(c) == false) return false )
+   U_LOOP_STRING( if (u__isvalidchar(c) == false || u__isfnameinvalid(c)) return false )
 
    U_INTERNAL_TRACE("u_isFileName(%.*s,%u)", U_min(n,128), s, n)
 
@@ -2684,47 +2954,42 @@ __pure bool u_isFileName(const char* restrict s, uint32_t n)
 
 __pure bool u_isUrlEncoded(const char* restrict s, uint32_t n, bool bquery)
 {
-   bool result = false;
+   bool benc = false;
    unsigned char c = *s;
 
    U_INTERNAL_TRACE("u_isUrlEncoded(%.*s,%u,%d)", U_min(n,128), s, n, bquery)
 
-   U_INTERNAL_ASSERT_MAJOR(n,0)
+   U_INTERNAL_ASSERT_MAJOR(n, 0)
 
    while (n--)
       {
       U_INTERNAL_PRINT("c = %c n = %u", c, n)
 
-      if (u__is2urlenc(c)          &&
-          (bquery         == false ||
-           u__isurlqry(c) == false)) /* URL: char FROM query '&' (38 0x26) | '=' (61 0x3D) | '#' (35 0x23) */
+      if (bquery         == false ||
+          u__isurlqry(c) == false) /* URL: char FROM query '&' (38 0x26) | '=' (61 0x3D) | '#' (35 0x23) */
          {
          if (c == '%')
             {
-            if (u__isxdigit(s[1]) == false ||
-                u__isxdigit(s[2]) == false)
+            if (n >= 2)
                {
-               return false;
+               if (u__isxdigit(s[1]) &&
+                   u__isxdigit(s[2]))
+                  {
+                  benc = true;
+                  }
+
+               s += 2;
+               n -= 2;
                }
-
-            if (n == 2) return true;
-            if (n <  2) return false;
-
-            s += 2;
-            n -= 2;
             }
-         else if (c != '+')
-            {
-            return false;
-            }
-
-         result = true;
+         else if (c == '+') benc = true;
+         else if (u__is2urlenc(c)) return false;
          }
 
       c = *(++s);
       }
 
-   return result;
+   return benc;
 }
 
 __pure bool u_isUrlEncodeNeeded(const char* restrict s, uint32_t n)
@@ -2838,7 +3103,7 @@ __pure bool u_isHostName(const char* restrict ptr, uint32_t len)
     *
     * Several well known Internet and technology companies have DNS records that use the underscore:
     *
-    * http://domainkeys.sourceforge.net/underscore.html
+    * see http://domainkeys.sourceforge.net/underscore.html
     */
 
    if (u__isalpha(ch))
@@ -2989,46 +3254,27 @@ __pure bool u_isHTML(const char* restrict ptr)
 {
    /* NB: we check for <(h(1-6|tml)|!DOCTYPE) */
 
-   enum {
-      VAL_h1      = U_MULTICHAR_CONSTANT32('<','h','1','>'),
-      VAL_H1      = U_MULTICHAR_CONSTANT32('<','H','1','>'),
-      VAL_h2      = U_MULTICHAR_CONSTANT32('<','h','2','>'),
-      VAL_H2      = U_MULTICHAR_CONSTANT32('<','H','2','>'),
-      VAL_h3      = U_MULTICHAR_CONSTANT32('<','h','3','>'),
-      VAL_H3      = U_MULTICHAR_CONSTANT32('<','H','3','>'),
-      VAL_h4      = U_MULTICHAR_CONSTANT32('<','h','4','>'),
-      VAL_H4      = U_MULTICHAR_CONSTANT32('<','H','4','>'),
-      VAL_h5      = U_MULTICHAR_CONSTANT32('<','h','5','>'),
-      VAL_H5      = U_MULTICHAR_CONSTANT32('<','H','5','>'),
-      VAL_h6      = U_MULTICHAR_CONSTANT32('<','h','6','>'),
-      VAL_H6      = U_MULTICHAR_CONSTANT32('<','H','6','>'),
-      VAL_html    = U_MULTICHAR_CONSTANT32('<','h','t','m'),
-      VAL_HTML    = U_MULTICHAR_CONSTANT32('<','H','T','M'),
-      VAL_doctype = U_MULTICHAR_CONSTANT32('<','!','d','o'),
-      VAL_DOCTYPE = U_MULTICHAR_CONSTANT32('<','!','D','O')
-   };
-
    U_INTERNAL_TRACE("u_isHTML(%.*s)", 12, ptr)
 
    switch (u_get_unalignedp32(ptr))
       {
-      case VAL_h1:
-      case VAL_H1:
-      case VAL_h2:
-      case VAL_H2:
-      case VAL_h3:
-      case VAL_H3:
-      case VAL_h4:
-      case VAL_H4:
-      case VAL_h5:
-      case VAL_H5:
-      case VAL_h6:
-      case VAL_H6:
-      case VAL_html:
-      case VAL_HTML:
-      case VAL_doctype:
-      case VAL_DOCTYPE: return true;
-      default:          return false;
+      case U_MULTICHAR_CONSTANT32('<','h','1','>'):
+      case U_MULTICHAR_CONSTANT32('<','H','1','>'):
+      case U_MULTICHAR_CONSTANT32('<','h','2','>'):
+      case U_MULTICHAR_CONSTANT32('<','H','2','>'):
+      case U_MULTICHAR_CONSTANT32('<','h','3','>'):
+      case U_MULTICHAR_CONSTANT32('<','H','3','>'):
+      case U_MULTICHAR_CONSTANT32('<','h','4','>'):
+      case U_MULTICHAR_CONSTANT32('<','H','4','>'):
+      case U_MULTICHAR_CONSTANT32('<','h','5','>'):
+      case U_MULTICHAR_CONSTANT32('<','H','5','>'):
+      case U_MULTICHAR_CONSTANT32('<','h','6','>'):
+      case U_MULTICHAR_CONSTANT32('<','H','6','>'):
+      case U_MULTICHAR_CONSTANT32('<','h','t','m'):
+      case U_MULTICHAR_CONSTANT32('<','H','T','M'):
+      case U_MULTICHAR_CONSTANT32('<','!','d','o'):
+      case U_MULTICHAR_CONSTANT32('<','!','D','O'): return true;
+      default:                                      return false;
       }
 }
 
@@ -3108,17 +3354,17 @@ const unsigned char u_validate_utf8[] = {
 
 __pure bool u_isUTF8(const unsigned char* restrict buf, uint32_t len)
 {
-   uint32_t code = 0, state = 0;
-   const unsigned char* restrict end = buf + len;
    /*
    bool result = false;
    uint32_t j, following;
    */
+   uint32_t code = 0, state = 0;
+   const unsigned char* restrict end = buf + len;
 
    U_INTERNAL_TRACE("u_isUTF8(%.*s,%u)", U_min(len,128), buf, len)
 
-   U_INTERNAL_ASSERT_MAJOR(len,0)
    U_INTERNAL_ASSERT_POINTER(buf)
+   U_INTERNAL_ASSERT_MAJOR(len, 0)
 
    while (buf < end)
       {
@@ -3137,7 +3383,7 @@ __pure bool u_isUTF8(const unsigned char* restrict buf, uint32_t len)
       /**
        * Copyright (c) 2008-2009 Bjoern Hoehrmann <bjoern@hoehrmann.de>
        *
-       * See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details
+       * see http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details
        */
 
       uint32_t type = u_validate_utf8[c];
@@ -3151,44 +3397,43 @@ __pure bool u_isUTF8(const unsigned char* restrict buf, uint32_t len)
 
       if (state == 1) return false;
 
-      /*
-      if ((c & 0x80) == 0) // 0xxxxxxx is plain ASCII
-         {
-         // Even if the whole file is valid UTF-8 sequences,
-         // still reject it if it uses weird control characters.
-
-         if ((u_cttab(c) & 0x0200) == 0) return false;
-         }
-      else if ((c & 0x40) == 0) return false; // 10xxxxxx never 1st byte
-      else
-         {
-         // 11xxxxxx begins UTF-8
-
-         if      ((c & 0x20) == 0) following = 1; // 110xxxxx
-         else if ((c & 0x10) == 0) following = 2; // 1110xxxx
-         else if ((c & 0x08) == 0) following = 3; // 11110xxx
-         else if ((c & 0x04) == 0) following = 4; // 111110xx
-         else if ((c & 0x02) == 0) following = 5; // 1111110x
-         else                      return false;
-
-         for (j = 0; j < following; j++)
-            {
-            if (buf >= end) return result;
-
-            c = *buf++;
-
-            if ((c & 0x80) == 0 ||
-                (c & 0x40))
-               {
-               return false;
-               }
-            }
-
-         result = true;
-         }
-
-      return result;
-      */
+      /**
+       * if ((c & 0x80) == 0) // 0xxxxxxx is plain ASCII
+       *    {
+       *    // Even if the whole file is valid UTF-8 sequences, still reject it if it uses weird control characters
+       *
+       *    if ((u_cttab(c) & 0x0200) == 0) return false;
+       *    }
+       * else if ((c & 0x40) == 0) return false; // 10xxxxxx never 1st byte
+       * else
+       *    {
+       *    // 11xxxxxx begins UTF-8
+       *   
+       *    if      ((c & 0x20) == 0) following = 1; // 110xxxxx
+       *    else if ((c & 0x10) == 0) following = 2; // 1110xxxx
+       *    else if ((c & 0x08) == 0) following = 3; // 11110xxx
+       *    else if ((c & 0x04) == 0) following = 4; // 111110xx
+       *    else if ((c & 0x02) == 0) following = 5; // 1111110x
+       *    else                      return false;
+       *   
+       *    for (j = 0; j < following; j++)
+       *       {
+       *       if (buf >= end) return result;
+       *   
+       *       c = *buf++;
+       *   
+       *       if ((c & 0x80) == 0 ||
+       *           (c & 0x40))
+       *          {
+       *          return false;
+       *          }
+       *       }
+       *   
+       *    result = true;
+       *    }
+       *
+       * return result;
+       */
       }
 
    return (state == 0);
@@ -3202,11 +3447,14 @@ __pure int u_isUTF16(const unsigned char* restrict buf, uint32_t len)
 
    if (len < 2) return 0;
 
-   if      (buf[0] == 0xff && buf[1] == 0xfe) be = 0;
-   else if (buf[0] == 0xfe && buf[1] == 0xff) be = 1;
-   else                                       return 0;
+   if      (u_get_unalignedp16(buf) == U_MULTICHAR_CONSTANT16(0xff,0xfe)) be = 0;
+   else if (u_get_unalignedp16(buf) == U_MULTICHAR_CONSTANT16(0xfe,0xff)) be = 1;
+   else
+      {
+      return 0;
+      }
 
-   for(i = 2; i + 1 < len; i += 2)
+   for (i = 2; i + 1 < len; i += 2)
       {
       uint32_t c = (be ? buf[i+1] + 256 * buf[i]
                        : buf[i]   + 256 * buf[i+1]);
@@ -3221,119 +3469,121 @@ __pure int u_isUTF16(const unsigned char* restrict buf, uint32_t len)
    return (1 + be);
 }
 
-__pure bool u_isBinary(const unsigned char* restrict s, uint32_t n) { return ((u_isText(s,n) || u_isUTF8(s,n) || u_isUTF16(s,n)) == false); }
+/**
+ * From RFC 3986
+ *
+ * #define U_URI_UNRESERVED  0 // ALPHA (%41-%5A and %61-%7A) DIGIT (%30-%39) '-' '.' '_' '~'
+ * #define U_URI_PCT_ENCODED 1
+ * #define U_URI_GEN_DELIMS  2 // ':' '/' '?' '#' '[' ']' '@'
+ * #define U_URI_SUB_DELIMS  4 // '!' '$' '&' '\'' '(' ')' '*' '+' ',' ';' '='
+ *
+ * unsigned int u_uri_encoded_char_mask = (U_URI_PCT_ENCODED | U_URI_GEN_DELIMS | U_URI_SUB_DELIMS);
+ *
+ * const unsigned char u_uri_encoded_char[256] = {
+ *   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  // 0x00 - 0x0f
+ *   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  // 0x10 - 0x1f
+ *   1, 4, 1, 2, 4, 1, 4, 4, 4, 4, 4, 4, 4, 0, 0, 2,  //  !"#$%&'()*+,-./
+ *   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 4, 1, 4, 1, 2,  // 0123456789:;<=>?
+ *   2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  // @ABCDEFGHIJKLMNO
+ *   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 1, 2, 1, 0,  // PQRSTUVWXYZ[\]^_
+ *   1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  // `abcdefghijklmno
+ *   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 1,  // pqrstuvwxyz{|}~
+ *   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+ *   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+ *   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+ *   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+ *   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+ *   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+ *   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+ *   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+ * };
+ */
 
-/* From RFC 3986
+#define U__S  0x00000001 /* character space    ' ' (32 0x20) */
+#define U__E  0x00000002 /* character used in printf format  */
+#define U__H  0x00000004 /* character         '+' (43 0x2B) */
+#define U__V  0x00000008 /* character         ',' (44 0x2C) */
+#define U__O  0x00000010 /* character minus   '-' (45 0x2D) */
+#define U__N  0x00000020 /* character point   '.' (46 0x2E) */
+#define U__G  0x00000040 /* character         ':' (58 0x3A) */
+#define U__Q  0x00000080 /* character underbar '_' (95 0x5F) */
+#define U__B  0x00000100 /* character tab      \t  (09 0x09) */
+#define U__R  0x00000200 /* carriage return or new line (a \r or \n) */
+#define U__W  0x00000400 /* WhiteSpace */
+#define U__C  0x00000800 /* Control character */
+#define U__D  0x00001000 /* Digit */
+#define U__L  0x00002000 /* Lowercase */
+#define U__I  0x00004000 /* Punctuation */
+#define U__U  0x00008000 /* Uppercase */
+#define U__Z  0x00010000 /* Octal */
+#define U__F  0x00020000 /* character never appears in plain ASCII text */
+#define U__T  0x00040000 /* character      appears in plain ASCII text */
+#define U__X  0x00080000 /* Hexadecimal */
+#define U__A  0x00100000 /* BASE64 encoded: '+' (43 0x2B) | '/' (47 0x2F) | '=' (61 0x3D) */
+#define U__M  0x00200000 /* HTTP request/response (COPY, DELETE, GET, HEAD|HTTP, OPTIONS, POST/PUT/PATCH) */
+#define U__Y  0x00400000 /* HTTP header (Accept...,Host,Range,Cookie,Referer,X-Real-IP,User-Agent,Connection,Content-...) */
+#define U__K  0x00800000 /* string quote:    '"' (34 0x22) | ''' (39 0x27) */
+#define U__J  0x01000000 /* HTML special:    '&' (38 0x26) | '<' (60 0x3C) | '>' (62 0x3E) */
+#define U__UE 0x02000000 /* TO   URL encode: ' ' (32 0x20) | ... */
+#define U__UQ 0x04000000 /* FROM URL query:  '&' (38 0x26) | '=' (61 0x3D) | '#' (35 0x23) */
+#define U__UF 0x08000000 /* filename invalid char: '"' '*' ':' '<' '>' '?' '\' '|' */
+#define U__XM 0x10000000 /* char >= (32 0x20) */
+#define U__XE 0x20000000 /* char '}' | ']' */
 
-#define U_URI_UNRESERVED  0 // ALPHA (%41-%5A and %61-%7A) DIGIT (%30-%39) '-' '.' '_' '~'
-#define U_URI_PCT_ENCODED 1
-#define U_URI_GEN_DELIMS  2 // ':' '/' '?' '#' '[' ']' '@'
-#define U_URI_SUB_DELIMS  4 // '!' '$' '&' '\'' '(' ')' '*' '+' ',' ';' '='
+#define LU    (U__L | U__U)
+#define LX    (U__L | U__X)
+#define UX    (U__U | U__X)
+#define ITK   (U__I | U__T | U__K | U__UF |               U__XM)
+#define LT    (U__L | U__T |                              U__XM)
+#define UT    (U__U | U__T |                              U__XM)
+#define ITF   (U__I | U__T |                              U__XM) 
+#define ITA   (U__I | U__T | U__A |                       U__XM)
+#define ITQ   (U__I | U__T | U__Q |                       U__XM)
+#define LTE   (U__L | U__T |               U__E |         U__XM)
+#define LTY   (U__L | U__T | U__Y |        U__E |         U__XM)
+#define UXT   (U__U | U__X | U__T |        U__E |         U__XM)
+#define DT    (U__D | U__T |               U__E |         U__XM)
+#define ITN   (U__I | U__T | U__N |        U__E |         U__XM)
+#define ITO   (U__I | U__T | U__O |        U__E |         U__XM)
+#define DTZ   (U__D | U__T | U__Z |        U__E |         U__XM)
+#define UTE   (U__U | U__T |               U__E |         U__XM)
+#define UTY   (U__U | U__T | U__Y |        U__E |         U__XM)
+#define UTM   (U__U | U__T | U__M |        U__E |         U__XM)
+#define LTM   (U__L | U__T | U__M |        U__E |         U__XM)
+#define LXT   (U__L | U__X | U__T |        U__E |         U__XM)
+#define LTMY  (U__L | U__T | U__M | U__Y | U__E |         U__XM)
+#define UTMY  (U__U | U__T | U__M | U__Y | U__E |         U__XM)
+#define UXTM  (U__U | U__X | U__T | U__M | U__E |         U__XM)
+#define UXTY  (U__U | U__X | U__T | U__Y | U__E |         U__XM)
+#define LXTM  (U__L | U__X | U__T | U__M | U__E |         U__XM)
+#define LXTY  (U__L | U__X | U__T | U__Y | U__E |         U__XM)
+#define LXTMY (U__L | U__X | U__T | U__M | U__E | U__Y  | U__XM)
+#define UXTMY (U__U | U__X | U__T | U__M | U__E | U__Y  | U__XM)
+#define IT    (U__I |        U__T |        U__E | U__UF | U__XM)
 
-unsigned int u_uri_encoded_char_mask = (U_URI_PCT_ENCODED | U_URI_GEN_DELIMS | U_URI_SUB_DELIMS);
+#define FUE   (U__F |                       U__UE | U__XM)
+#define IF    (U__I | U__F |                U__UE)
+#define CF    (U__C | U__F |                U__UE)
+#define CT    (U__C | U__T |                U__UE)
+#define WF    (U__W | U__F |                U__UE)
+#define ITUE  (U__I | U__T |        U__UF | U__UE | U__XM)
+#define CWT   (U__C | U__W | U__T |         U__UE)
+#define CWF   (U__C | U__W | U__F |         U__UE)
+#define ITG   (U__I | U__T | U__G | U__UF | U__UE | U__XM)
+#define ITJ   (U__I | U__T | U__J | U__UF |         U__XM)
+#define CWBT  (U__C | U__W | U__B | U__T  | U__UE)
+#define CWRT  (U__C | U__W | U__R | U__T  | U__UE)
+#define ITUQ  (U__I | U__T |                U__UE | U__XM)
+#define SWT   (U__S | U__W | U__T |         U__UE | U__XM | U__E)
+#define ITAH  (U__I | U__T | U__A | U__H  | U__UE | U__XM | U__E)
+#define ITAU  (U__I | U__T | U__A |         U__UE | U__XM | U__UQ)
+#define ITJU  (U__I | U__T | U__J |         U__UE | U__XM | U__UQ)
+#define ITVF  (U__I | U__T | U__V |                 U__XM)
+#define ITKF  (U__I | U__T | U__K |                 U__XM | U__E)
 
-const unsigned char u_uri_encoded_char[256] = {
-   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  // 0x00 - 0x0f
-   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  // 0x10 - 0x1f
-   1, 4, 1, 2, 4, 1, 4, 4, 4, 4, 4, 4, 4, 0, 0, 2,  //  !"#$%&'()*+,-./
-   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 4, 1, 4, 1, 2,  // 0123456789:;<=>?
-   2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  // @ABCDEFGHIJKLMNO
-   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 1, 2, 1, 0,  // PQRSTUVWXYZ[\]^_
-   1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  // `abcdefghijklmno
-   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 1,  // pqrstuvwxyz{|}~
-   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
-};
-*/
-
-#define __S  0x00000001 /* character space    ' ' (32 0x20) */
-#define __E  0x00000002 /* character used in printf format  */
-#define __H  0x00000004 /* character          '+' (43 0x2B) */
-#define __V  0x00000008 /* character          ',' (44 0x2C) */
-#define __O  0x00000010 /* character minus    '-' (45 0x2D) */
-#define __N  0x00000020 /* character point    '.' (46 0x2E) */
-#define __G  0x00000040 /* character          ':' (58 0x3A) */
-#define __Q  0x00000080 /* character underbar '_' (95 0x5F) */
-#define __B  0x00000100 /* character tab      \t  (09 0x09) */
-#define __R  0x00000200 /* carriage return or new line (a \r or \n) */
-#define __W  0x00000400 /* WhiteSpace */
-#define __C  0x00000800 /* Control character */
-#define __D  0x00001000 /* Digit */
-#define __L  0x00002000 /* Lowercase */
-#define __I  0x00004000 /* Punctuation */
-#define __U  0x00008000 /* Uppercase */
-#define __Z  0x00010000 /* Octal */
-#define __F  0x00020000 /* character never appears in plain ASCII text */
-#define __T  0x00040000 /* character       appears in plain ASCII text */
-#define __X  0x00080000 /* Hexadecimal */
-#define __A  0x00100000 /* BASE64 encoded: '+' (43 0x2B) | '/' (47 0x2F) | '=' (61 0x3D) */
-#define __M  0x00200000 /* HTTP request/response (COPY, DELETE, GET, HEAD|HTTP, OPTIONS, POST/PUT/PATCH) */
-#define __Y  0x00400000 /* HTTP header (Accept...,Host,Range,Cookie,Referer,X-Real-IP,User-Agent,Connection,Content-...) */
-#define __K  0x00800000 /* string quote:    '"' (34 0x22) | ''' (39 0x27) */
-#define __J  0x01000000 /* HTML special:    '&' (38 0x26) | '<' (60 0x3C) | '>' (62 0x3E) */
-#define __UE 0x02000000 /* TO   URL encode: ' ' (32 0x20) | ... */
-#define __UQ 0x04000000 /* FROM URL query:  '&' (38 0x26) | '=' (61 0x3D) | '#' (35 0x23) */
-#define __UF 0x08000000 /* filename: char >= 0x20 except: '"' '*' ':' '<' '>' '?' '\' '|' */
-
-#define LU    (__L | __U)
-#define LX    (__L | __X)
-#define UX    (__U | __X)
-#define ITK   (__I | __T | __K)
-#define LT    (__L | __T |                         __UF)
-#define UT    (__U | __T |                         __UF)
-#define ITF   (__I | __T |                         __UF) 
-#define ITA   (__I | __T | __A |                   __UF)
-#define ITQ   (__I | __T | __Q |                   __UF)
-#define LTE   (__L | __T |             __E |       __UF)
-#define LTY   (__L | __T | __Y |       __E |       __UF)
-#define UXT   (__U | __X | __T |       __E |       __UF)
-#define DT    (__D | __T |             __E |       __UF)
-#define ITN   (__I | __T | __N |       __E |       __UF)
-#define ITO   (__I | __T | __O |       __E |       __UF)
-#define DTZ   (__D | __T | __Z |       __E |       __UF)
-#define UTE   (__U | __T |             __E |       __UF)
-#define UTY   (__U | __T | __Y |       __E |       __UF)
-#define UTM   (__U | __T | __M |       __E |       __UF)
-#define LTM   (__L | __T | __M |       __E |       __UF)
-#define LXT   (__L | __X | __T |       __E |       __UF)
-#define LTMY  (__L | __T | __M | __Y | __E |       __UF)
-#define UTMY  (__U | __T | __M | __Y | __E |       __UF)
-#define UXTM  (__U | __X | __T | __M | __E |       __UF)
-#define UXTY  (__U | __X | __T | __Y | __E |       __UF)
-#define LXTM  (__L | __X | __T | __M | __E |       __UF)
-#define LXTY  (__L | __X | __T | __Y | __E |       __UF)
-#define LXTMY (__L | __X | __T | __M | __E | __Y | __UF)
-#define UXTMY (__U | __X | __T | __M | __E | __Y | __UF)
-#define IT    (__I | __T |             __E)
-
-#define FUE   (__F |                   __UE)
-#define IF    (__I | __F |             __UE)
-#define CF    (__C | __F |             __UE)
-#define CT    (__C | __T |             __UE)
-#define WF    (__W | __F |             __UE)
-#define ITUE  (__I | __T |             __UE)
-#define CWT   (__C | __W | __T |       __UE)
-#define CWF   (__C | __W | __F |       __UE)
-#define ITG   (__I | __T | __G |       __UE)
-#define ITJ   (__I | __T | __J |       __UE)
-#define CWBT  (__C | __W | __B | __T | __UE)
-#define CWRT  (__C | __W | __R | __T | __UE)
-#define ITUQ  (__I | __T |             __UE | __UF)
-#define SWT   (__S | __W | __T |       __UE | __UF | __E)
-#define ITAH  (__I | __T | __A | __H | __UE | __UF | __E)
-#define ITAU  (__I | __T | __A |       __UE | __UF | __UQ)
-#define ITJU  (__I | __T | __J |       __UE | __UF | __UQ)
-#define ITVF  (__I | __T | __V |              __UF)
-#define ITKF  (__I | __T | __K |              __UF | __E)
-
-#define ITUEF  (__I | __T | __UE | __UF)
-#define ITUEFQ (__I | __T | __UE | __UF | __UQ | __E)
+#define ITUEF  (U__I | U__T | U__UE | U__XM)
+#define ITUEFX (U__I | U__T | U__UE | U__XM | U__XE)
+#define ITUEFQ (U__I | U__T | U__UE | U__XM | U__UQ | U__E)
 
 const unsigned int u__ct_tab[256] = {
 /*                         BEL  BS    HT    LF        FF    CR                 */
@@ -3342,17 +3592,17 @@ CF, CF, CF, CF, CF, CF, CF, CT, CT, CWBT, CWRT, CWF, CWT, CWRT, CF, CF,/* 0x00 *
 CF, CF, CF, CF, CF, CF, CF, CF, CF,   CF,   CF,  CT,  CF,  CF,  CF, CF,/* 0x10 */
 
 /* ' ' '!' '"'  '#'   '$'  '%'  '&' '\'' '('  ')' '*' '+'   ','  '-'   '.'  '/'         */
-  SWT, ITF,ITK,ITUEFQ,ITF,ITUQ,ITJU,ITKF,ITF,ITF, IT,ITAH,ITVF, ITO,  ITN, ITA, /* 0x20 */
+  SWT, ITF,ITK,ITUEFQ,ITF,ITUQ,ITJU,ITKF,ITF,ITF, IT,ITAH,ITVF, ITO,  ITN, ITA,  /* 0x20 */
 /* '0' '1' '2'  '3'   '4'  '5'  '6' '7'  '8'  '9' ':' ';'   '<'  '='   '>'  '?'         */
-  DTZ, DTZ,DTZ, DTZ, DTZ,  DTZ,DTZ, DTZ, DT,  DT,ITG,ITUEF,ITJ, ITAU, ITJ,ITUE, /* 0x30 */
+  DTZ, DTZ,DTZ, DTZ, DTZ,  DTZ,DTZ, DTZ, DT,  DT,ITG,ITUEF,ITJ, ITAU, ITJ,ITUE,  /* 0x30 */
 /* '@' 'A' 'B'  'C'   'D'  'E'  'F' 'G'  'H'  'I' 'J' 'K'   'L'  'M'   'N'  'O'         */
-  ITF,UXTY,UXT,UXTMY,UXTM, UXT,UXT, UTM,UTMY, UTY,UTE,UT,  UTE, UTE,  UTE, UTM, /* 0x40 */
+  ITF,UXTY,UXT,UXTMY,UXTM, UXT,UXT, UTM,UTMY, UTY,UTE,UT,  UTE, UTE,  UTE, UTM,  /* 0x40 */
 /* 'P' 'Q' 'R'  'S'   'T'  'U'  'V' 'W'  'X'  'Y' 'Z' '['   '\'  ']'   '^'  '_'         */
-  UTM,UTE,UTY, UTY,  UTE, UTY, UTE,UTE, UTY, UTE, UT,ITUEF,ITUE,ITUEF,ITUEF,ITQ,/* 0x50 */
+  UTM,UTE,UTY, UTY,  UTE, UTY, UTE,UTE, UTY, UTE, UT,ITUEF,ITUE,ITUEFX,ITUEF,ITQ,/* 0x50 */
 /* '`' 'a' 'b'  'c'   'd'  'e'  'f' 'g'  'h'  'i' 'j' 'k'   'l'  'm'   'n'  'o'         */
-ITUEF,LXTY,LXT,LXTMY,LXTM,LXT, LXT,LTM,LTMY, LTY,LTE, LT,  LTE,  LT,  LTE, LTM, /* 0x60 */
+ITUEF,LXTY,LXT,LXTMY,LXTM,LXT, LXT,LTM,LTMY, LTY,LTE, LT,  LTE,  LT,  LTE, LTM,  /* 0x60 */
 /* 'p' 'q' 'r'  's'   't'  'u'  'v' 'w'  'x'  'y' 'z' '{'   '|'  '}'   '~'              */
-  LTM,LTE,LTY, LTY,   LT, LTY, LTE,LTE, LTY,  LT, LT,ITUEF,ITUE,ITUEF,ITF, CF,  /* 0x70 */
+  LTM,LTE,LTY, LTY,   LT, LTY, LTE,LTE, LTY,  LT, LT,ITUEF,ITUE,ITUEFX,ITF, CF,  /* 0x70 */
 
 FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, /* 0x80 */
 FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, /* 0x90 */
@@ -3363,7 +3613,8 @@ FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, 
 FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, /* 0xe0 */
 FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE  /* 0xf0 */
 
-/* ISO-1 character set
+/**
+ * ISO-1 character set
  *
  * C,  C,  C,  C,  C, CT,  C,  C,  C,  C,  C,  C,  C,  C,  C,  C,
  * C,  C,  C,  C,  C,  C,  C,  C,  C,  C,  C,  C,  C,  C,  C,  C,
@@ -3376,33 +3627,35 @@ FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE  
  */
 };
 
-#undef __S
-#undef __H
-#undef __V
-#undef __O
-#undef __N
-#undef __G
-#undef __Q
-#undef __B
-#undef __R
-#undef __W
-#undef __C
-#undef __D
-#undef __L
-#undef __I
-#undef __U
-#undef __Z
-#undef __F
-#undef __T
-#undef __X
-#undef __A
-#undef __M
-#undef __Y
-#undef __K
-#undef __J
-#undef __UE
-#undef __UQ
-#undef __UF
+#undef U__S
+#undef U__H
+#undef U__V
+#undef U__O
+#undef U__N
+#undef U__G
+#undef U__Q
+#undef U__B
+#undef U__R
+#undef U__W
+#undef U__C
+#undef U__D
+#undef U__L
+#undef U__I
+#undef U__U
+#undef U__Z
+#undef U__F
+#undef U__T
+#undef U__X
+#undef U__A
+#undef U__M
+#undef U__Y
+#undef U__K
+#undef U__J
+#undef U__UE
+#undef U__UQ
+#undef U__UF
+#undef U__XM
+#undef U__XE
 
 #undef CF
 #undef CT
@@ -3451,6 +3704,7 @@ FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE, FUE  
 #undef ITJU
 #undef ITUQ
 #undef ITUEF
+#undef ITUEFX
 #undef ITUEFQ
 #undef LXTMY
 #undef UXTMY
@@ -3545,17 +3799,17 @@ const unsigned char u__ct_hex2int[112] = {
    0,10,11,12,13,14,15, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* @ABCDEFGHIJKLMNO */
    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* PQRSTUVWXYZ[\]^_ */
    0,10,11,12,13,14,15, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* `abcdefghijklmno */
-/*
-   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  // pqrstuvwxyz{|}~
-   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-*/
+/**
+ * 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  // pqrstuvwxyz{|}~
+ * 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+ * 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+ * 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+ * 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+ * 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+ * 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+ * 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+ * 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+ */
 };
 
 /* MIME TYPE */
@@ -3568,680 +3822,681 @@ typedef struct mimeentry {
 
 #define MIME_ENTRY(name,type) { type, name+1, U_CONSTANT_SIZE(name)-1 }
 
-/* Complete list of MIME types
-
-.3dm  x-world/x-3dmf
-.3dmf x-world/x-3dmf
-
-.a    application/octet-stream
-.aab  application/x-authorware-bin
-.aam  application/x-authorware-map
-.aas  application/x-authorware-seg
-.abc  text/vnd.abc
-.acgi text/html
-.afl  video/animaflex
-.ai   application/postscript
-.aif  audio/aiff
-.aif  audio/x-aiff
-.aifc audio/aiff
-.aifc audio/x-aiff
-.aiff audio/aiff
-.aiff audio/x-aiff
-.aim  application/x-aim
-.aip  text/x-audiosoft-intra
-.ani  application/x-navi-animation
-.aos  application/x-nokia-9000-communicator-add-on-software
-.aps  application/mime
-.arc  application/octet-stream
-.arj  application/arj
-.arj  application/octet-stream
-.art  image/x-jg
-.asf  video/x-ms-asf
-.asm  text/x-asm
-.asp  text/asp
-.asx  application/x-mplayer2
-.asx  video/x-ms-asf
-.asx  video/x-ms-asf-plugin
-.au   audio/basic
-.au   audio/x-au
-.avi  application/x-troff-msvideo
-.avi  video/avi
-.avi  video/msvideo
-.avi  video/x-msvideo
-.avs  video/avs-video
-
-.bcpio application/x-bcpio
-.bin  application/mac-binary
-.bin  application/macbinary
-.bin  application/octet-stream
-.bin  application/x-binary
-.bin  application/x-macbinary
-.bm   image/bmp
-.bmp  image/bmp
-.bmp  image/x-windows-bmp
-.boo  application/book
-.book application/book
-.boz  application/x-bzip2
-.bsh  application/x-bsh
-.bz   application/x-bzip
-.bz2  application/x-bzip2
-
-.c    text/plain
-.c    text/x-c
-.c++  text/plain
-.cat  application/vnd.ms-pki.seccat
-.cc   text/plain
-.cc   text/x-c
-.ccad application/clariscad
-.cco  application/x-cocoa
-.cdf  application/cdf
-.cdf  application/x-cdf
-.cdf  application/x-netcdf
-.cer  application/pkix-cert
-.cer  application/x-x509-ca-cert
-.cha  application/x-chat
-.chat application/x-chat
-.class application/java
-.class application/java-byte-code
-.class application/x-java-class
-.com  application/octet-stream
-.com  text/plain
-.conf text/plain
-.cpio application/x-cpio
-.cpp  text/x-c
-.cpt  application/mac-compactpro
-.cpt  application/x-compactpro
-.cpt  application/x-cpt
-.crl  application/pkcs-crl
-.crl  application/pkix-crl
-.crt  application/pkix-cert
-.crt  application/x-x509-ca-cert
-.crt  application/x-x509-user-cert
-.csh  application/x-csh
-.csh  text/x-script.csh
-.css  application/x-pointplus
-.css  text/css
-.cxx  text/plain
-
-.dcr  application/x-director
-.deepv application/x-deepv
-.def  text/plain
-.der  application/x-x509-ca-cert
-.dif  video/x-dv
-.dir  application/x-director
-.dl   video/dl
-.dl   video/x-dl
-.doc  application/msword
-.dot  application/msword
-.dp   application/commonground
-.drw  application/drafting
-.dump application/octet-stream
-.dv   video/x-dv
-.dvi  application/x-dvi
-.dwf  drawing/x-dwf (old)
-.dwf  model/vnd.dwf
-.dwg  application/acad
-.dwg  image/vnd.dwg
-.dwg  image/x-dwg
-.dxf  application/dxf
-.dxf  image/vnd.dwg
-.dxf  image/x-dwg
-.dxr  application/x-director
-
-.el   text/x-script.elisp
-.elc  application/x-bytecode.elisp (compiled elisp)
-.elc  application/x-elc
-.env  application/x-envoy
-.eps  application/postscript
-.es   application/x-esrehber
-.etx  text/x-setext
-.evy  application/envoy
-.evy  application/x-envoy
-.exe  application/octet-stream
-
-.f    text/plain
-.f    text/x-fortran
-.f77  text/x-fortran
-.f90  text/plain
-.f90  text/x-fortran
-.fdf  application/vnd.fdf
-.fif  application/fractals
-.fif  image/fif
-.fli  video/fli
-.fli  video/x-fli
-.flo  image/florian
-.flx  text/vnd.fmi.flexstor
-.fmf  video/x-atomic3d-feature
-.for  text/plain
-.for  text/x-fortran
-.fpx  image/vnd.fpx
-.fpx  image/vnd.net-fpx
-.frl  application/freeloader
-.funk audio/make
-
-.g    text/plain
-.g3   image/g3fax
-.gif  image/gif
-.gl   video/gl
-.gl   video/x-gl
-.gsd  audio/x-gsm
-.gsm  audio/x-gsm
-.gsp  application/x-gsp
-.gss  application/x-gss
-.gtar application/x-gtar
-.gz   application/x-compressed
-.gz   application/x-gzip
-.gzip application/x-gzip
-.gzip multipart/x-gzip
-
-.h    text/plain
-.h    text/x-h
-.hdf  application/x-hdf
-.help application/x-helpfile
-.hgl  application/vnd.hp-hpgl
-.hh   text/plain
-.hh   text/x-h
-.hlb  text/x-script
-.hlp  application/hlp
-.hlp  application/x-helpfile
-.hlp  application/x-winhelp
-.hpg  application/vnd.hp-hpgl
-.hpgl application/vnd.hp-hpgl
-.hqx  application/binhex
-.hqx  application/binhex4
-.hqx  application/mac-binhex
-.hqx  application/mac-binhex40
-.hqx  application/x-binhex40
-.hqx  application/x-mac-binhex40
-.hta  application/hta
-.htc  text/x-component
-.htm  text/html
-.html text/html
-.htmls text/html
-.htt  text/webviewhtml
-.htx  text/html
-
-.ice  x-conference/x-cooltalk
-.ico  image/x-icon
-.idc  text/plain
-.ief  image/ief
-.iefs image/ief
-.iges application/iges
-.iges model/iges
-.igs  application/iges
-.igs  model/iges
-.ima  application/x-ima
-.imap application/x-httpd-imap
-.inf  application/inf
-.ins  application/x-internett-signup
-.ip   application/x-ip2
-.isu  video/x-isvideo
-.it   audio/it
-.iv   application/x-inventor
-.ivr  i-world/i-vrml
-.ivy  application/x-livescreen
-
-.jam  audio/x-jam
-.jav  text/plain
-.jav  text/x-java-source
-.java text/plain
-.java text/x-java-source
-.jcm  application/x-java-commerce
-.jfif image/jpeg
-.jfif image/pjpeg
-.jfif-tbnl  image/jpeg
-.jpe  image/jpeg
-.jpe  image/pjpeg
-.jpeg image/jpeg
-.jpeg image/pjpeg
-.jpg  image/jpeg
-.jpg  image/pjpeg
-.jps  image/x-jps
-.js   application/x-javascript
-.js   application/javascript
-.js   application/ecmascript
-.js   text/javascript
-.js   text/ecmascript
-.jut  image/jutvision
-
-.kar  audio/midi
-.kar  music/x-karaoke
-.ksh  application/x-ksh
-.ksh  text/x-script.ksh
-
-.la   audio/nspaudio
-.la   audio/x-nspaudio
-.lam  audio/x-liveaudio
-.latex application/x-latex
-.lha  application/lha
-.lha  application/octet-stream
-.lha  application/x-lha
-.lhx  application/octet-stream
-.list text/plain
-.lma  audio/nspaudio
-.lma  audio/x-nspaudio
-.log  text/plain
-.lsp  application/x-lisp
-.lsp  text/x-script.lisp
-.lst  text/plain
-.lsx  text/x-la-asf
-.ltx  application/x-latex
-.lzh  application/octet-stream
-.lzh  application/x-lzh
-.lzx  application/lzx
-.lzx  application/octet-stream
-.lzx  application/x-lzx
-
-.m    text/plain
-.m    text/x-m
-.m1v  video/mpeg
-.m2a  audio/mpeg
-.m2v  video/mpeg
-.m3u  audio/x-mpequrl
-.man  application/x-troff-man
-.map  application/x-navimap
-.mar  text/plain
-.mbd  application/mbedlet
-.mc$  application/x-magic-cap-package-1.0
-.mcd  application/mcad
-.mcd  application/x-mathcad
-.mcf  image/vasa
-.mcf  text/mcf
-.mcp  application/netmc
-.me   application/x-troff-me
-.mht  message/rfc822
-.mhtml message/rfc822
-.mid  application/x-midi
-.mid  audio/midi
-.mid  audio/x-mid
-.mid  audio/x-midi
-.mid  music/crescendo
-.mid  x-music/x-midi
-.midi application/x-midi
-.midi audio/midi
-.midi audio/x-mid
-.midi audio/x-midi
-.midi music/crescendo
-.midi x-music/x-midi
-.mif  application/x-frame
-.mif  application/x-mif
-.mime message/rfc822
-.mime www/mime
-.mjf  audio/x-vnd.audioexplosion.mjuicemediafile
-.mjpg video/x-motion-jpeg
-.mm   application/base64
-.mm   application/x-meme
-.mme  application/base64
-.mod  audio/mod
-.mod  audio/x-mod
-.moov video/quicktime
-.mov  video/quicktime
-.movie video/x-sgi-movie
-.mp2  audio/mpeg
-.mp2  audio/x-mpeg
-.mp2  video/mpeg
-.mp2  video/x-mpeg
-.mp2  video/x-mpeq2a
-.mp3  audio/mpeg3
-.mp3  audio/x-mpeg-3
-.mp3  video/mpeg
-.mp3  video/x-mpeg
-.mpa  audio/mpeg
-.mpa  video/mpeg
-.mpc  application/x-project
-.mpe  video/mpeg
-.mpeg video/mpeg
-.mpg  audio/mpeg
-.mpg  video/mpeg
-.mpga audio/mpeg
-.mpp  application/vnd.ms-project
-.mpt  application/x-project
-.mpv  application/x-project
-.mpx  application/x-project
-.mrc  application/marc
-.ms   application/x-troff-ms
-.mv   video/x-sgi-movie
-.my   audio/make
-.mzz  application/x-vnd.audioexplosion.mzz
-
-.nap  image/naplps
-.naplps image/naplps
-.nc   application/x-netcdf
-.ncm  application/vnd.nokia.configuration-message
-.nif  image/x-niff
-.niff image/x-niff
-.nix  application/x-mix-transfer
-.nsc  application/x-conference
-.nvd  application/x-navidoc
-
-.o    application/octet-stream
-.oda  application/oda
-.omc  application/x-omc
-.omcd application/x-omcdatamaker
-.omcr application/x-omcregerator
-
-.p    text/x-pascal
-.p10  application/pkcs10
-.p10  application/x-pkcs10
-.p12  application/pkcs-12
-.p12  application/x-pkcs12
-.p7a  application/x-pkcs7-signature
-.p7c  application/pkcs7-mime
-.p7c  application/x-pkcs7-mime
-.p7m  application/pkcs7-mime
-.p7m  application/x-pkcs7-mime
-.p7r  application/x-pkcs7-certreqresp
-.p7s  application/pkcs7-signature
-.part application/pro_eng
-.pas  text/pascal
-.pbm  image/x-portable-bitmap
-.pcl  application/vnd.hp-pcl
-.pcl  application/x-pcl
-.pct  image/x-pict
-.pcx  image/x-pcx
-.pdb  chemical/x-pdb
-.pdf  application/pdf
-.pfunk audio/make
-.pfunk audio/make.my.funk
-.pgm  image/x-portable-graymap
-.pgm  image/x-portable-greymap
-.pic  image/pict
-.pict image/pict
-.pkg  application/x-newton-compatible-pkg
-.pko  application/vnd.ms-pki.pko
-.pl   text/plain
-.pl   text/x-script.perl
-.plx  application/x-pixclscript
-.pm   image/x-xpixmap
-.pm   text/x-script.perl-module
-.pm4  application/x-pagemaker
-.pm5  application/x-pagemaker
-.png  image/png
-.pnm  application/x-portable-anymap
-.pnm  image/x-portable-anymap
-.pot  application/mspowerpoint
-.pot  application/vnd.ms-powerpoint
-.pov  model/x-pov
-.ppa  application/vnd.ms-powerpoint
-.ppm  image/x-portable-pixmap
-.pps  application/mspowerpoint
-.pps  application/vnd.ms-powerpoint
-.ppt  application/mspowerpoint
-.ppt  application/powerpoint
-.ppt  application/vnd.ms-powerpoint
-.ppt  application/x-mspowerpoint
-.ppz  application/mspowerpoint
-.pre  application/x-freelance
-.prt  application/pro_eng
-.ps   application/postscript
-.psd  application/octet-stream
-.pvu  paleovu/x-pv
-.pwz  application/vnd.ms-powerpoint
-.py   text/x-script.phyton
-.pyc  applicaiton/x-bytecode.python
-
-.qcp  audio/vnd.qcelp
-.qd3  x-world/x-3dmf
-.qd3d x-world/x-3dmf
-.qif  image/x-quicktime
-.qt   video/quicktime
-.qtc  video/x-qtc
-.qti  image/x-quicktime
-.qtif image/x-quicktime
-
-.ra   audio/x-pn-realaudio
-.ra   audio/x-pn-realaudio-plugin
-.ra   audio/x-realaudio
-.ram  audio/x-pn-realaudio
-.ras  application/x-cmu-raster
-.ras  image/cmu-raster
-.ras  image/x-cmu-raster
-.rast image/cmu-raster
-.rexx text/x-script.rexx
-.rf   image/vnd.rn-realflash
-.rgb  image/x-rgb
-.rm   application/vnd.rn-realmedia
-.rm   audio/x-pn-realaudio
-.rmi  audio/mid
-.rmm  audio/x-pn-realaudio
-.rmp  audio/x-pn-realaudio
-.rmp  audio/x-pn-realaudio-plugin
-.rng  application/ringing-tones
-.rng  application/vnd.nokia.ringing-tone
-.rnx  application/vnd.rn-realplayer
-.roff application/x-troff
-.rp   image/vnd.rn-realpix
-.rpm  audio/x-pn-realaudio-plugin
-.rt   text/richtext
-.rt   text/vnd.rn-realtext
-.rtf  application/rtf
-.rtf  application/x-rtf
-.rtf  text/richtext
-.rtx  application/rtf
-.rtx  text/richtext
-.rv   video/vnd.rn-realvideo
-
-.s    text/x-asm
-.s3m  audio/s3m
-.saveme application/octet-stream
-.sbk  application/x-tbook
-.scm  application/x-lotusscreencam
-.scm  text/x-script.guile
-.scm  text/x-script.scheme
-.scm  video/x-scm
-.sdml text/plain
-.sdp  application/sdp
-.sdp  application/x-sdp
-.sdr  application/sounder
-.sea  application/sea
-.sea  application/x-sea
-.set  application/set
-.sgm  text/sgml
-.sgm  text/x-sgml
-.sgml text/sgml
-.sgml text/x-sgml
-.sh   application/x-bsh
-.sh   application/x-sh
-.sh   application/x-shar
-.sh   text/x-script.sh
-.shar application/x-bsh
-.shar application/x-shar
-.shtml text/html
-.shtml text/x-server-parsed-html
-.sid  audio/x-psid
-.sit  application/x-sit
-.sit  application/x-stuffit
-.skd  application/x-koan
-.skm  application/x-koan
-.skp  application/x-koan
-.skt  application/x-koan
-.sl   application/x-seelogo
-.smi  application/smil
-.smil application/smil
-.snd  audio/basic
-.snd  audio/x-adpcm
-.sol  application/solids
-.spc  application/x-pkcs7-certificates
-.spc  text/x-speech
-.spl  application/futuresplash
-.spr  application/x-sprite
-.sprite application/x-sprite
-.src  application/x-wais-source
-.ssi  text/x-server-parsed-html
-.ssm  application/streamingmedia
-.sst  application/vnd.ms-pki.certstore
-.step application/step
-.stl  application/sla
-.stl  application/vnd.ms-pki.stl
-.stl  application/x-navistyle
-.stp  application/step
-.sv4cpio application/x-sv4cpio
-.sv4crc  application/x-sv4crc
-.svf  image/vnd.dwg
-.svf  image/x-dwg
-.svr  application/x-world
-.svr  x-world/x-svr
-.swf  application/x-shockwave-flash
-
-.t    application/x-troff
-.talk text/x-speech
-.tar  application/x-tar
-.tbk  application/toolbook
-.tbk  application/x-tbook
-.tcl  application/x-tcl
-.tcl  text/x-script.tcl
-.tcsh text/x-script.tcsh
-.tex  application/x-tex
-.texi application/x-texinfo
-.texinfo application/x-texinfo
-.text application/plain
-.text text/plain
-.tgz  application/gnutar
-.tgz  application/x-compressed
-.tif  image/tiff
-.tif  image/x-tiff
-.tiff image/tiff
-.tiff image/x-tiff
-.tr   application/x-troff
-.tsi  audio/tsp-audio
-.tsp  application/dsptype
-.tsp  audio/tsplayer
-.tsv  text/tab-separated-values
-.turbot image/florian
-.txt  text/plain
-
-.uil  text/x-uil
-.uni  text/uri-list
-.unis text/uri-list
-.unv  application/i-deas
-.uri  text/uri-list
-.uris text/uri-list
-.ustar application/x-ustar
-.ustar multipart/x-ustar
-.uu   application/octet-stream
-.uu   text/x-uuencode
-.uue  text/x-uuencode
-
-.vcd  application/x-cdlink
-.vcs  text/x-vcalendar
-.vda  application/vda
-.vdo  video/vdo
-.vew  application/groupwise
-.viv  video/vivo
-.viv  video/vnd.vivo
-.vivo video/vivo
-.vivo video/vnd.vivo
-.vmd  application/vocaltec-media-desc
-.vmf  application/vocaltec-media-file
-.voc  audio/voc
-.voc  audio/x-voc
-.vos  video/vosaic
-.vox  audio/voxware
-.vqe  audio/x-twinvq-plugin
-.vqf  audio/x-twinvq
-.vql  audio/x-twinvq-plugin
-.vrml application/x-vrml
-.vrml model/vrml
-.vrml x-world/x-vrml
-.vrt  x-world/x-vrt
-.vsd  application/x-visio
-.vst  application/x-visio
-.vsw  application/x-visio
-
-.w60  application/wordperfect6.0
-.w61  application/wordperfect6.1
-.w6w  application/msword
-.wav  audio/wav
-.wav  audio/x-wav
-.wb1  application/x-qpro
-.wbmp image/vnd.wap.wbmp
-.web  application/vnd.xara
-.wiz  application/msword
-.wk1  application/x-123
-.wmf  windows/metafile
-.wml  text/vnd.wap.wml
-.wmlc application/vnd.wap.wmlc
-.wmls text/vnd.wap.wmlscript
-.wmlsc application/vnd.wap.wmlscriptc
-.word application/msword
-.wp   application/wordperfect
-.wp5  application/wordperfect
-.wp5  application/wordperfect6.0
-.wp6  application/wordperfect
-.wpd  application/wordperfect
-.wpd  application/x-wpwin
-.wq1  application/x-lotus
-.wri  application/mswrite
-.wri  application/x-wri
-.wrl  application/x-world
-.wrl  model/vrml
-.wrl  x-world/x-vrml
-.wrz  model/vrml
-.wrz  x-world/x-vrml
-.wsc  text/scriplet
-.wsrc application/x-wais-source
-.wtk  application/x-wintalk
-
-.xbm  image/x-xbitmap
-.xbm  image/x-xbm
-.xbm  image/xbm
-.xdr  video/x-amt-demorun
-.xgz  xgl/drawing
-.xif  image/vnd.xiff
-.xl   application/excel
-.xla  application/excel
-.xla  application/x-excel
-.xla  application/x-msexcel
-.xlb  application/excel
-.xlb  application/vnd.ms-excel
-.xlb  application/x-excel
-.xlc  application/excel
-.xlc  application/vnd.ms-excel
-.xlc  application/x-excel
-.xld  application/excel
-.xld  application/x-excel
-.xlk  application/excel
-.xlk  application/x-excel
-.xll  application/excel
-.xll  application/vnd.ms-excel
-.xll  application/x-excel
-.xlm  application/excel
-.xlm  application/vnd.ms-excel
-.xlm  application/x-excel
-.xls  application/excel
-.xls  application/vnd.ms-excel
-.xls  application/x-excel
-.xls  application/x-msexcel
-.xlt  application/excel
-.xlt  application/x-excel
-.xlv  application/excel
-.xlv  application/x-excel
-.xlw  application/excel
-.xlw  application/vnd.ms-excel
-.xlw  application/x-excel
-.xlw  application/x-msexcel
-.xm   audio/xm
-.xml  application/xml
-.xml  text/xml
-.xmz  xgl/movie
-.xpix application/x-vnd.ls-xpix
-.xpm  image/x-xpixmap
-.xpm  image/xpm
-.x-png image/png
-.xsr  video/x-amt-showrun
-.xwd  image/x-xwd
-.xwd  image/x-xwindowdump
-.xyz  chemical/x-pdb
-
-.z    application/x-compress
-.z    application/x-compressed
-.zip  application/x-compressed
-.zip  application/x-zip-compressed
-.zip  application/zip
-.zip  multipart/x-zip
-.zoo  application/octet-stream
-.zsh  text/x-script.zsh
-*/
+/**
+ * Complete list of MIME types
+ *
+ *.3dm  x-world/x-3dmf
+ *.3dmf x-world/x-3dmf
+ *
+ *.a     application/octet-stream
+ *.aab   application/x-authorware-bin
+ *.aam   application/x-authorware-map
+ *.aas   application/x-authorware-seg
+ *.abc   text/vnd.abc
+ *.acgi  text/html
+ *.afl   video/animaflex
+ *.ai    application/postscript
+ *.aif   audio/aiff
+ *.aif   audio/x-aiff
+ *.aifc  audio/aiff
+ *.aifc  audio/x-aiff
+ *.aiff  audio/aiff
+ *.aiff  audio/x-aiff
+ *.aim   application/x-aim
+ *.aip   text/x-audiosoft-intra
+ *.ani   application/x-navi-animation
+ *.aos   application/x-nokia-9000-communicator-add-on-software
+ *.aps   application/mime
+ *.arc   application/octet-stream
+ *.arj   application/arj
+ *.arj   application/octet-stream
+ *.art   image/x-jg
+ *.asf   video/x-ms-asf
+ *.asm   text/x-asm
+ *.asp   text/asp
+ *.asx   application/x-mplayer2
+ *.asx   video/x-ms-asf
+ *.asx   video/x-ms-asf-plugin
+ *.au    audio/basic
+ *.au    audio/x-au
+ *.avi   application/x-troff-msvideo
+ *.avi   video/avi
+ *.avi   video/msvideo
+ *.avi   video/x-msvideo
+ *.avs   video/avs-video
+ *
+ *.bcpio application/x-bcpio
+ *.bin   application/mac-binary
+ *.bin   application/macbinary
+ *.bin   application/octet-stream
+ *.bin   application/x-binary
+ *.bin   application/x-macbinary
+ *.bm    image/bmp
+ *.bmp   image/bmp
+ *.bmp   image/x-windows-bmp
+ *.boo   application/book
+ *.book  application/book
+ *.boz   application/x-bzip2
+ *.bsh   application/x-bsh
+ *.bz    application/x-bzip
+ *.bz2   application/x-bzip2
+ *
+ *.c     text/plain
+ *.c     text/x-c
+ *.c++   text/plain
+ *.cat   application/vnd.ms-pki.seccat
+ *.cc    text/plain
+ *.cc    text/x-c
+ *.ccad  application/clariscad
+ *.cco   application/x-cocoa
+ *.cdf   application/cdf
+ *.cdf   application/x-cdf
+ *.cdf   application/x-netcdf
+ *.cer   application/pkix-cert
+ *.cer   application/x-x509-ca-cert
+ *.cha   application/x-chat
+ *.chat  application/x-chat
+ *.class application/java
+ *.class application/java-byte-code
+ *.class application/x-java-class
+ *.com   application/octet-stream
+ *.com   text/plain
+ *.conf  text/plain
+ *.cpio  application/x-cpio
+ *.cpp   text/x-c
+ *.cpt   application/mac-compactpro
+ *.cpt   application/x-compactpro
+ *.cpt   application/x-cpt
+ *.crl   application/pkcs-crl
+ *.crl   application/pkix-crl
+ *.crt   application/pkix-cert
+ *.crt   application/x-x509-ca-cert
+ *.crt   application/x-x509-user-cert
+ *.csh   application/x-csh
+ *.csh   text/x-script.csh
+ *.css   application/x-pointplus
+ *.css   text/css
+ *.cxx   text/plain
+ *
+ *.dcr   application/x-director
+ *.deepv application/x-deepv
+ *.def   text/plain
+ *.der   application/x-x509-ca-cert
+ *.dif   video/x-dv
+ *.dir   application/x-director
+ *.dl    video/dl
+ *.dl    video/x-dl
+ *.doc   application/msword
+ *.dot   application/msword
+ *.dp    application/commonground
+ *.drw   application/drafting
+ *.dump  application/octet-stream
+ *.dv    video/x-dv
+ *.dvi   application/x-dvi
+ *.dwf   drawing/x-dwf (old)
+ *.dwf   model/vnd.dwf
+ *.dwg   application/acad
+ *.dwg   image/vnd.dwg
+ *.dwg   image/x-dwg
+ *.dxf   application/dxf
+ *.dxf   image/vnd.dwg
+ *.dxf   image/x-dwg
+ *.dxr   application/x-director
+ *
+ *.el    text/x-script.elisp
+ *.elc   application/x-bytecode.elisp (compiled elisp)
+ *.elc   application/x-elc
+ *.env   application/x-envoy
+ *.eps   application/postscript
+ *.es    application/x-esrehber
+ *.etx   text/x-setext
+ *.evy   application/envoy
+ *.evy   application/x-envoy
+ *.exe   application/octet-stream
+ *
+ *.f     text/plain
+ *.f     text/x-fortran
+ *.f77   text/x-fortran
+ *.f90   text/plain
+ *.f90   text/x-fortran
+ *.fdf   application/vnd.fdf
+ *.fif   application/fractals
+ *.fif   image/fif
+ *.fli   video/fli
+ *.fli   video/x-fli
+ *.flo   image/florian
+ *.flx   text/vnd.fmi.flexstor
+ *.fmf   video/x-atomic3d-feature
+ *.for   text/plain
+ *.for   text/x-fortran
+ *.fpx   image/vnd.fpx
+ *.fpx   image/vnd.net-fpx
+ *.frl   application/freeloader
+ *.funk  audio/make
+ *
+ *.g     text/plain
+ *.g3    image/g3fax
+ *.gif   image/gif
+ *.gl    video/gl
+ *.gl    video/x-gl
+ *.gsd   audio/x-gsm
+ *.gsm   audio/x-gsm
+ *.gsp   application/x-gsp
+ *.gss   application/x-gss
+ *.gtar  application/x-gtar
+ *.gz    application/x-compressed
+ *.gz    application/x-gzip
+ *.gzip  application/x-gzip
+ *.gzip  multipart/x-gzip
+ *
+ *.h     text/plain
+ *.h     text/x-h
+ *.hdf   application/x-hdf
+ *.help  application/x-helpfile
+ *.hgl   application/vnd.hp-hpgl
+ *.hh    text/plain
+ *.hh    text/x-h
+ *.hlb   text/x-script
+ *.hlp   application/hlp
+ *.hlp   application/x-helpfile
+ *.hlp   application/x-winhelp
+ *.hpg   application/vnd.hp-hpgl
+ *.hpgl  application/vnd.hp-hpgl
+ *.hqx   application/binhex
+ *.hqx   application/binhex4
+ *.hqx   application/mac-binhex
+ *.hqx   application/mac-binhex40
+ *.hqx   application/x-binhex40
+ *.hqx   application/x-mac-binhex40
+ *.hta   application/hta
+ *.htc   text/x-component
+ *.htm   text/html
+ *.html  text/html
+ *.htmls text/html
+ *.htt   text/webviewhtml
+ *.htx   text/html
+ *
+ *.ice   x-conference/x-cooltalk
+ *.ico   image/x-icon
+ *.idc   text/plain
+ *.ief   image/ief
+ *.iefs  image/ief
+ *.iges  application/iges
+ *.iges  model/iges
+ *.igs   application/iges
+ *.igs   model/iges
+ *.ima   application/x-ima
+ *.imap  application/x-httpd-imap
+ *.inf   application/inf
+ *.ins   application/x-internett-signup
+ *.ip    application/x-ip2
+ *.isu   video/x-isvideo
+ *.it    audio/it
+ *.iv    application/x-inventor
+ *.ivr   i-world/i-vrml
+ *.ivy   application/x-livescreen
+ *
+ *.jam   audio/x-jam
+ *.jav   text/plain
+ *.jav   text/x-java-source
+ *.java  text/plain
+ *.java  text/x-java-source
+ *.jcm   application/x-java-commerce
+ *.jfif  image/jpeg
+ *.jfif  image/pjpeg
+ *.jfif-tbnl image/jpeg
+ *.jpe   image/jpeg
+ *.jpe   image/pjpeg
+ *.jpeg  image/jpeg
+ *.jpeg  image/pjpeg
+ *.jpg   image/jpeg
+ *.jpg   image/pjpeg
+ *.jps   image/x-jps
+ *.js    application/x-javascript
+ *.js    application/javascript
+ *.js    application/ecmascript
+ *.js    text/javascript
+ *.js    text/ecmascript
+ *.jut   image/jutvision
+ *
+ *.kar   audio/midi
+ *.kar   music/x-karaoke
+ *.ksh   application/x-ksh
+ *.ksh   text/x-script.ksh
+ *
+ *.la    audio/nspaudio
+ *.la    audio/x-nspaudio
+ *.lam   audio/x-liveaudio
+ *.latex application/x-latex
+ *.lha   application/lha
+ *.lha   application/octet-stream
+ *.lha   application/x-lha
+ *.lhx   application/octet-stream
+ *.list  text/plain
+ *.lma   audio/nspaudio
+ *.lma   audio/x-nspaudio
+ *.log   text/plain
+ *.lsp   application/x-lisp
+ *.lsp   text/x-script.lisp
+ *.lst   text/plain
+ *.lsx   text/x-la-asf
+ *.ltx   application/x-latex
+ *.lzh   application/octet-stream
+ *.lzh   application/x-lzh
+ *.lzx   application/lzx
+ *.lzx   application/octet-stream
+ *.lzx   application/x-lzx
+ *
+ *.m     text/plain
+ *.m     text/x-m
+ *.m1v   video/mpeg
+ *.m2a   audio/mpeg
+ *.m2v   video/mpeg
+ *.m3u   audio/x-mpequrl
+ *.man   application/x-troff-man
+ *.map   application/x-navimap
+ *.mar   text/plain
+ *.mbd   application/mbedlet
+ *.mc$   application/x-magic-cap-package-1.0
+ *.mcd   application/mcad
+ *.mcd   application/x-mathcad
+ *.mcf   image/vasa
+ *.mcf   text/mcf
+ *.mcp   application/netmc
+ *.me    application/x-troff-me
+ *.mht   message/rfc822
+ *.mhtml message/rfc822
+ *.mid   application/x-midi
+ *.mid   audio/midi
+ *.mid   audio/x-mid
+ *.mid   audio/x-midi
+ *.mid   music/crescendo
+ *.mid   x-music/x-midi
+ *.midi  application/x-midi
+ *.midi  audio/midi
+ *.midi  audio/x-mid
+ *.midi  audio/x-midi
+ *.midi  music/crescendo
+ *.midi  x-music/x-midi
+ *.mif   application/x-frame
+ *.mif   application/x-mif
+ *.mime  message/rfc822
+ *.mime  www/mime
+ *.mjf   audio/x-vnd.audioexplosion.mjuicemediafile
+ *.mjpg  video/x-motion-jpeg
+ *.mm    application/base64
+ *.mm    application/x-meme
+ *.mme   application/base64
+ *.mod   audio/mod
+ *.mod   audio/x-mod
+ *.moov  video/quicktime
+ *.mov   video/quicktime
+ *.movie video/x-sgi-movie
+ *.mp2   audio/mpeg
+ *.mp2   audio/x-mpeg
+ *.mp2   video/mpeg
+ *.mp2   video/x-mpeg
+ *.mp2   video/x-mpeq2a
+ *.mp3   audio/mpeg3
+ *.mp3   audio/x-mpeg-3
+ *.mp3   video/mpeg
+ *.mp3   video/x-mpeg
+ *.mpa   audio/mpeg
+ *.mpa   video/mpeg
+ *.mpc   application/x-project
+ *.mpe   video/mpeg
+ *.mpeg  video/mpeg
+ *.mpg   audio/mpeg
+ *.mpg   video/mpeg
+ *.mpga  audio/mpeg
+ *.mpp   application/vnd.ms-project
+ *.mpt   application/x-project
+ *.mpv   application/x-project
+ *.mpx   application/x-project
+ *.mrc   application/marc
+ *.ms    application/x-troff-ms
+ *.mv    video/x-sgi-movie
+ *.my    audio/make
+ *.mzz   application/x-vnd.audioexplosion.mzz
+ *
+ *.nap   image/naplps
+ *.naplps image/naplps
+ *.nc    application/x-netcdf
+ *.ncm   application/vnd.nokia.configuration-message
+ *.nif   image/x-niff
+ *.niff  image/x-niff
+ *.nix   application/x-mix-transfer
+ *.nsc   application/x-conference
+ *.nvd   application/x-navidoc
+ *
+ *.o     application/octet-stream
+ *.oda   application/oda
+ *.omc   application/x-omc
+ *.omcd  application/x-omcdatamaker
+ *.omcr  application/x-omcregerator
+ *
+ *.p     text/x-pascal
+ *.p10   application/pkcs10
+ *.p10   application/x-pkcs10
+ *.p12   application/pkcs-12
+ *.p12   application/x-pkcs12
+ *.p7a   application/x-pkcs7-signature
+ *.p7c   application/pkcs7-mime
+ *.p7c   application/x-pkcs7-mime
+ *.p7m   application/pkcs7-mime
+ *.p7m   application/x-pkcs7-mime
+ *.p7r   application/x-pkcs7-certreqresp
+ *.p7s   application/pkcs7-signature
+ *.part  application/pro_eng
+ *.pas   text/pascal
+ *.pbm   image/x-portable-bitmap
+ *.pcl   application/vnd.hp-pcl
+ *.pcl   application/x-pcl
+ *.pct   image/x-pict
+ *.pcx   image/x-pcx
+ *.pdb   chemical/x-pdb
+ *.pdf   application/pdf
+ *.pfunk audio/make
+ *.pfunk audio/make.my.funk
+ *.pgm   image/x-portable-graymap
+ *.pgm   image/x-portable-greymap
+ *.pic   image/pict
+ *.pict  image/pict
+ *.pkg   application/x-newton-compatible-pkg
+ *.pko   application/vnd.ms-pki.pko
+ *.pl    text/plain
+ *.pl    text/x-script.perl
+ *.plx   application/x-pixclscript
+ *.pm    image/x-xpixmap
+ *.pm    text/x-script.perl-module
+ *.pm4   application/x-pagemaker
+ *.pm5   application/x-pagemaker
+ *.png   image/png
+ *.pnm   application/x-portable-anymap
+ *.pnm   image/x-portable-anymap
+ *.pot   application/mspowerpoint
+ *.pot   application/vnd.ms-powerpoint
+ *.pov   model/x-pov
+ *.ppa   application/vnd.ms-powerpoint
+ *.ppm   image/x-portable-pixmap
+ *.pps   application/mspowerpoint
+ *.pps   application/vnd.ms-powerpoint
+ *.ppt   application/mspowerpoint
+ *.ppt   application/powerpoint
+ *.ppt   application/vnd.ms-powerpoint
+ *.ppt   application/x-mspowerpoint
+ *.ppz   application/mspowerpoint
+ *.pre   application/x-freelance
+ *.prt   application/pro_eng
+ *.ps    application/postscript
+ *.psd   application/octet-stream
+ *.pvu   paleovu/x-pv
+ *.pwz   application/vnd.ms-powerpoint
+ *.py    text/x-script.phyton
+ *.pyc   applicaiton/x-bytecode.python
+ *
+ *.qcp   audio/vnd.qcelp
+ *.qd3   x-world/x-3dmf
+ *.qd3d  x-world/x-3dmf
+ *.qif   image/x-quicktime
+ *.qt    video/quicktime
+ *.qtc   video/x-qtc
+ *.qti   image/x-quicktime
+ *.qtif  image/x-quicktime
+ *
+ *.ra    audio/x-pn-realaudio
+ *.ra    audio/x-pn-realaudio-plugin
+ *.ra    audio/x-realaudio
+ *.ram   audio/x-pn-realaudio
+ *.ras   application/x-cmu-raster
+ *.ras   image/cmu-raster
+ *.ras   image/x-cmu-raster
+ *.rast  image/cmu-raster
+ *.rexx  text/x-script.rexx
+ *.rf    image/vnd.rn-realflash
+ *.rgb   image/x-rgb
+ *.rm    application/vnd.rn-realmedia
+ *.rm    audio/x-pn-realaudio
+ *.rmi   audio/mid
+ *.rmm   audio/x-pn-realaudio
+ *.rmp   audio/x-pn-realaudio
+ *.rmp   audio/x-pn-realaudio-plugin
+ *.rng   application/ringing-tones
+ *.rng   application/vnd.nokia.ringing-tone
+ *.rnx   application/vnd.rn-realplayer
+ *.roff  application/x-troff
+ *.rp    image/vnd.rn-realpix
+ *.rpm   audio/x-pn-realaudio-plugin
+ *.rt    text/richtext
+ *.rt    text/vnd.rn-realtext
+ *.rtf   application/rtf
+ *.rtf   application/x-rtf
+ *.rtf   text/richtext
+ *.rtx   application/rtf
+ *.rtx   text/richtext
+ *.rv    video/vnd.rn-realvideo
+ *
+ *.s     text/x-asm
+ *.s3m   audio/s3m
+ *.saveme application/octet-stream
+ *.sbk   application/x-tbook
+ *.scm   application/x-lotusscreencam
+ *.scm   text/x-script.guile
+ *.scm   text/x-script.scheme
+ *.scm   video/x-scm
+ *.sdml  text/plain
+ *.sdp   application/sdp
+ *.sdp   application/x-sdp
+ *.sdr   application/sounder
+ *.sea   application/sea
+ *.sea   application/x-sea
+ *.set   application/set
+ *.sgm   text/sgml
+ *.sgm   text/x-sgml
+ *.sgml  text/sgml
+ *.sgml  text/x-sgml
+ *.sh    application/x-bsh
+ *.sh    application/x-sh
+ *.sh    application/x-shar
+ *.sh    text/x-script.sh
+ *.shar  application/x-bsh
+ *.shar  application/x-shar
+ *.shtml text/html
+ *.shtml text/x-server-parsed-html
+ *.sid   audio/x-psid
+ *.sit   application/x-sit
+ *.sit   application/x-stuffit
+ *.skd   application/x-koan
+ *.skm   application/x-koan
+ *.skp   application/x-koan
+ *.skt   application/x-koan
+ *.sl    application/x-seelogo
+ *.smi   application/smil
+ *.smil  application/smil
+ *.snd   audio/basic
+ *.snd   audio/x-adpcm
+ *.sol   application/solids
+ *.spc   application/x-pkcs7-certificates
+ *.spc   text/x-speech
+ *.spl   application/futuresplash
+ *.spr   application/x-sprite
+ *.sprite application/x-sprite
+ *.src   application/x-wais-source
+ *.ssi   text/x-server-parsed-html
+ *.ssm   application/streamingmedia
+ *.sst   application/vnd.ms-pki.certstore
+ *.step  application/step
+ *.stl   application/sla
+ *.stl   application/vnd.ms-pki.stl
+ *.stl   application/x-navistyle
+ *.stp   application/step
+ *.sv4cpio application/x-sv4cpio
+ *.sv4crc application/x-sv4crc
+ *.svf   image/vnd.dwg
+ *.svf   image/x-dwg
+ *.svr   application/x-world
+ *.svr   x-world/x-svr
+ *.swf   application/x-shockwave-flash
+ *
+ *.t     application/x-troff
+ *.talk  text/x-speech
+ *.tar   application/x-tar
+ *.tbk   application/toolbook
+ *.tbk   application/x-tbook
+ *.tcl   application/x-tcl
+ *.tcl   text/x-script.tcl
+ *.tcsh  text/x-script.tcsh
+ *.tex   application/x-tex
+ *.texi  application/x-texinfo
+ *.texinfo application/x-texinfo
+ *.text  application/plain
+ *.text  text/plain
+ *.tgz   application/gnutar
+ *.tgz   application/x-compressed
+ *.tif   image/tiff
+ *.tif   image/x-tiff
+ *.tiff  image/tiff
+ *.tiff  image/x-tiff
+ *.tr    application/x-troff
+ *.tsi   audio/tsp-audio
+ *.tsp   application/dsptype
+ *.tsp   audio/tsplayer
+ *.tsv   text/tab-separated-values
+ *.turbot image/florian
+ *.txt   text/plain
+ *
+ *.uil   text/x-uil
+ *.uni   text/uri-list
+ *.unis  text/uri-list
+ *.unv   application/i-deas
+ *.uri   text/uri-list
+ *.uris  text/uri-list
+ *.ustar application/x-ustar
+ *.ustar multipart/x-ustar
+ *.uu    application/octet-stream
+ *.uu    text/x-uuencode
+ *.uue   text/x-uuencode
+ *
+ *.vcd   application/x-cdlink
+ *.vcs   text/x-vcalendar
+ *.vda   application/vda
+ *.vdo   video/vdo
+ *.vew   application/groupwise
+ *.viv   video/vivo
+ *.viv   video/vnd.vivo
+ *.vivo  video/vivo
+ *.vivo  video/vnd.vivo
+ *.vmd   application/vocaltec-media-desc
+ *.vmf   application/vocaltec-media-file
+ *.voc   audio/voc
+ *.voc   audio/x-voc
+ *.vos   video/vosaic
+ *.vox   audio/voxware
+ *.vqe   audio/x-twinvq-plugin
+ *.vqf   audio/x-twinvq
+ *.vql   audio/x-twinvq-plugin
+ *.vrml  application/x-vrml
+ *.vrml  model/vrml
+ *.vrml  x-world/x-vrml
+ *.vrt   x-world/x-vrt
+ *.vsd   application/x-visio
+ *.vst   application/x-visio
+ *.vsw   application/x-visio
+ *
+ *.w60   application/wordperfect6.0
+ *.w61   application/wordperfect6.1
+ *.w6w   application/msword
+ *.wav   audio/wav
+ *.wav   audio/x-wav
+ *.wb1   application/x-qpro
+ *.wbmp  image/vnd.wap.wbmp
+ *.web   application/vnd.xara
+ *.wiz   application/msword
+ *.wk1   application/x-123
+ *.wmf   windows/metafile
+ *.wml   text/vnd.wap.wml
+ *.wmlc  application/vnd.wap.wmlc
+ *.wmls  text/vnd.wap.wmlscript
+ *.wmlsc application/vnd.wap.wmlscriptc
+ *.word  application/msword
+ *.wp    application/wordperfect
+ *.wp5   application/wordperfect
+ *.wp5   application/wordperfect6.0
+ *.wp6   application/wordperfect
+ *.wpd   application/wordperfect
+ *.wpd   application/x-wpwin
+ *.wq1   application/x-lotus
+ *.wri   application/mswrite
+ *.wri   application/x-wri
+ *.wrl   application/x-world
+ *.wrl   model/vrml
+ *.wrl   x-world/x-vrml
+ *.wrz   model/vrml
+ *.wrz   x-world/x-vrml
+ *.wsc   text/scriplet
+ *.wsrc  application/x-wais-source
+ *.wtk   application/x-wintalk
+ *
+ *.xbm   image/x-xbitmap
+ *.xbm   image/x-xbm
+ *.xbm   image/xbm
+ *.xdr   video/x-amt-demorun
+ *.xgz   xgl/drawing
+ *.xif   image/vnd.xiff
+ *.xl    application/excel
+ *.xla   application/excel
+ *.xla   application/x-excel
+ *.xla   application/x-msexcel
+ *.xlb   application/excel
+ *.xlb   application/vnd.ms-excel
+ *.xlb   application/x-excel
+ *.xlc   application/excel
+ *.xlc   application/vnd.ms-excel
+ *.xlc   application/x-excel
+ *.xld   application/excel
+ *.xld   application/x-excel
+ *.xlk   application/excel
+ *.xlk   application/x-excel
+ *.xll   application/excel
+ *.xll   application/vnd.ms-excel
+ *.xll   application/x-excel
+ *.xlm   application/excel
+ *.xlm   application/vnd.ms-excel
+ *.xlm   application/x-excel
+ *.xls   application/excel
+ *.xls   application/vnd.ms-excel
+ *.xls   application/x-excel
+ *.xls   application/x-msexcel
+ *.xlt   application/excel
+ *.xlt   application/x-excel
+ *.xlv   application/excel
+ *.xlv   application/x-excel
+ *.xlw   application/excel
+ *.xlw   application/vnd.ms-excel
+ *.xlw   application/x-excel
+ *.xlw   application/x-msexcel
+ *.xm    audio/xm
+ *.xml   application/xml
+ *.xml   text/xml
+ *.xmz   xgl/movie
+ *.xpix  application/x-vnd.ls-xpix
+ *.xpm   image/x-xpixmap
+ *.xpm   image/xpm
+ *.x-png image/png
+ *.xsr   video/x-amt-showrun
+ *.xwd   image/x-xwd
+ *.xwd   image/x-xwindowdump
+ *.xyz   chemical/x-pdb
+ *
+ *.z     application/x-compress
+ *.z     application/x-compressed
+ *.zip   application/x-compressed
+ *.zip   application/x-zip-compressed
+ *.zip   application/zip
+ *.zip   multipart/x-zip
+ *.zoo   application/octet-stream
+ *.zsh   text/x-script.zsh
+ */
 
 static struct mimeentry mimetab_a[] = {
    MIME_ENTRY( "ai",       "application/postscript" ),
@@ -4621,22 +4876,6 @@ const char* u_get_mimetype(const char* restrict suffix, int* pmime_index)
    uint32_t i;
    struct mimeentry* ptr;
 
-   enum {
-      EXT_CSS  = U_MULTICHAR_CONSTANT32('c','s','s',0),
-      EXT_FLV  = U_MULTICHAR_CONSTANT32('f','l','v',0),
-      EXT_GIF  = U_MULTICHAR_CONSTANT32('g','i','f',0),
-      EXT_ICO  = U_MULTICHAR_CONSTANT32('i','c','o',0),
-      EXT_PNG  = U_MULTICHAR_CONSTANT32('p','n','g',0),
-      EXT_JPG  = U_MULTICHAR_CONSTANT32('j','p','g',0),
-      EXT_TXT  = U_MULTICHAR_CONSTANT32('t','x','t',0),
-      EXT_USP  = U_MULTICHAR_CONSTANT32('u','s','p',0),
-      EXT_CSP  = U_MULTICHAR_CONSTANT32('c','s','p',0),
-      EXT_CGI  = U_MULTICHAR_CONSTANT32('c','g','i',0),
-      EXT_PHP  = U_MULTICHAR_CONSTANT32('p','h','p',0),
-      EXT_SSI  = U_MULTICHAR_CONSTANT32('s','h','t','m'),
-      EXT_HTML = U_MULTICHAR_CONSTANT32('h','t','m','l')
-   };
-
    U_INTERNAL_TRACE("u_get_mimetype(%s,%p)", suffix, pmime_index)
 
    U_INTERNAL_ASSERT_POINTER(suffix)
@@ -4645,79 +4884,73 @@ const char* u_get_mimetype(const char* restrict suffix, int* pmime_index)
 
    switch (i)
       {
-      case EXT_CSS:
+      case U_MULTICHAR_CONSTANT32('c','s','s',0):
          {
          if (pmime_index) *pmime_index = U_css;
 
          return "text/css";
          }
-      case EXT_FLV:
+      case U_MULTICHAR_CONSTANT32('f','l','v',0):
          {
          if (pmime_index) *pmime_index = U_flv;
 
          return "video/x-flv";
          }
-      case EXT_GIF:
+      case U_MULTICHAR_CONSTANT32('g','i','f',0):
          {
          if (pmime_index) *pmime_index = U_gif;
 
          return "image/gif";
          }
-      case EXT_ICO:
+      case U_MULTICHAR_CONSTANT32('i','c','o',0):
          {
          if (pmime_index) *pmime_index = U_ico;
 
          return "image/x-icon";
          }
-      case EXT_PNG:
+      case U_MULTICHAR_CONSTANT32('p','n','g',0):
          {
          if (pmime_index) *pmime_index = U_png;
 
          return "image/png";
          }
-      case EXT_JPG:
+      case U_MULTICHAR_CONSTANT32('j','p','g',0):
          {
          if (pmime_index) *pmime_index = U_jpg;
 
          return "image/jpg";
          }
-      case EXT_SSI:
-      case EXT_HTML:
+      case U_MULTICHAR_CONSTANT32('s','h','t','m'):
+      case U_MULTICHAR_CONSTANT32('h','t','m','l'):
          {
-         if (pmime_index) *pmime_index = (i == EXT_HTML ? U_html : U_ssi);
+         if (pmime_index) *pmime_index = (i == U_MULTICHAR_CONSTANT32('h','t','m','l') ? U_html : U_ssi);
 
          return U_CTYPE_HTML;
          }
-      case EXT_TXT:
-      case EXT_USP:
-      case EXT_CSP:
-      case EXT_CGI:
-      case EXT_PHP:
+      case U_MULTICHAR_CONSTANT32('t','x','t',0):
+      case U_MULTICHAR_CONSTANT32('u','s','p',0):
+      case U_MULTICHAR_CONSTANT32('c','s','p',0):
+      case U_MULTICHAR_CONSTANT32('c','g','i',0):
+      case U_MULTICHAR_CONSTANT32('p','h','p',0):
          {
          if (pmime_index)
             {
             switch (i)
                {
-               case EXT_TXT: *pmime_index = U_txt; break;
-               case EXT_USP: *pmime_index = U_usp; break;
-               case EXT_CSP: *pmime_index = U_csp; break;
-               case EXT_CGI: *pmime_index = U_cgi; break;
-               case EXT_PHP: *pmime_index = U_php; return "application/x-httpd-php";
+               case U_MULTICHAR_CONSTANT32('t','x','t',0): *pmime_index = U_txt; break;
+               case U_MULTICHAR_CONSTANT32('u','s','p',0): *pmime_index = U_usp; break;
+               case U_MULTICHAR_CONSTANT32('c','s','p',0): *pmime_index = U_csp; break;
+               case U_MULTICHAR_CONSTANT32('c','g','i',0): *pmime_index = U_cgi; break;
+               case U_MULTICHAR_CONSTANT32('p','h','p',0): *pmime_index = U_php; return "application/x-httpd-php";
                }
             }
 
-         return U_CTYPE_TEXT;
+         return U_CTYPE_TEXT_WITH_CHARSET;
          }
       }
 
    switch (u_get_unalignedp16(suffix))
       {
-      case U_MULTICHAR_CONSTANT16('j','s'):
-         {
-         if (pmime_index) *pmime_index = U_js;
-
-         return "text/javascript";
-         }
       case U_MULTICHAR_CONSTANT16('g','z'):
          {
          if (pmime_index) *pmime_index = U_gz;
@@ -4744,37 +4977,37 @@ const char* u_get_mimetype(const char* restrict suffix, int* pmime_index)
          }
       }
 
-   i = *suffix++;
+   i = *suffix;
 
    if (i < 'a' || i > 'z') goto cdefault;
 
    goto *((char*)&&case_a + dispatch_table[i-'a']);
 
-   case_a: ptr = mimetab_a; goto loop;
-   case_b: ptr = mimetab_b; goto loop;
-   case_c: ptr = mimetab_c; goto loop;
-   case_d: ptr = mimetab_d; goto loop;
-   case_e: ptr = mimetab_e; goto loop;
+case_a: ptr = mimetab_a; goto loop;
+case_b: ptr = mimetab_b; goto loop;
+case_c: ptr = mimetab_c; goto loop;
+case_d: ptr = mimetab_d; goto loop;
+case_e: ptr = mimetab_e; goto loop;
 
-   case_g: ptr = mimetab_g; goto loop;
-   case_h: ptr = mimetab_h; goto loop;
+case_g: ptr = mimetab_g; goto loop;
+case_h: ptr = mimetab_h; goto loop;
 
-   case_j: ptr = mimetab_j; goto loop;
+case_j: ptr = mimetab_j; goto loop;
 
-   case_m: ptr = mimetab_m; goto loop;
+case_m: ptr = mimetab_m; goto loop;
 
-   case_o: ptr = mimetab_o; goto loop;
-   case_p: ptr = mimetab_p; goto loop;
-   case_q: ptr = mimetab_q; goto loop;
-   case_r: ptr = mimetab_r; goto loop;
-   case_s: ptr = mimetab_s; goto loop;
-   case_t: ptr = mimetab_t; goto loop;
+case_o: ptr = mimetab_o; goto loop;
+case_p: ptr = mimetab_p; goto loop;
+case_q: ptr = mimetab_q; goto loop;
+case_r: ptr = mimetab_r; goto loop;
+case_s: ptr = mimetab_s; goto loop;
+case_t: ptr = mimetab_t; goto loop;
 
-   case_w: ptr = mimetab_w; goto loop;
-   case_x: ptr = mimetab_x; goto loop;
-   case_z: ptr = mimetab_z; goto loop;
+case_w: ptr = mimetab_w; goto loop;
+case_x: ptr = mimetab_x; goto loop;
+case_z: ptr = mimetab_z; goto loop;
 
-   cdefault: ptr = mimetab_null;
+cdefault: ptr = mimetab_null;
 
 loop:
    while (ptr->name)
@@ -4783,7 +5016,7 @@ loop:
 
       for (i = 0; i < ptr->name_len; ++i)
          {
-         if (suffix[i] != ptr->name[i])
+         if (suffix[i+1] != ptr->name[i])
             {
             ++ptr;
 
@@ -4794,6 +5027,13 @@ loop:
       if (pmime_index) *pmime_index = U_know;
 
       return ptr->type;
+      }
+
+   if (u_get_unalignedp16(suffix) == U_MULTICHAR_CONSTANT16('j','s')) // NB: must be here because of conflit with .json
+      {
+      if (pmime_index) *pmime_index = U_js;
+
+      return "application/javascript"; // RFC 4329 (2006) now recommends the use of application/javascript
       }
 
    if (pmime_index) *pmime_index = U_unknow;

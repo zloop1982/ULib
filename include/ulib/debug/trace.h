@@ -23,7 +23,7 @@
    void* ptr_value = USimulationError::checkForMatch(buffer_trace); \
    if (ptr_value) \
       ret = *(type*)ptr_value; \
-   trace_return(format, ret); \
+   trace_return(format,U_CONSTANT_SIZE(format),ret); \
    return ret; }
 
 #define U_MANAGE_SYSRETURN_VALUE(type,format,error) \
@@ -31,12 +31,12 @@
    void* ptr_value = USimulationError::checkForMatch(buffer_syscall); \
    if (ptr_value) \
       ret = *(type*)ptr_value; \
-   trace_sysreturn((error), format, ret); \
+   trace_sysreturn((error),format,U_CONSTANT_SIZE(format),ret); \
    return ret; }
 
 #ifdef USE_LIBTDB
 #  include <tdb.h>
-typedef struct TDB_DATA tdbdata_t;
+typedef TDB_DATA tdbdata_t;
 #endif
 
 typedef                 DIR* pdir_t;
@@ -51,20 +51,24 @@ typedef const unsigned char* pcuchar_t;
 // typedef int (*x11error_t)  (void*, void*);
 // typedef int (*x11IOerror_t)(void*);
 
+class UCrono;
+
 class U_EXPORT UTrace {
 public:
 
    // Initialization and termination methods
 
+   UTrace(int level, uint32_t len, const char* name);
+   UTrace(int level, const char* format, uint32_t fmt_size, ...);
+
+   ~UTrace();
+
    char                     active[1];
    char flag_syscall_read_or_write[1];
 
-    UTrace(int level, const char* format, ...);
-   ~UTrace();
-
    // trace return from generic call
 
-   void trace_return(const char* format, ...);
+   void trace_return(const char* format, uint32_t fmt_size, ...);
 
    // manage return from generic call for tipology of value (of return)...
 
@@ -91,8 +95,8 @@ public:
 
    // trace call and return from system call
 
-   void trace_syscall(              const char* format, ...);
-   void trace_sysreturn(bool error, const char* format, ...);
+   void trace_syscall(              const char* format, uint32_t fmt_size, ...);
+   void trace_sysreturn(bool error, const char* format, uint32_t fmt_size, ...);
 
    // manage return from system call for tipology of value (of return)...
 
@@ -119,12 +123,17 @@ public:
    U_MANAGE_SYSRETURN_VALUE(tdbdata_t,          "%J",   false)
 #endif
 
-   static int suspend()           { int status = u_trace_suspend; u_trace_suspend = 1; return status; }
-   static void resume(int status) {                               u_trace_suspend = status; }
+   void resume()  {                           u_trace_suspend = status; }
+   void suspend() { status = u_trace_suspend; u_trace_suspend = 1; }
 
 private:
-   char buffer_trace[1019], buffer_syscall[1019];
+   char buffer_trace[1017], buffer_syscall[1017];
    uint32_t buffer_trace_len, buffer_syscall_len;
+   int status;
+
+   static UCrono* time_syscall_read_or_write;
+
+   void set(int level) U_NO_EXPORT;
 };
 
 #endif

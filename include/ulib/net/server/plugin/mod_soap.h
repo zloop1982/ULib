@@ -24,21 +24,25 @@ public:
    // Check for memory error
    U_MEMORY_TEST
 
-   // COSTRUTTORI
+   USoapPlugIn()
+      {
+      U_TRACE_REGISTER_OBJECT(0, USoapPlugIn, "")
 
-            USoapPlugIn();
+      UString::str_allocate(STR_ALLOCATE_SOAP);
+      }
+
    virtual ~USoapPlugIn();
 
    // define method VIRTUAL of class UServerPlugIn
 
    // Server-wide hooks
 
-   virtual int handlerConfig(UFileConfig& cfg) U_DECL_OVERRIDE;
-   virtual int handlerInit() U_DECL_OVERRIDE;
+   virtual int handlerConfig(UFileConfig& cfg) U_DECL_FINAL;
+   virtual int handlerInit() U_DECL_FINAL;
 
    // Connection-wide hooks
 
-   virtual int handlerRequest() U_DECL_OVERRIDE;
+   virtual int handlerRequest() U_DECL_FINAL;
 
    // DEBUG
 
@@ -50,13 +54,7 @@ protected:
    static USOAPParser* soap_parser;
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   USoapPlugIn(const USoapPlugIn&) = delete;
-   USoapPlugIn& operator=(const USoapPlugIn&) = delete;
-#else
-   USoapPlugIn(const USoapPlugIn&) : UServerPlugIn() {}
-   USoapPlugIn& operator=(const USoapPlugIn&)        { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(USoapPlugIn)
 };
 
 #endif

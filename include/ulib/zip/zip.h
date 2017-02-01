@@ -31,14 +31,12 @@ public:
    U_MEMORY_ALLOCATOR
    U_MEMORY_DEALLOCATOR
 
-   // COSTRUTTORI
-
    UZIP();
    UZIP(const UString& content);
 
    /**
-   * Deletes this object.
-   */
+    * Deletes this object
+    */
 
    ~UZIP()
       {
@@ -48,20 +46,18 @@ public:
       }
 
    /**
-   * Returns bool value to indicate the correctness of the zip data.
-   */
+    * Returns bool value to indicate the correctness of the zip data
+    */
 
    bool isValid() const
       {
-      U_TRACE(0, "UZIP::isValid()")
+      U_TRACE_NO_PARAM(0, "UZIP::isValid()")
 
       U_RETURN(valid);
       }
 
    bool extract(                     const UString* tmpdir = 0, bool bdir = true);
    bool extract(const UString& data, const UString* tmpdir = 0, bool bdir = true);
-
-   // VARIE
 
    void   clear();
    bool   readContent();
@@ -109,13 +105,7 @@ protected:
 private:
    void assignFilenames() U_NO_EXPORT;
 
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UZIP(const UZIP&) = delete;
-   UZIP& operator=(const UZIP&) = delete;
-#else
-   UZIP(const UZIP&)            {}
-   UZIP& operator=(const UZIP&) { return *this; }
-#endif      
+   U_DISALLOW_COPY_AND_ASSIGN(UZIP)
 };
 
 #endif

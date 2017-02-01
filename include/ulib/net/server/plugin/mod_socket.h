@@ -24,8 +24,6 @@ public:
    // Check for memory error
    U_MEMORY_TEST
 
-   // COSTRUTTORI
-
             UWebSocketPlugIn();
    virtual ~UWebSocketPlugIn();
 
@@ -33,12 +31,12 @@ public:
 
    // Server-wide hooks
 
-   virtual int handlerConfig(UFileConfig& cfg) U_DECL_OVERRIDE;
-   virtual int handlerRun() U_DECL_OVERRIDE;
+   virtual int handlerConfig(UFileConfig& cfg) U_DECL_FINAL;
+   virtual int handlerRun() U_DECL_FINAL;
 
    // Connection-wide hooks
 
-   virtual int handlerRequest() U_DECL_OVERRIDE;
+   virtual int handlerRequest() U_DECL_FINAL;
 
    // DEBUG
 
@@ -53,13 +51,7 @@ protected:
    static RETSIGTYPE handlerForSigTERM(int signo);
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UWebSocketPlugIn(const UWebSocketPlugIn&) = delete;
-   UWebSocketPlugIn& operator=(const UWebSocketPlugIn&) = delete;
-#else
-   UWebSocketPlugIn(const UWebSocketPlugIn&) : UServerPlugIn() {}
-   UWebSocketPlugIn& operator=(const UWebSocketPlugIn&)        { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UWebSocketPlugIn)
 };
 
 #endif

@@ -20,7 +20,7 @@ CURLM* UCURL::multiHandle;
 
 const char* UCURL::error()
 {
-   U_TRACE(0, "UCURL::error()")
+   U_TRACE_NO_PARAM(0, "UCURL::error()")
 
    U_CHECK_MEMORY
 
@@ -104,20 +104,20 @@ const char* UCURL::error()
 
    static char buffer[CURL_ERROR_SIZE+32];
 
-   (void) sprintf(buffer, "%s (%d, %s)", (result >= 0 && result < U_NUM_ELEMENTS(errlist) ? errlist[result] : ""), result, errorBuffer);
+   (void) u__snprintf(buffer, sizeof(buffer), U_CONSTANT_TO_PARAM("%s (%d, %s)"), (result >= 0 && result < (int)U_NUM_ELEMENTS(errlist) ? errlist[result] : ""), result, errorBuffer);
 
    U_RETURN(buffer);
 }
 
 U_NO_EXPORT void UCURL::setup()
 {
-   U_TRACE(1, "UCURL::setup()")
+   U_TRACE_NO_PARAM(1, "UCURL::setup()")
 
-   U_INTERNAL_ASSERT_EQUALS(inited,false)
+   U_INTERNAL_ASSERT_EQUALS(inited, false)
 
    inited = true;
 
-   CURLcode mresult = (CURLcode) U_SYSCALL(curl_global_init, "%d", CURL_GLOBAL_NOTHING);
+   CURLcode mresult = (CURLcode) U_SYSCALL(curl_global_init, "%d", CURL_GLOBAL_NOTHING); /* set up the program environment that libcurl needs */
 
    U_VAR_UNUSED(mresult)
 
@@ -134,7 +134,7 @@ U_NO_EXPORT size_t UCURL::writeFunction(void* ptr, size_t size, size_t nmemb, vo
 
    size_t len = size * nmemb;
 
-   (void) ((UCURL*)obj)->response.reserve(((UCURL*)obj)->response.size() + len);
+   (void) ((UCURL*)obj)->response.reserve(len);
 
    ((UCURL*)obj)->response.append((const char*)ptr, len);
 
@@ -145,24 +145,25 @@ UCURL::UCURL() : response(U_CAPACITY)
 {
    U_TRACE_REGISTER_OBJECT(0, UCURL, "")
 
-   added     = false;
-   result    = 0;
-   formPost  = 0;
-   formLast  = 0;
+   headerlist = 0;
+   formPost   = 0;
+   formLast   = 0;
+   result     = 0;
+   added      = false;
 
    if (!inited) setup();
 
-   easyHandle = U_SYSCALL_NO_PARAM(curl_easy_init);
+   easyHandle = U_SYSCALL_NO_PARAM(curl_easy_init); /* curl_easy_init() returns a CURL easy handle that you're gonna reuse in other easy functions */
 
    U_INTERNAL_ASSERT_POINTER(easyHandle)
 
 #ifdef DEBUG
    setOption(CURLOPT_VERBOSE, 1L);
 #endif
-   setOption(CURLOPT_ERRORBUFFER,   (long)UCURL::errorBuffer);
-   setOption(CURLOPT_NOSIGNAL,      1L);
+   setOption(CURLOPT_ERRORBUFFER, (long)UCURL::errorBuffer);
+   setOption(CURLOPT_NOSIGNAL, 1L);
    setOption(CURLOPT_WRITEFUNCTION, (long)UCURL::writeFunction);
-   setOption(CURLOPT_WRITEDATA,     (long)this);
+   setOption(CURLOPT_WRITEDATA, (long)this);
 
    // insert into list
 
@@ -178,7 +179,7 @@ UCURL::~UCURL()
 
    if (added) removeHandle();
 
-   U_SYSCALL_VOID(curl_easy_cleanup, "%p", easyHandle);
+   U_SYSCALL_VOID(curl_easy_cleanup, "%p", easyHandle); /* cleanup since you've used curl_easy_init */
 
    // remove from list
 
@@ -200,7 +201,7 @@ UCURL::~UCURL()
 
 void UCURL::infoComplete()
 {
-   U_TRACE(1, "UCURL::infoComplete()")
+   U_TRACE_NO_PARAM(1, "UCURL::infoComplete()")
 
    U_CHECK_MEMORY
 
@@ -211,6 +212,13 @@ void UCURL::infoComplete()
       U_INTERNAL_DUMP("status = %.*S", 512, err)
 
       U_WARNING("File transfer terminated with error from libcurl %s", err);
+      }
+
+   if (headerlist)
+      {
+      U_SYSCALL_VOID(curl_slist_free_all, "%p", headerlist); /* free the list again */
+
+      headerlist = 0;
       }
 
    if (formPost)
@@ -226,7 +234,7 @@ void UCURL::infoComplete()
 
 bool UCURL::perform()
 {
-   U_TRACE(1, "UCURL::perform()")
+   U_TRACE_NO_PARAM(1, "UCURL::perform()")
 
    UCURL* entry;
    CURLMcode mresult;
@@ -244,37 +252,85 @@ bool UCURL::perform()
       if (mresult != CURLM_CALL_MULTI_PERFORM) break;
       }
 
-   if (mresult == CURLM_OK)
-      {
-      while (true)
-         {
-         CURLMsg* pendingMsg = (CURLMsg*) U_SYSCALL(curl_multi_info_read, "%p,%p", multiHandle, &msgs_in_queue);
-
-         if (!pendingMsg) break;
-
-         // search into list
-
-         for (entry = first; entry; entry = entry->next)
-            {
-            if (entry->easyHandle == pendingMsg->easy_handle)
-               {
-               entry->infoComplete();
-
-               break;
-               }
-            }
-
-         if (msgs_in_queue <= 0) break;
-         }
-
-      U_RETURN(true);
-      }
-   else
+   if (mresult != CURLM_OK)
       {
       U_WARNING("Error while doing multi_perform from libcurl %d : %s", mresult, errorBuffer);
 
       U_RETURN(false);
       }
+
+   while (true)
+      {
+      CURLMsg* pendingMsg = (CURLMsg*) U_SYSCALL(curl_multi_info_read, "%p,%p", multiHandle, &msgs_in_queue);
+
+      if (pendingMsg == 0) break;
+
+      // search into list
+
+      for (entry = first; entry; entry = entry->next)
+         {
+         if (entry->easyHandle == pendingMsg->easy_handle)
+            {
+            entry->infoComplete();
+
+            break;
+            }
+         }
+
+      if (msgs_in_queue <= 0) break;
+      }
+
+   U_RETURN(true);
+}
+
+/**
+ * see https://developer.apple.com/library/ios/documentation/NetworkingInternet/Conceptual/RemoteNotificationsPG/Chapters/APNsProviderAPI.html#//apple_ref/doc/uid/TP40008194-CH101-SW18
+ *
+ * @param http2_server  the Apple server url
+ * @param apple_cert    the path to the certificate
+ * @param app_bundle_id the app bundle id
+ * @param token         the token of the device
+ * @param message       the payload to send (JSON)
+ *
+ * Example:
+ *
+ *  http2_server: https://api.development.push.apple.com or 'api.push.apple.com' if production
+ *    apple_cert: /certificates/samplepush/development.pem
+ * app_bundle_id: it.tabasoft.samplepush
+ *         token: dbdaeae86abcde56rtyww1859fb41d2c7b2cberrttyyy053ec48987847
+ *       message: {"aps":{"alert":"Hi!","sound":"default"}}
+ */
+
+const char* UCURL::apple_cert = "/certificates/samplepush/development.pem"; // the path to the certificate
+const char* UCURL::http2_server = "https://api.development.push.apple.com"; // the Apple server url - "https://api.push.apple.com"
+const char* UCURL::app_bundle_id; // the app bundle id
+
+bool UCURL::sendHTTP2Push(const UString& token, const UString& message)
+{
+   U_TRACE(0, "UCURL::sendHTTP2Push(%V,%V)", token.rep, message.rep)
+
+   char url[1024],
+        buf[1024];
+
+   (void) u__snprintf(url, sizeof(url), U_CONSTANT_TO_PARAM("%s/3/device/%v"), http2_server, token.rep); // url (endpoint)
+   (void) u__snprintf(buf, sizeof(buf), U_CONSTANT_TO_PARAM("apns-topic: %s"), app_bundle_id);
+
+   UCURL curl;
+
+   curl.setHTTP2();
+   curl.setHeader();
+   curl.setURL(url);
+   curl.setPort(443);
+   curl.setInsecure();
+   curl.addHeader(buf);
+   curl.setMaxTime(30);
+   curl.setPostMode(message);
+   curl.setUserAgent("ULib");
+   curl.setCertificate(apple_cert);
+
+   if (curl.performWait()) U_RETURN(true); 
+
+   U_RETURN(false);
 }
 
 // DEBUG
@@ -287,6 +343,7 @@ const char* UCURL::dump(bool reset) const
                   << "inited            " << inited             << '\n'
                   << "formPost          " << (void*)formPost    << '\n'
                   << "formLast          " << (void*)formLast    << '\n'
+                  << "headerlist        " << (void*)headerlist  << '\n'
                   << "easyHandle        " << (void*)easyHandle  << '\n'
                   << "multiHandle       " << (void*)multiHandle << '\n'
                   << "response (UString " << (void*)&response   << ')';

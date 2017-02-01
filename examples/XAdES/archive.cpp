@@ -26,8 +26,8 @@
 
 #include <ulib/application.h>
 
-#define U_ARCHIVE_TIMESTAMP (const char*)(num_args >= 0  ? argv[optind+0]  : 0)
-#define U_SCHEMA            (const char*)(num_args >= 1  ? argv[optind+1]  : 0)
+#define U_ARCHIVE_TIMESTAMP (const char*)(num_args >= 0 ? argv[optind+0] : 0)
+#define U_SCHEMA            (const char*)(num_args >= 1 ? argv[optind+1] : 0)
 
 // ArchiveTimeStamp
 
@@ -308,7 +308,7 @@ public:
          {
          x = vec[i];
 
-         if (x.find("xades:QualifyingProperties") == U_NOT_FOUND) to_digest += UXML2Document::xmlC14N(x);
+         if (U_STRING_FIND(x, 0, "xades:QualifyingProperties") == U_NOT_FOUND) to_digest += UXML2Document::xmlC14N(x);
          }
 
       u_base64_max_columns  = U_OPENSSL_BASE64_MAX_COLUMN;
@@ -316,7 +316,7 @@ public:
 
       UString archiveTimeStamp(U_CAPACITY), token = getTimeStampToken(to_digest, archive_timestamp);
 
-      archiveTimeStamp.snprintf(U_XADES_ARCHIVE_TIMESTAMP_TEMPLATE, U_STRING_TO_TRACE(token));
+      archiveTimeStamp.snprintf(U_CONSTANT_TO_PARAM(U_XADES_ARCHIVE_TIMESTAMP_TEMPLATE), U_STRING_TO_TRACE(token));
 
       UString _output = UStringExt::substitute(content,
                              U_CONSTANT_TO_PARAM("        </xades:UnsignedSignatureProperties>"),

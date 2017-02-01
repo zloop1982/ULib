@@ -14,6 +14,9 @@
    */
 #undef CRAY_STACKSEG_END
 
+/* Define if we are cross compiling */
+#undef CROSS_COMPILE
+
 /* C++ Flags */
 #undef CXXFLAGS_VAR
 
@@ -31,6 +34,9 @@
 
 /* Define if you have d_reclen in struct dirent */
 #undef DIRENT_HAVE_D_RECLEN
+
+/* Define if you have d_type in struct dirent */
+#undef DIRENT_HAVE_D_TYPE
 
 /* Define if disable ipv6 support */
 #undef DISABLE_IPV6
@@ -59,6 +65,9 @@
 /* GNU C/C++ Compiler version */
 #undef GCC_VERSION
 
+/* GNU C/C++ Compiler version extented */
+#undef GCC_VERSION_EXT
+
 /* has accept4 */
 #undef HAVE_ACCEPT4
 
@@ -78,6 +87,9 @@
 /* Define to 1 if you have the <arpa/inet.h> header file. */
 #undef HAVE_ARPA_INET_H
 
+/* Define to 1 if you have the <asm/mman.h> header file. */
+#undef HAVE_ASM_MMAN_H
+
 /* Define to 1 if you have the <assert.h> header file. */
 #undef HAVE_ASSERT_H
 
@@ -96,14 +108,23 @@
 /* Define to 1 if your system has a working `chown' function. */
 #undef HAVE_CHOWN
 
+/* has clock_gettime */
+#undef HAVE_CLOCK_GETTIME
+
 /* enable cpp preprocessor features */
 #undef HAVE_CPP
+
+/* Define to 1 if you have the <cpuid.h> header file. */
+#undef HAVE_CPUID_H
 
 /* Define if exist type cpu_set_t */
 #undef HAVE_CPU_SET_T
 
 /* define if the compiler supports basic C++11 syntax */
 #undef HAVE_CXX11
+
+/* define if the compiler supports basic C++14 syntax */
+#undef HAVE_CXX14
 
 /* has daemon */
 #undef HAVE_DAEMON
@@ -195,15 +216,30 @@
 /* struct iphdr needed for IPv6 support */
 #undef HAVE_IPHDR
 
+/* has kqueue */
+#undef HAVE_KQUEUE
+
+/* has kqueue1 */
+#undef HAVE_KQUEUE1
+
+/* Define to 1 if you have the `bson-1.0' library (-lbson-1.0). */
+#undef HAVE_LIBBSON_1_0
+
 /* Define to 1 if you have the `GeoIP' library (-lGeoIP). */
 #undef HAVE_LIBGEOIP
 
 /* Define to 1 if you have the <libintl.h> header file. */
 #undef HAVE_LIBINTL_H
 
+/* Define to 1 if you have the `mongoc-1.0' library (-lmongoc-1.0). */
+#undef HAVE_LIBMONGOC_1_0
+
 /* Define to 1 if you have the
    <libnetfilter_conntrack/libnetfilter_conntrack.h> header file. */
 #undef HAVE_LIBNETFILTER_CONNTRACK_LIBNETFILTER_CONNTRACK_H
+
+/* Define to 1 if you have the `numa' library (-lnuma). */
+#undef HAVE_LIBNUMA
 
 /* Define to 1 if you have the `tcc' library (-ltcc). */
 #undef HAVE_LIBTCC
@@ -223,6 +259,9 @@
 /* Define to 1 if you have the <linux/netfilter_ipv4/ipt_ACCOUNT.h> header
    file. */
 #undef HAVE_LINUX_NETFILTER_IPV4_IPT_ACCOUNT_H
+
+/* has lrintl */
+#undef HAVE_LRINTL
 
 /* have lstat */
 #undef HAVE_LSTAT
@@ -305,6 +344,9 @@
 /* pthread inherit scheduling attribute */
 #undef HAVE_PTHREAD_ATTR_SETINHRITSCHED
 
+/* pthread cancel */
+#undef HAVE_PTHREAD_CANCEL
+
 /* pthread clocking */
 #undef HAVE_PTHREAD_CONDATTR_SETCLOCK
 
@@ -320,14 +362,26 @@
 /* pthread scheduling */
 #undef HAVE_PTHREAD_SETSCHEDPRIO
 
+/* pthread suspend */
+#undef HAVE_PTHREAD_SUSPEND
+
 /* pthread yield */
 #undef HAVE_PTHREAD_YIELD
 
 /* Define to 1 if the system has the type `ptrdiff_t'. */
 #undef HAVE_PTRDIFF_T
 
+/* If available, contains the Python version number currently in use. */
+#undef HAVE_PYTHON
+
+/* Define to 1 if you have the <rump/rump.h> header file. */
+#undef HAVE_RUMP_RUMP_H
+
 /* has sched_getaffinity */
 #undef HAVE_SCHED_GETAFFINITY
+
+/* has sched_getcpu */
+#undef HAVE_SCHED_GETCPU
 
 /* Define to 1 if you have the <sched.h> header file. */
 #undef HAVE_SCHED_H
@@ -340,6 +394,9 @@
 
 /* has sem_init */
 #undef HAVE_SEM_INIT
+
+/* has sem_timedwait */
+#undef HAVE_SEM_TIMEDWAIT
 
 /* has sendfile */
 #undef HAVE_SENDFILE
@@ -370,12 +427,6 @@
 
 /* Define to 1 if you have the <stdlib.h> header file. */
 #undef HAVE_STDLIB_H
-
-/* Define to 1 if you have the `std::future`. */
-#undef HAVE_STD_FUTURE
-
-/* Define to 1 if you have the `std::chrono::steady_clock`. */
-#undef HAVE_STEADY_CLOCK
 
 /* string collation */
 #undef HAVE_STRCOLL
@@ -443,6 +494,9 @@
 
 /* Define to 1 if you have the <sys/dir.h> header file. */
 #undef HAVE_SYS_DIR_H
+
+/* Define to 1 if you have the <sys/endian.h> header file. */
+#undef HAVE_SYS_ENDIAN_H
 
 /* Define to 1 if you have the <sys/inotify.h> header file. */
 #undef HAVE_SYS_INOTIFY_H
@@ -539,8 +593,7 @@
    slash. */
 #undef LSTAT_FOLLOWS_SLASHED_SYMLINK
 
-/* Define to the sub-directory in which libtool stores uninstalled libraries.
-   */
+/* Define to the sub-directory where libtool stores uninstalled libraries. */
 #undef LT_OBJDIR
 
 /* Define to 1 if `major', `minor', and `makedev' are declared in <mkdev.h>.
@@ -575,38 +628,32 @@
 /* Define as the return type of signal handlers (`int' or `void'). */
 #undef RETSIGTYPE
 
-/* The size of `int', as computed by sizeof. */
+/* The number of bytes in type int */
 #undef SIZEOF_INT
 
-/* The size of `long', as computed by sizeof. */
+/* The number of bytes in type long */
 #undef SIZEOF_LONG
 
-/* The size of `long long', as computed by sizeof. */
+/* The number of bytes in type long long */
 #undef SIZEOF_LONG_LONG
 
 /* The size of `off_t', as computed by sizeof. */
 #undef SIZEOF_OFF_T
 
-/* The size of `ptrdiff_t', as computed by sizeof. */
-#undef SIZEOF_PTRDIFF_T
-
-/* The size of `short', as computed by sizeof. */
+/* The number of bytes in type short */
 #undef SIZEOF_SHORT
 
-/* The size of `size_t', as computed by sizeof. */
+/* The number of bytes in type size_t */
 #undef SIZEOF_SIZE_T
 
-/* The size of `time_t', as computed by sizeof. */
+/* The number of bytes in type time_t */
 #undef SIZEOF_TIME_T
 
-/* The size of `unsigned char', as computed by sizeof. */
+/* The number of bytes in type unsigned char */
 #undef SIZEOF_UNSIGNED_CHAR
 
-/* The size of `void *', as computed by sizeof. */
+/* The number of bytes in type void * */
 #undef SIZEOF_VOID_P
-
-/* The size of `__int64', as computed by sizeof. */
-#undef SIZEOF___INT64
 
 /* If using the C implementation of alloca, define if you know the
    direction of stack growth for your system; otherwise it will be
@@ -646,7 +693,7 @@
 /* Define if we have support for crc32 intrinsics */
 #undef USE_HARDWARE_CRC32
 
-/* Define if enable libcurL support */
+/* Define if enable libcurl support */
 #undef USE_LIBCURL
 
 /* Define if enable libdbi support */
@@ -691,6 +738,9 @@
 /* Define if enable libzopfli support */
 #undef USE_LIBZOPFLI
 
+/* Define if enable mongodb support */
+#undef USE_MONGODB
+
 /* Define if enable MySQL database support */
 #undef USE_MYSQL
 
@@ -705,6 +755,9 @@
 
 /* Define if enable php support */
 #undef USE_PHP
+
+/* Define if enable python support */
+#undef USE_PYTHON
 
 /* Define if enable ruby support */
 #undef USE_RUBY
@@ -739,6 +792,9 @@
 
 /* enable alias URI support */
 #undef U_ALIAS
+
+/* use apex_memmove written by Trevor Herselman in 2014 */
+#undef U_APEX_ENABLE
 
 /* disable cache request support */
 #undef U_CACHE_REQUEST_DISABLE
@@ -830,7 +886,7 @@
 /* STATIC_HANDLER_TSA */
 #undef U_STATIC_HANDLER_TSA
 
-/* STATIC_ONLY */
+/* we want only static linking */
 #undef U_STATIC_ONLY
 
 /* STATIC_ORM_DRIVER_MYSQL */
@@ -856,6 +912,9 @@
 
 /* Define if we have libtdb with this function */
 #undef U_TDB_TRAVERSE_READ
+
+/* enable server bandwidth throttling support */
+#undef U_THROTTLING_SUPPORT
 
 /* enable welcome message support */
 #undef U_WELCOME_SUPPORT
@@ -939,6 +998,9 @@
 
 /* Define to 1 if you need to in order for `stat' and other things to work. */
 #undef _POSIX_SOURCE
+
+/* version of PYTHON language runtime engine embed */
+#undef _PYTHON_VERSION
 
 /* version of RUBY language runtime engine embed */
 #undef _RUBY_VERSION

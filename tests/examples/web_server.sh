@@ -5,16 +5,17 @@
 #DOC_ROOT=ruby/blog
  DOC_ROOT=benchmark/docroot
 
-rm -f tmp/usp_compile.sh.err \
+rm -f tmp/usp_compile.sh.err /tmp/*.hpack.* \
 		$DOC_ROOT/web_server.log* \
       out/userver_*.out err/userver_*.err \
 					 trace.*userver_*.[0-9]*			  object.*userver_*.[0-9]*				 stack.*userver_*.[0-9]*			  mempool.*userver_*.[0-9]* \
       $DOC_ROOT/trace.*userver_*.[0-9]* $DOC_ROOT/object.*userver_*.[0-9]* $DOC_ROOT/stack.*userver_*.[0-9]* $DOC_ROOT/mempool.*userver_*.[0-9]*
 
- UTRACE="0 130M 0"
-#UOBJDUMP="0 10M 5000"
+ UTRACE="0 50M 0"
+#UTRACE_SIGNAL="0 50M -1"
+#UOBJDUMP="0 10M 100"
 #USIMERR="error.sim"
- export UTRACE UOBJDUMP USIMERR
+export UTRACE UOBJDUMP USIMERR UTRACE_SIGNAL
 
 SOCK1=tmp/fcgi.socket
 
@@ -34,17 +35,32 @@ start_test() {
 #start_test
 #/usr/bin/spawn-fcgi -p 8080 -f /usr/bin/php-cgi -C 5 -P /var/run/spawn-fcgi.pid
 
+# =================================================================
+# HTTP/2
+# =================================================================
+# ./h2a -c server.crt -k server.key -p 8000 -H 127.0.0.1 -P 443
+#
+# Once h2a starts, you can access http://localhost:8000 from the
+# HTTP client such as Firefox and you will be able to check the
+# HTTP/2 traffic
+#
+# ./web_server.sh
+#
+# /opt/go/bin/h2a    -p 80 -H 127.0.0.1 -P 8080 -d -D >& h2a.out &
+# /opt/go/bin/h2spec -p 80										>& h2spec.out
+# =================================================================
+
 cat <<EOF >inp/webserver.cfg
 userver {
  PORT 8080
- RUN_AS_USER apache
+ RUN_AS_USER nobody
 #MIN_SIZE_FOR_SENDFILE 2k
  LOG_FILE web_server.log
- LOG_FILE_SZ 1M
+ LOG_FILE_SZ 10M
 #LOG_FILE_SZ 20k
  LOG_MSG_SIZE -1
  PID_FILE /var/run/userver_tcp.pid
- PREFORK_CHILD 2
+ PREFORK_CHILD 0
 #REQ_TIMEOUT 300
 #PLUGIN "ssi http"
 #ORM_DRIVER "sqlite mysql"
@@ -62,18 +78,19 @@ userver {
 #ORM_DRIVER_DIR ../../../../../src/ulib/orm/driver/.libs
 }
 http {
-#ALIAS [ / /index.php ]
+ALIAS "[ / /100.html ]"
 #VIRTUAL_HOST yes
 #ENABLE_INOTIFY yes
- LIMIT_REQUEST_BODY 1M 
+ LIMIT_REQUEST_BODY 3M
  REQUEST_READ_TIMEOUT 30
 #DIGEST_AUTHENTICATION yes
 #CACHE_FILE_STORE nocat/webif.gz
-#CACHE_FILE_MASK *.jpg|*.png|*.css|*.js|*.gif|inp/http/data/file1|*.*html|*.flv|*.svgz
+#CACHE_FILE_MASK inp/http/data/file1|*.flv|*.svgz
 }
 EOF
 
 export ORM_DRIVER="sqlite"
+export ELASTICSEARCH_HOST="localhost"
 export UMEMPOOL="136,0,60,100,250,-22,-17,-23,60"
 export ORM_OPTION="host=localhost dbname=../db/hello_world"
 

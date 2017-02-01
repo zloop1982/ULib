@@ -22,7 +22,7 @@
 /**
  * This class provides services for a PKCS7 structure. (general syntax for data that may have cryptography applied to it,
  * such as digital signatures and digital envelopes). This class contains a openssl PKCS7 structure and basically acts as
- * a wrapper to functions that act on that structure.
+ * a wrapper to functions that act on that structure
  */
 
 class UMimePKCS7;
@@ -51,9 +51,9 @@ private:
 
 public:
    /**
-   Constructs this object takes <i>PKCS7</i> as type, data is the signed data if the content is not present in pkcs7
-   (that is it is detached)
-   */ 
+    * Constructs this object takes <i>PKCS7</i> as type, data is the signed data if the content is not present in pkcs7
+    * (that is it is detached)
+    */ 
 
    UPKCS7(PKCS7* p7 = 0, BIO* data = 0)
       {
@@ -63,12 +63,12 @@ public:
       }
 
    /**
-   * Constructs this object from the a encoded string.
-   * The <i>type</i> specifies the type of encoding the string is in, e.g. DER or PEM.
-
-   * @param encoding a string of bytes
-   * @param type the PKCS7's encoding type
-   */
+    * Constructs this object from the a encoded string.
+    * The <i>type</i> specifies the type of encoding the string is in, e.g. DER or PEM.
+    * 
+    * @param encoding a string of bytes
+    * @param type the PKCS7's encoding type
+    */
 
    static PKCS7* readPKCS7(const UString& x, const char* format = 0);
 
@@ -81,12 +81,12 @@ public:
       }
 
    /**
-   * Deletes this object.
-   */
+    * Deletes this object
+    */
 
    void clear()
       {
-      U_TRACE(1, "UPKCS7::clear()")
+      U_TRACE_NO_PARAM(1, "UPKCS7::clear()")
 
       U_INTERNAL_ASSERT_POINTER(pkcs7)
 
@@ -97,11 +97,9 @@ public:
 
    ~UPKCS7();
 
-   // VARIE
-
    bool isValid() const
       {
-      U_TRACE(0, "UPKCS7::isValid()")
+      U_TRACE_NO_PARAM(0, "UPKCS7::isValid()")
 
       U_RETURN(pkcs7 != 0);
       }
@@ -110,7 +108,7 @@ public:
 
    bool isDetached() const
       {
-      U_TRACE(1, "UPKCS7::isDetached()")
+      U_TRACE_NO_PARAM(1, "UPKCS7::isDetached()")
 
       bool result = (U_SYSCALL(PKCS7_ctrl, "%p,%d,%ld,%s", pkcs7, PKCS7_OP_GET_DETACHED_SIGNATURE, 0, 0) != 0);
 
@@ -121,7 +119,7 @@ public:
 
    bool isMessageEncrypted() const
       {
-      U_TRACE(0, "UPKCS7::isMessageEncrypted()")
+      U_TRACE_NO_PARAM(0, "UPKCS7::isMessageEncrypted()")
 
       bool result = (PKCS7_type_is_enveloped(pkcs7) != 0);
 
@@ -130,7 +128,7 @@ public:
 
    bool isMessageSignedAndEncrypted() const
       {
-      U_TRACE(0, "UPKCS7::isMessageSignedAndEncrypted()")
+      U_TRACE_NO_PARAM(0, "UPKCS7::isMessageSignedAndEncrypted()")
 
       bool result = (PKCS7_type_is_signedAndEnveloped(pkcs7) != 0);
 
@@ -144,37 +142,37 @@ public:
    UString getEncoded(const char* format = "PEM") const;
 
    /**
-   * Returns bool value to indicate the correctness of the signed data.
-   * PKCS7_NOVERIFY Verify only the signature, not the certificate chain.
-   * This is probably not what you want, because the signature could be easily forged
-   */
+    * Returns bool value to indicate the correctness of the signed data.
+    * PKCS7_NOVERIFY Verify only the signature, not the certificate chain.
+    * This is probably not what you want, because the signature could be easily forged
+    */
 
    bool verify(int flags = PKCS7_NOVERIFY) const;
 
    /**
-   Retrieves the signer's certificates from p7, it does not check their validity or whether any signatures are valid.
-   The flags parameter have the same meanings as in PKCS7_verify()
-   */
+    * Retrieves the signer's certificates from p7, it does not check their validity or whether any signatures are valid.
+    * The flags parameter have the same meanings as in PKCS7_verify()
+    */
 
    unsigned getSignerCertificates(UVector<UCertificate*>& vec, int flags = 0) const;
 
    /**
-   * Returns the signed content from p7
-   */
+    * Returns the signed content from p7
+    */
 
    UString getContent(bool* valid_content = 0) const;
 
    /**
-   * creates and returns a PKCS#7 signedData structure
-
-   * @param data     is the data to be signed
-   * @param signcert is the certificate to sign with
-   * @param pkey     is the corresponsding private key
-   * @param passwd   is the corresponsding password for the private key
-   * @param certs    is an optional additional set of certificates to include in the PKCS#7 structure
-   *                 (for example any intermediate CAs in the chain)
-   * @param flags    is an optional set of flags (PKCS7_TEXT, PKCS7_NOCERTS, PKCS7_DETACHED, PKCS7_BINARY, ...)
-   */
+    * creates and returns a PKCS#7 signedData structure
+    *
+    * @param data     is the data to be signed
+    * @param signcert is the certificate to sign with
+    * @param pkey     is the corresponsding private key
+    * @param passwd   is the corresponsding password for the private key
+    * @param certs    is an optional additional set of certificates to include in the PKCS#7 structure
+    *                 (for example any intermediate CAs in the chain)
+    * @param flags    is an optional set of flags (PKCS7_TEXT, PKCS7_NOCERTS, PKCS7_DETACHED, PKCS7_BINARY, ...)
+    */
 
    static PKCS7* sign(const UString& data,
                       const UString& signcert,
@@ -183,10 +181,10 @@ public:
                       const UString& certs, int flags = PKCS7_BINARY);
 
    /**
-   * convert PKCS#7 structure to S/MIME format
-
-   * @param pkcs7 is the appropriate PKCS7 structure
-   */
+    * convert PKCS#7 structure to S/MIME format
+    *
+    * @param pkcs7 is the appropriate PKCS7 structure
+    */
 
    static UString writeMIME(PKCS7* pkcs7);
 
@@ -201,13 +199,7 @@ protected:
    PKCS7* pkcs7;
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UPKCS7(const UPKCS7&) = delete;
-   UPKCS7& operator=(const UPKCS7&) = delete;
-#else
-   UPKCS7(const UPKCS7&)            {}
-   UPKCS7& operator=(const UPKCS7&) { return *this; }
-#endif      
+   U_DISALLOW_COPY_AND_ASSIGN(UPKCS7)
 
    friend class UMimePKCS7;
 };

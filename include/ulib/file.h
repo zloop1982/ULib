@@ -16,7 +16,11 @@
 
 #include <ulib/string.h>
 
-#include <errno.h>
+#ifdef _MSWINDOWS_
+#define st_ino u_inode
+#elif defined(HAVE_ASM_MMAN_H)
+#  include <asm/mman.h>
+#endif
 
 // struct stat {
 //    dev_t     st_dev;      /* device */
@@ -33,10 +37,6 @@
 //    time_t    st_mtime;    /* time of last modification */
 //    time_t    st_ctime;    /* time of last change */
 // };
-
-#ifdef _MSWINDOWS_
-#define st_ino u_inode
-#endif
 
 // File-permission-bit symbols
 
@@ -82,22 +82,20 @@ public:
    static void dec_num_file_object(int fd);
    static void chk_num_file_object();
 #else
-#  define      inc_num_file_object(pthis)
-#  define      dec_num_file_object(fd)
-#  define      chk_num_file_object()
+#  define inc_num_file_object(pthis)
+#  define dec_num_file_object(fd)
+#  define chk_num_file_object()
 #endif
 
    void reset()
       {
-      U_TRACE(0, "UFile::reset()")
+      U_TRACE_NO_PARAM(0, "UFile::reset()")
 
       fd       = -1;
       map      = (char*)MAP_FAILED;
       st_size  = 0;
       map_size = 0;
       }
-
-   // COSTRUTTORI
 
    UFile()
       {
@@ -134,19 +132,11 @@ public:
    // PATH
 
    void setRoot();
-   void setPath(const UString& path,   const UString* environment = 0);
-   void setPath(const char* _pathname, const UString* environment = 0)
+   void setPath(const UString& path, const UString* environment = 0);
+
+   bool isRoot() const
       {
-      U_TRACE(0, "UFile::setPath(%S,%p)", _pathname, environment)
-
-      UString path(_pathname);
-
-      setPath(path, environment);
-      }
-
-   bool isRoot()
-      {
-      U_TRACE(0, "UFile::isRoot()")
+      U_TRACE_NO_PARAM(0, "UFile::isRoot()")
 
       U_INTERNAL_DUMP("u_cwd           = %S", u_cwd)
       U_INTERNAL_DUMP("path_relativ(%u) = %.*S", path_relativ_len, path_relativ_len, path_relativ)
@@ -160,9 +150,9 @@ public:
       U_RETURN(false);
       }
 
-   bool isPath()
+   bool isPath() const
       {
-      U_TRACE(0, "UFile::isPath()")
+      U_TRACE_NO_PARAM(0, "UFile::isPath()")
 
       U_CHECK_MEMORY
 
@@ -171,7 +161,7 @@ public:
       U_RETURN(false);
       }
 
-   bool isPath(const char* _pathname, uint32_t len)
+   bool isPath(const char* _pathname, uint32_t len) const
       {
       U_TRACE(0, "UFile::isPath(%.*S,%u)", len, _pathname, len)
 
@@ -183,14 +173,33 @@ public:
       U_RETURN(false);
       }
 
+   bool isSuffixSwap() const // NB: vi tmp...
+      {
+      U_TRACE_NO_PARAM(0, "UFile::isSuffixSwap()")
+
+      U_INTERNAL_ASSERT_POINTER(path_relativ)
+
+      U_INTERNAL_DUMP("path_relativ(%u) = %.*S", path_relativ_len, path_relativ_len, path_relativ)
+
+      const char* suffix = u_getsuffix(path_relativ, path_relativ_len);
+
+      if (suffix &&
+          u_isSuffixSwap(suffix))
+         {
+         U_RETURN(true);
+         }
+
+      U_RETURN(false);
+      }
+
    // NB: the string can be not writable so path_relativ[path_relativ_len] can be != '\0'...
 
-   UString& getPath()                  { return pathname; }
+   UString& getPath() { return pathname; }
    UString  getName() const;
    UString  getDirName() const;
    UString  getSuffix() const;
-   char*    getPathRelativ() const     { return (char*)path_relativ; }
-   int32_t  getPathRelativLen() const  { return        path_relativ_len; }
+   char*    getPathRelativ() const    { return (char*)path_relativ; }
+   int32_t  getPathRelativLen() const { return        path_relativ_len; }
 
    bool isName(const UString& name) const { return name.equal(getName()); }
 
@@ -225,7 +234,7 @@ public:
       {
       U_TRACE(0, "UFile::open(%S,%d)", _pathname, flags)
 
-      UString path(_pathname);
+      UString path(_pathname, u__strlen(_pathname, __PRETTY_FUNCTION__));
 
       setPath(path);
 
@@ -263,7 +272,7 @@ public:
 
    bool isOpen()
       {
-      U_TRACE(0, "UFile::isOpen()")
+      U_TRACE_NO_PARAM(0, "UFile::isOpen()")
 
       U_CHECK_MEMORY
 
@@ -274,7 +283,7 @@ public:
 
    void close()
       {
-      U_TRACE(0, "UFile::close()")
+      U_TRACE_NO_PARAM(0, "UFile::close()")
 
       U_CHECK_MEMORY
 
@@ -294,7 +303,7 @@ public:
 
    int getFd() const
       {
-      U_TRACE(0, "UFile::getFd()")
+      U_TRACE_NO_PARAM(0, "UFile::getFd()")
 
       U_CHECK_MEMORY
 
@@ -322,7 +331,7 @@ public:
 
    bool slink() const
       {
-      U_TRACE(0, "UFile::slink()")
+      U_TRACE_NO_PARAM(0, "UFile::slink()")
 
       U_CHECK_MEMORY
 
@@ -336,7 +345,7 @@ public:
 #ifndef _MSWINDOWS_
    bool lstat()
       {
-      U_TRACE(1, "UFile::lstat()")
+      U_TRACE_NO_PARAM(1, "UFile::lstat()")
 
       U_CHECK_MEMORY
 
@@ -352,15 +361,17 @@ public:
 
    void fstat()
       {
-      U_TRACE(1, "UFile::fstat()")
+      U_TRACE_NO_PARAM(1, "UFile::fstat()")
 
       U_CHECK_MEMORY
 
       U_INTERNAL_ASSERT_DIFFERS(fd, -1)
 
+#  if defined(DEBUG) && !defined(U_LINUX) && !defined(O_TMPFILE)
       U_INTERNAL_ASSERT_POINTER(path_relativ)
 
       U_INTERNAL_DUMP("path_relativ(%u) = %.*S", path_relativ_len, path_relativ_len, path_relativ)
+#  endif
 
 #  ifdef U_COVERITY_FALSE_POSITIVE
       if (fd > 0)
@@ -386,25 +397,30 @@ public:
 
    void readSize()
       {
-      U_TRACE(1, "UFile::readSize()")
+      U_TRACE_NO_PARAM(1, "UFile::readSize()")
 
       U_CHECK_MEMORY
 
       U_INTERNAL_ASSERT_DIFFERS(fd, -1)
+
+#  if defined(DEBUG) && !defined(U_LINUX) && !defined(O_TMPFILE)
       U_INTERNAL_ASSERT_POINTER(path_relativ)
 
       U_INTERNAL_DUMP("path_relativ(%u) = %.*S", path_relativ_len, path_relativ_len, path_relativ)
+#  endif
 
       st_size = lseek(U_SEEK_BEGIN, SEEK_END);
 
       U_INTERNAL_ASSERT(st_size >= U_SEEK_BEGIN)
       }
 
+   bool ftruncate(uint32_t n);
+
    off_t size(bool bstat = false);
 
    off_t getSize() const
       {
-      U_TRACE(0, "UFile::getSize()")
+      U_TRACE_NO_PARAM(0, "UFile::getSize()")
 
       U_CHECK_MEMORY
 
@@ -435,7 +451,7 @@ public:
 
    bool empty() const
       {
-      U_TRACE(0, "UFile::empty()")
+      U_TRACE_NO_PARAM(0, "UFile::empty()")
 
       U_CHECK_MEMORY
 
@@ -446,7 +462,7 @@ public:
 
    bool regular() const
       {
-      U_TRACE(0, "UFile::regular()")
+      U_TRACE_NO_PARAM(0, "UFile::regular()")
 
       U_CHECK_MEMORY
 
@@ -457,7 +473,7 @@ public:
 
    bool dir() const
       {
-      U_TRACE(0, "UFile::dir()")
+      U_TRACE_NO_PARAM(0, "UFile::dir()")
 
       U_CHECK_MEMORY
 
@@ -468,7 +484,7 @@ public:
 
    bool socket() const
       {
-      U_TRACE(0, "UFile::socket()")
+      U_TRACE_NO_PARAM(0, "UFile::socket()")
 
       U_CHECK_MEMORY
 
@@ -483,7 +499,7 @@ public:
 
    UString etag() const
       {
-      U_TRACE(0, "UFile::etag()")
+      U_TRACE_NO_PARAM(0, "UFile::etag()")
 
       U_CHECK_MEMORY
 
@@ -492,16 +508,16 @@ public:
 
       UString _etag(100U);
 
-      // NB: The only format constraints are that the string be quoted...
+      // NB: The only format constraints are that the string must be quoted...
 
-      _etag.snprintf("\"%x-%x-%x\"", st_ino, st_size, st_mtime);
+      _etag.snprintf(U_CONSTANT_TO_PARAM("\"%x-%x-%x\""), st_ino, st_size, st_mtime);
 
       U_RETURN_STRING(_etag);
       }
 
    uint64_t inode()
       {
-      U_TRACE(0, "UFile::inode()")
+      U_TRACE_NO_PARAM(0, "UFile::inode()")
 
       U_CHECK_MEMORY
 
@@ -511,17 +527,36 @@ public:
       U_RETURN(st_ino);
       }
 
+   /**
+    * Mount Point
+    *
+    * Either the system root directory or a directory for which the st_dev field of structure stat differs from that of its parent directory
+    */
+
+   bool isMountPoint(dev_t parent_id)
+      {
+      U_TRACE(0, "UFile::isMountPoint(%ld)", parent_id)
+
+      fstat();
+
+      U_RETURN(st_dev != parent_id);
+      }
+
    // MODIFIER
 
    bool modified()
       {
-      U_TRACE(0, "UFile::modified()")
+      U_TRACE_NO_PARAM(0, "UFile::modified()")
 
       time_t mtime = st_mtime;
 
       fstat();
 
-      U_RETURN(mtime != st_mtime);
+      U_INTERNAL_DUMP("mtime = %ld, st_mtime = %ld", (long)mtime, (long)st_mtime)
+
+      if (mtime != st_mtime) U_RETURN(true);
+
+      U_RETURN(false);
       }
 
    static bool isBlocking(int _fd, int& flags) // actual state is blocking...?
@@ -565,7 +600,7 @@ public:
 
    bool _unlink()
       {
-      U_TRACE(0, "UFile::_unlink()")
+      U_TRACE_NO_PARAM(0, "UFile::_unlink()")
 
       U_CHECK_MEMORY
 
@@ -592,15 +627,17 @@ public:
 
    void fsync()
       {
-      U_TRACE(1, "UFile::fsync()")
+      U_TRACE_NO_PARAM(1, "UFile::fsync()")
 
       U_CHECK_MEMORY
 
       U_INTERNAL_ASSERT_DIFFERS(fd, -1)
 
+#  if defined(DEBUG) && !defined(U_LINUX) && !defined(O_TMPFILE)
       U_INTERNAL_ASSERT_POINTER(path_relativ)
 
       U_INTERNAL_DUMP("path_relativ(%u) = %.*S", path_relativ_len, path_relativ_len, path_relativ)
+#  endif
 
 #  ifdef U_COVERITY_FALSE_POSITIVE
       if (fd > 0)
@@ -608,22 +645,79 @@ public:
       (void) U_SYSCALL(fsync, "%d", fd);
       }
 
-   bool fallocate(uint32_t n);
-   bool ftruncate(uint32_t n);
+   bool fallocate(uint32_t n)
+      {
+      U_TRACE(0, "UFile::fallocate(%u)", n)
 
+      U_CHECK_MEMORY
+
+      U_INTERNAL_ASSERT_DIFFERS(fd, -1)
+
+#  if defined(DEBUG) && !defined(U_LINUX) && !defined(O_TMPFILE)
+      U_INTERNAL_ASSERT_POINTER(path_relativ)
+
+      U_INTERNAL_DUMP("path_relativ(%u) = %.*S", path_relativ_len, path_relativ_len, path_relativ)
+#  endif
+
+      if (fallocate(fd, n))
+         {
+         st_size = n;
+
+         U_RETURN(true);
+         }
+
+      U_RETURN(false);
+      }
+
+   static bool fallocate(int fd, uint32_t n);
    static bool chdir(const char* path, bool flag_save = false);
 
    // LOCKING
 
-   bool lock(short l_type = F_WRLCK, uint32_t start = 0, uint32_t len = 0) const; /* set the lock, waiting if necessary */
+   bool lock(short l_type = F_WRLCK, uint32_t start = 0, uint32_t len = 0) const
+      {
+      U_TRACE(0, "UFile::lock(%d,%u,%u)", l_type, start, len)
 
-   bool unlock(uint32_t start = 0, uint32_t len = 0) const { return lock(F_UNLCK, start, len); }
+      // set the lock, waiting if necessary
+
+      U_CHECK_MEMORY
+
+      U_INTERNAL_ASSERT_DIFFERS(fd, -1)
+
+#  if defined(DEBUG) && !defined(U_LINUX) && !defined(O_TMPFILE)
+      U_INTERNAL_ASSERT_POINTER(path_relativ)
+
+      U_INTERNAL_DUMP("path_relativ(%u) = %.*S", path_relativ_len, path_relativ_len, path_relativ)
+#  endif
+
+      return lock(fd, l_type, start, len);
+      }
+
+   bool unlock(uint32_t start = 0, uint32_t len = 0) const
+      {
+      U_TRACE(0, "UFile::unlock(%u,%u)", start, len)
+
+      U_CHECK_MEMORY
+
+      U_INTERNAL_ASSERT_DIFFERS(fd, -1)
+
+#  if defined(DEBUG) && !defined(U_LINUX) && !defined(O_TMPFILE)
+      U_INTERNAL_ASSERT_POINTER(path_relativ)
+
+      U_INTERNAL_DUMP("path_relativ(%u) = %.*S", path_relativ_len, path_relativ_len, path_relativ)
+#  endif
+
+      return lock(fd, F_UNLCK, start, len);
+      }
+
+   static bool   lock(int fd, short l_type = F_WRLCK, uint32_t start = 0, uint32_t len = 0);
+   static bool unlock(int fd,                         uint32_t start = 0, uint32_t len = 0) { return lock(fd, F_UNLCK, start, len); }
 
    // MEMORY MAPPED I/O (Basically, you can tell the OS that some file is the backing store for a certain portion of the process memory)
 
    bool isMapped() const
       {
-      U_TRACE(0, "UFile::isMapped()")
+      U_TRACE_NO_PARAM(0, "UFile::isMapped()")
 
       U_CHECK_MEMORY
 
@@ -647,13 +741,18 @@ public:
    // mremap() expands (or shrinks) an existing memory mapping, potentially moving it at the same time
    // (controlled by the flags argument and the available virtual address space)
 
-   static void* mremap(void* old_address, uint32_t old_size, uint32_t new_size, int flags = 0) // MREMAP_MAYMOVE == 1
+   static char* mremap(void* old_address, uint32_t old_size, uint32_t new_size, int flags = 0) // MREMAP_MAYMOVE == 1
       {
       U_TRACE(1, "UFile::mremap(%p,%u,%u,%d)", old_address, old_size, new_size, flags)
 
-      void* result = U_SYSCALL(mremap, "%p,%u,%u,%d", old_address, old_size, new_size, flags);
+      void* result =
+#  if defined(__NetBSD__) || defined(__UNIKERNEL__)
+      U_SYSCALL(mremap, "%p,%u,%p,%u,%d", old_address, old_size, 0, new_size, 0);
+#  else
+      U_SYSCALL(mremap, "%p,%u,%u,%d",    old_address, old_size,    new_size, flags);
+#  endif
 
-      U_RETURN(result);
+      U_RETURN((char*)result);
       }
 
    bool memmap(int prot = PROT_READ, UString* str = 0, uint32_t offset = 0, uint32_t length = 0);
@@ -661,8 +760,7 @@ public:
    UString  getContent(                   bool brdonly = true,  bool bstat = false, bool bmap = false);
    UString _getContent(bool bsize = true, bool brdonly = false,                     bool bmap = false);
 
-   static UString contentOf(const UString& _pathname, int flags = O_RDONLY, bool bstat = false);
-   static UString contentOf(const char*    _pathname, int flags = O_RDONLY, bool bstat = false, const UString* environment = 0);
+   static UString contentOf(const UString& _pathname, int flags = O_RDONLY, bool bstat = false, const UString* environment = 0);
 
    static char* mmap(uint32_t* plength, int _fd = -1, int prot = PROT_READ | PROT_WRITE, int flags = MAP_SHARED | MAP_ANONYMOUS, uint32_t offset = 0);
 
@@ -741,9 +839,12 @@ public:
       U_CHECK_MEMORY
 
       U_INTERNAL_ASSERT_DIFFERS(fd, -1)
+
+#  if defined(DEBUG) && !defined(U_LINUX) && !defined(O_TMPFILE)
       U_INTERNAL_ASSERT_POINTER(path_relativ)
 
       U_INTERNAL_DUMP("path_relativ(%u) = %.*S", path_relativ_len, path_relativ_len, path_relativ)
+#  endif
 
 #  ifdef U_COVERITY_FALSE_POSITIVE
       if (fd <= 0) U_RETURN(0);
@@ -753,24 +854,24 @@ public:
       U_RETURN(result);
       }
 
-   bool write(const char* data,  uint32_t sz, bool append = false, bool bmkdirs = false);
-   bool write(const struct iovec* iov, int n, bool append = false, bool bmkdirs = false);
+   void printf(const char* format, uint32_t fmt_size, ...);
 
-   bool write(const UString& data, bool append = false, bool bmkdirs = false)
-      { return write(U_STRING_TO_PARAM(data), append, bmkdirs); }
+   bool write(const char* data,  uint32_t sz, int flags = O_RDWR | O_TRUNC, bool bmkdirs = false);
+   bool write(const struct iovec* iov, int n, int flags = O_RDWR | O_TRUNC, bool bmkdirs = false);
+   bool write(const UString& data,            int flags = O_RDWR | O_TRUNC, bool bmkdirs = false) { return write(U_STRING_TO_PARAM(data), flags, bmkdirs); }
 
-   static int     setSysParam(  const char* name, int value, bool force = false);
-   static int     getSysParam(  const char* name);
+   static long    setSysParam(  const char* name, long value, bool force = false);
+   static long    getSysParam(  const char* name);
    static UString getSysContent(const char* name);
 
-   static bool writeToTmp(const char* data,  uint32_t sz, bool append, const char* fmt, ...);
-   static bool writeToTmp(const struct iovec* iov, int n, bool append, const char* fmt, ...);
+   static bool writeToTmp(const char* data,  uint32_t sz, int flags, const char* fmt, uint32_t fmt_size, ...);
+   static bool writeToTmp(const struct iovec* iov, int n, int flags, const char* fmt, uint32_t fmt_size, ...);
 
-   static bool writeTo(const UString& path, const char* data,  uint32_t sz, bool append = false, bool bmkdirs = false);
-   static bool writeTo(const UString& path, const struct iovec* iov, int n, bool append = false, bool bmkdirs = false);
+   static bool writeTo(const UString& path, const char* data,  uint32_t sz, int flags = O_RDWR | O_TRUNC, bool bmkdirs = false);
+   static bool writeTo(const UString& path, const struct iovec* iov, int n, int flags = O_RDWR | O_TRUNC, bool bmkdirs = false);
 
-   static bool writeTo(const UString& path, const UString& data, bool append = false, bool bmkdirs = false)
-      { return writeTo(path, U_STRING_TO_PARAM(data), append, bmkdirs); }
+   static bool writeTo(const UString& path, const UString& data, int flags = O_RDWR | O_TRUNC, bool bmkdirs = false)
+      { return writeTo(path, U_STRING_TO_PARAM(data), flags, bmkdirs); }
 
    // symlink creates a symbolic link named newpath which contains the string oldpath (make one pathname be an alias for another)
 
@@ -821,22 +922,15 @@ public:
 
    // TEMP OP
 
-   // ----------------------------------------------------------------------------------------------------------------------
-   // create a unique temporary file
-   // ----------------------------------------------------------------------------------------------------------------------
-   // char pathname[] = "/tmp/dataXXXXXX"
-   // The last six characters of template must be XXXXXX and these are replaced with a string that makes the filename unique
-   // ----------------------------------------------------------------------------------------------------------------------
-
-   bool mkTemp(char* _template);
+   static int mkTemp(); // create a unique temporary file
 
    // --------------------------------------------------------------------------------------------------------------
    // mkdtemp - create a unique temporary directory
    // --------------------------------------------------------------------------------------------------------------
    // The mkdtemp() function generates a uniquely-named temporary directory from template. The last six characters
-   // of template must be XXXXXX and these are replaced with a string that makes the directory name unique.
-   // The directory is then created with permissions 0700.
-   // Since it will be modified, template must not be a string constant, but should be declared as a character array
+   // of template must be XXXXXX and these are replaced with a string that makes the directory name unique. The
+   // directory is then created with permissions 0700. Since it will be modified, template must not be a string
+   // constant, but should be declared as a character array
    // --------------------------------------------------------------------------------------------------------------
 
    static bool mkdtemp(UString& _template);
@@ -857,15 +951,81 @@ public:
 
    // MEMORY POOL
 
+   static uint32_t getPageMask(uint32_t length) // NB: munmap() length of MAP_HUGETLB memory must be hugepage aligned...
+      {
+      U_TRACE(0, "UFile::getPageMask(%u)", length)
+
+#  if defined(U_LINUX) && defined(U_MEMALLOC_WITH_HUGE_PAGE) && (defined(MAP_HUGE_1GB) || defined(MAP_HUGE_2MB)) // (since Linux 3.8)
+      if (nr_hugepages)
+         {
+         U_INTERNAL_DUMP("nr_hugepages = %ld rlimit_memfree = %u", nr_hugepages, rlimit_memfree)
+
+         U_INTERNAL_ASSERT_EQUALS(rlimit_memfree, U_2M)
+
+#     ifdef MAP_HUGE_1GB
+         if (length >= U_1G) U_RETURN(U_1G_MASK);
+#     endif
+#     ifdef MAP_HUGE_2MB
+         U_RETURN(U_2M_MASK);
+#     endif
+         }
+# endif
+
+      U_RETURN(U_PAGEMASK);
+      }
+
+   static bool checkPageAlignment(uint32_t length) // NB: munmap() length of MAP_HUGETLB memory must be hugepage aligned...
+      {
+      U_TRACE(0, "UFile::checkPageAlignment(%u)", length)
+
+#  if defined(U_LINUX) && defined(U_MEMALLOC_WITH_HUGE_PAGE) && (defined(MAP_HUGE_1GB) || defined(MAP_HUGE_2MB)) // (since Linux 3.8)
+      if (nr_hugepages)
+         {
+         U_INTERNAL_DUMP("nr_hugepages = %ld rlimit_memfree = %u", nr_hugepages, rlimit_memfree)
+
+         U_INTERNAL_ASSERT_EQUALS(rlimit_memfree, U_2M)
+
+#     ifdef MAP_HUGE_1GB
+         if (length >= U_1G)
+            {
+            if ((length & U_1G_MASK) == 0) U_RETURN(true);
+
+            U_RETURN(false);
+            }
+#     endif
+#     ifdef MAP_HUGE_2MB
+         if ((length & U_2M_MASK) == 0) U_RETURN(true);
+
+         U_RETURN(false);
+#     endif
+         }
+# endif
+      if ((length & U_PAGEMASK) == 0) U_RETURN(true);
+
+      U_RETURN(false);
+      }
+
+   static uint32_t getSizeAligned(uint32_t length) // NB: munmap() length of MAP_HUGETLB memory must be hugepage aligned...
+      {
+      U_TRACE(0, "UFile::getSizeAligned(%u)", length)
+
+      uint32_t pmask = getPageMask(length),
+               sz = (length + pmask) & ~pmask;
+
+      U_ASSERT(checkPageAlignment(sz))
+
+      U_RETURN(sz);
+      }
+
    static bool isAllocableFromPool(uint32_t sz)
       {
       U_TRACE(0, "UFile::isAllocableFromPool(%u)", sz)
 
-#  if defined(ENABLE_MEMPOOL)
+#  ifdef ENABLE_MEMPOOL
       U_INTERNAL_DUMP("nfree = %u pfree = %p", nfree, pfree)
 
       if (sz > U_CAPACITY &&
-          nfree > (sz + rlimit_memfree))
+          nfree > (getSizeAligned(sz) + rlimit_memfree))
          {
          U_RETURN(true);
          }
@@ -878,8 +1038,7 @@ public:
       {
       U_TRACE(0, "UFile::isLastAllocation(%p,%lu)", ptr, sz)
 
-#  if defined(ENABLE_MEMPOOL)
-      U_INTERNAL_ASSERT_EQUALS(sz & U_PAGEMASK, 0)
+#  ifdef ENABLE_MEMPOOL
       U_INTERNAL_ASSERT(sz >= U_MAX_SIZE_PREALLOCATE)
 
       U_INTERNAL_DUMP("nfree = %u pfree = %p", nfree, pfree)
@@ -888,7 +1047,12 @@ public:
          {
          U_INTERNAL_ASSERT_MAJOR(nfree, rlimit_memfree)
 
-         if ((pfree - sz) == ptr) U_RETURN(true);
+         if ((pfree - sz) == ptr)
+            {
+            U_ASSERT(UFile::checkPageAlignment(sz)) // NB: munmap() length of MAP_HUGETLB memory must be hugepage aligned...
+
+            U_RETURN(true);
+            }
          }
 #  endif
 
@@ -911,11 +1075,12 @@ protected:
    static char*    cwd_save;
    static uint32_t cwd_save_len;
 
-   static char*    pfree;
+   static char* pfree;
+   static long nr_hugepages;
    static uint32_t nfree, rlimit_memfree, rlimit_memalloc;
 
    void substitute(UFile& file);
-   bool creatForWrite(bool append, bool bmkdirs);
+   bool creatForWrite(int flags, bool bmkdirs);
    void setPathRelativ(const UString* environment = 0);
    void setPath(const UFile& file, char* buffer_path, const char* suffix, uint32_t len);
 
@@ -923,19 +1088,16 @@ protected:
    static void ftw_tree_push();
    static void ftw_vector_push();
 
+   static char* mmap_anon_huge(uint32_t* plength, int flags);
+
 private:
 #ifdef _MSWINDOWS_
    uint64_t u_inode;
 #endif
 
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UFile& operator=(const UFile&) = delete;
-#else
-   UFile& operator=(const UFile&) { return *this; }
-#endif
+   U_DISALLOW_ASSIGN(UFile)
 
-   friend void ULib_init();
-
+   friend class ULib;
    friend class URDB;
    friend class UHTTP;
    friend class UString;

@@ -16,12 +16,8 @@
 
 #include <ulib/string.h>
 
-#define U_SECOND 1000000L
-
-class U_EXPORT UTimeVal : public timeval {
+class U_EXPORT UTimeVal : public timeval { // NB: the object can be used as (struct timeval) because UMemoryError is allocated after...
 public:
-
-   // NB: l'oggetto puo' essere usato come (struct timeval) in quanto UMemoryError viene allocato dopo...
 
    // Check for memory error
    U_MEMORY_TEST
@@ -30,27 +26,21 @@ public:
    U_MEMORY_ALLOCATOR
    U_MEMORY_DEALLOCATOR
 
-   static void adjust(void* tv_sec, void* tv_usec);
+   // default move assignment operator
+   U_MOVE_ASSIGNMENT(UTimeVal)
 
    void adjust()
       {
-      U_TRACE(0, "UTimeVal::adjust()")
+      U_TRACE_NO_PARAM(0, "UTimeVal::adjust()")
 
       U_CHECK_MEMORY
 
-      adjust(&tv_sec, &tv_usec);
+      u_adjtime(&tv_sec, &tv_usec);
       }
-
-   // COSTRUTTORI
 
    UTimeVal()
       {
       U_TRACE_REGISTER_OBJECT(0, UTimeVal, "", 0)
-
-   // U_INTERNAL_DUMP("this         = %p", this)
-   // U_INTERNAL_DUMP("&tv_sec      = %p", &tv_sec)
-   // U_INTERNAL_DUMP("&tv_usec     = %p", &tv_usec)
-   // U_INTERNAL_DUMP("memory._this = %p", memory._this)
 
       U_INTERNAL_ASSERT_EQUALS((void*)this, (void*)&tv_sec)
       }
@@ -70,7 +60,7 @@ public:
       U_TRACE_UNREGISTER_OBJECT(0, UTimeVal)
       }
 
-   // ASSEGNAZIONI
+   // ASSIGNMENT
 
    void set(long sec, long micro_sec = 0L)
       { tv_sec = sec; tv_usec = micro_sec; }
@@ -101,25 +91,30 @@ public:
       return *this;
       }
 
-   // VARIE
-
    bool isZero() const
       {
-      U_TRACE(0, "UTimeVal::isZero()")
+      U_TRACE_NO_PARAM(0, "UTimeVal::isZero()")
 
-      bool result = (tv_sec  == 0L &&
-                     tv_usec <= 1L);
+      if (tv_sec  == 0L &&
+          tv_usec <= 1L)
+         {
+         U_RETURN(true);
+         }
 
-      U_RETURN(result);
+      U_RETURN(false);
       }
 
    bool isNegativ() const
       {
-      U_TRACE(0,"UTimeVal::isNegativ()")
+      U_TRACE_NO_PARAM(0,"UTimeVal::isNegativ()")
 
-      bool result = (tv_sec < 0L || tv_usec < 0L);
+      if (tv_sec  < 0L ||
+          tv_usec < 0L)
+         {
+         U_RETURN(true);
+         }
 
-      U_RETURN(result);
+      U_RETURN(false);
       }
 
    bool notZero() const    { return (isZero()    == false); }
@@ -149,44 +144,48 @@ public:
    void setSecond(long sec)            { tv_sec = sec; }
    void setMicroSecond(long micro_sec) { tv_usec = micro_sec; }
 
-   void setMilliSecond(long timeoutMS)
-      {
-      U_TRACE(0, "UTimeVal::setMilliSecond(%ld)", timeoutMS)
-
-      tv_usec = timeoutMS * 1000L;
-
-      adjust();
-      }
-
    long getSecond() const
       {
-      U_TRACE(0, "UTimeVal::getSecond()")
+      U_TRACE_NO_PARAM(0, "UTimeVal::getSecond()")
 
       U_CHECK_MEMORY
 
-      long result = tv_sec + (tv_usec >= 500000L ? 1L : 0L);
+      long sec = tv_sec + (tv_usec >= 500000L ? 1L : 0L);
 
-      U_RETURN(result);
+      U_RETURN(sec);
       }
 
    long getMilliSecond() const
       {
-      U_TRACE(0, "UTimeVal::getMilliSecond()")
+      U_TRACE_NO_PARAM(0, "UTimeVal::getMilliSecond()")
 
       U_CHECK_MEMORY
 
-      long ms = tv_sec * 1000L + (tv_usec / 1000L);
+      long ms = (tv_sec  * 1000L) +
+                (tv_usec / 1000L);
 
       U_RETURN(ms);
       }
 
    double getMicroSecond() const
       {
-      U_TRACE(0, "UTimeVal::getMicroSecond()")
+      U_TRACE_NO_PARAM(0, "UTimeVal::getMicroSecond()")
 
       double micro_sec = (double) tv_sec + (tv_usec / 1000000.);
 
       U_RETURN(micro_sec);
+      }
+
+   void setMilliSecond(long timeoutMS)
+      {
+      U_TRACE(0, "UTimeVal::setMilliSecond(%ld)", timeoutMS)
+
+      tv_sec  = 0L;
+      tv_usec = timeoutMS * 1000L;
+
+      adjust();
+
+      U_ASSERT_EQUALS(timeoutMS, getMilliSecond())
       }
 
    // OPERATOR
@@ -200,9 +199,13 @@ public:
 
       U_CHECK_MEMORY
 
-      bool result = (tv_sec == t.tv_sec && tv_usec == t.tv_usec);
+      if (tv_sec  == t.tv_sec &&
+          tv_usec == t.tv_usec)
+         {
+         U_RETURN(true);
+         }
 
-      U_RETURN(result);
+      U_RETURN(false);
       }
 
    bool operator==(const UTimeVal& t) const
@@ -211,9 +214,13 @@ public:
 
       U_CHECK_MEMORY
 
-      bool result = (tv_sec == t.tv_sec && tv_usec == t.tv_usec);
+      if (tv_sec  == t.tv_sec &&
+          tv_usec == t.tv_usec)
+         {
+         U_RETURN(true);
+         }
 
-      U_RETURN(result);
+      U_RETURN(false);
       }
 
    bool operator< (const UTimeVal& t) const __pure;
@@ -312,12 +319,12 @@ public:
 
    // TIMESPEC
 
-   /*
-   struct timespec {
-      time_t tv_sec;  // seconds
-      long   tv_nsec; // nanoseconds
-      };
-   */
+   /**
+    * struct timespec {
+    *    time_t tv_sec;  // seconds
+    *    long   tv_nsec; // nanoseconds
+    * };
+    */
 
    void setTimeSpec(struct timespec* t)
       {
@@ -339,32 +346,67 @@ public:
 
       U_INTERNAL_ASSERT_RANGE(0L, tv_usec, U_SECOND)
 
-      bool result = (tv_sec >  t->tv_sec ||
-                    (tv_sec == t->tv_sec && ((tv_usec * 1000L) > t->tv_nsec)));
+      if ( tv_sec >  t->tv_sec ||
+          (tv_sec == t->tv_sec &&
+           ((tv_usec * 1000L) > t->tv_nsec)))
+         {
+         U_RETURN(true);
+         }
 
-      U_RETURN(result);
+      U_RETURN(false);
       }
 
    // SERVICES
 
-   void nanosleep();
+          void nanosleep();
+   static void nanosleep(time_t timeoutMS) { UTimeVal(timeoutMS / 1000L, (timeoutMS % 1000L) * 1000L).nanosleep(); }
 
    // CHRONOMETER
 
+   static struct timeval time_stop;
+
    void start()
       {
-      U_TRACE(1, "UTimeVal::start()")
+      U_TRACE_NO_PARAM(1, "UTimeVal::start()")
 
-      (void) U_SYSCALL(gettimeofday, "%p,%p", u_now, 0);
-
-      tv_sec  = u_now->tv_sec;
-      tv_usec = u_now->tv_usec;
+      u_gettimeofday(this);
       }
 
-   long stop();
-   long restart();
+   long stop()
+      {
+      U_TRACE_NO_PARAM(1, "UTimeVal::stop()")
 
-   double getTimeElapsed() const __pure;
+      u_gettimeofday(&time_stop);
+
+      long ms = (time_stop.tv_sec * 1000L + (time_stop.tv_usec / 1000L)) -
+                (          tv_sec * 1000L + (          tv_usec / 1000L));
+
+      U_RETURN(ms);
+      }
+
+   long restart()
+      {
+      U_TRACE_NO_PARAM(0, "UTimeVal::restart()")
+
+      long ms = stop();
+
+      tv_sec  = time_stop.tv_sec;
+      tv_usec = time_stop.tv_usec;
+
+      if (ms <= 0L) U_RETURN(0L);
+
+      U_RETURN(ms);
+      }
+
+   double getTimeElapsed() const __pure
+      {
+      U_TRACE_NO_PARAM(0, "UTimeVal::getTimeElapsed()")
+
+      double ms = ((time_stop.tv_sec * 1000000L + time_stop.tv_usec) -
+                   (          tv_sec * 1000000L +           tv_usec)) / 1000.;
+
+      U_RETURN(ms);
+      }
 
    // STREAM
 
@@ -372,9 +414,9 @@ public:
    friend U_EXPORT istream& operator>>(istream& is,       UTimeVal& t);
    friend U_EXPORT ostream& operator<<(ostream& os, const UTimeVal& t);
 
-#  ifdef DEBUG
+# ifdef DEBUG
    const char* dump(bool reset) const;
-#  endif
+# endif
 #endif
 };
 

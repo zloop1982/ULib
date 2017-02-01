@@ -37,10 +37,10 @@
  * the head link, the newest entry, the second-newest entry, etc.
  * Each link is a 4-byte number giving the xor of the positions of the adjacent items in the list.
  * Entries are always inserted immediately after the head and removed at the tail.
- * Each entry contains the following information: struct cache_hash_table_entry + key + data.
+ * Each entry contains the following information: struct cache_hash_table_entry + key + data
  */
 
-#define U_MAX_TTL         365L * U_ONE_DAY_IN_SECOND // 365 gg (1 anno)
+#define U_MAX_TTL         365L * U_ONE_DAY_IN_SECOND // 365 gg (1 year)
 #define U_MAX_KEYLEN     1000U
 #define U_MAX_DATALEN 1000000U
 
@@ -53,8 +53,6 @@ public:
    // Allocator e Deallocator
    U_MEMORY_ALLOCATOR
    U_MEMORY_DEALLOCATOR
-
-   // COSTRUTTORI
 
    UCache()
       {
@@ -95,31 +93,33 @@ public:
       }
 
    void add(       const UString& key, const UString& data,    uint32_t _ttl = 0);
-   void addContent(const UString& key, const UString& content, uint32_t _ttl = 0); // NB: + null terminator...
+   void addContent(const UString& key, const UString& content, uint32_t _ttl = 0); // NB: +null terminator...
 
    UString get(       const char* key, uint32_t len);
-   UString getContent(const char* key, uint32_t len); // NB: - null terminator...
+   UString getContent(const char* key, uint32_t len); // NB: -null terminator...
+
+   UString getContent(const UString& key) { return getContent(U_STRING_TO_PARAM(key)); }
 
    void loadContentOf(const UString& directory, const char* filter = 0, uint32_t filter_len = 0);
 
    // operator []
 
-   UString operator[](const UString& key) { return get(U_STRING_TO_PARAM(key)); }
+   UString operator[](const UString& key) { return getContent(key); }
 
    // SERVICES
 
    uint32_t getTTL() const
       {
-      U_TRACE(0, "UCache::getTTL()")
+      U_TRACE_NO_PARAM(0, "UCache::getTTL()")
 
       U_RETURN(ttl);
       }
 
    uint32_t getTime() const
       {
-      U_TRACE(0, "UCache::getTime()")
+      U_TRACE_NO_PARAM(0, "UCache::getTime()")
 
-      U_gettimeofday; // NB: optimization if it is enough a time resolution of one second...
+      U_gettimeofday // NB: optimization if it is enough a time resolution of one second...
 
       uint32_t now = (uint32_t)(u_now->tv_sec - start);
 
@@ -136,9 +136,9 @@ public:
 
    // DEBUG
 
-#  ifdef DEBUG
+# ifdef DEBUG
    const char* dump(bool reset) const;
-#  endif
+# endif
 #endif
 
 protected:
@@ -163,11 +163,20 @@ protected:
    char* x;          // cache      pointer
    cache_info* info; // cache info pointer
    time_t start;     // time of reference
-   uint32_t ttl;     // time to live (scadenza entry)
+   uint32_t ttl;     // time to live (expire entry)
 #ifdef DEBUG
    UString dir_template;
    time_t  dir_template_mtime;
 #endif
+
+   uint32_t hash(const char* key, uint32_t keylen)
+      {
+      U_TRACE(0, "UCache::hash(%.*S,%u)", keylen, key, keylen)
+
+      uint32_t keyhash = u_cdb_hash((unsigned char*)key, keylen, -1) * sizeof(uint32_t) % info->hsize;
+
+      U_RETURN(keyhash);
+      }
 
    uint32_t getLink(uint32_t pos) const
       {
@@ -234,16 +243,9 @@ protected:
    char* add(const char* key, uint32_t keylen, uint32_t datalen, uint32_t ttl);
 
 private:
-   inline uint32_t hash(const char* key, uint32_t keylen) U_NO_EXPORT;
-          void     init(UFile& _x, uint32_t size, bool bexist, bool brdonly) U_NO_EXPORT;
+   void init(UFile& _x, uint32_t size, bool bexist, bool brdonly) U_NO_EXPORT;
 
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UCache(const UCache&) = delete;
-   UCache& operator=(const UCache&) = delete;
-#else
-   UCache(const UCache&)            {}
-   UCache& operator=(const UCache&) { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UCache)
 };
 
 #endif

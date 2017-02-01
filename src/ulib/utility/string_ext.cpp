@@ -36,19 +36,17 @@
 #  include <pwd.h>
 #endif
 
-#include <errno.h>
-
 #ifdef USE_LIBSSL
 UString UStringExt::BIOtoString(BIO* bio)
 {
    U_TRACE(1, "UStringExt::BIOtoString(%p)", bio)
 
-   char* buffer = 0;
-   long len     = BIO_get_mem_data(bio, &buffer);
+   char* buffer;
+   long len = BIO_get_mem_data(bio, &buffer);
 
    if (len > 0)
       {
-      UString result((void*)buffer, len);
+      UString result((const void*)buffer, len);
 
       // only bio needs to be freed :)
 
@@ -75,11 +73,9 @@ UString UStringExt::ASN1TimetoString(ASN1_GENERALIZEDTIME* t)
       (void) U_SYSCALL(ASN1_GENERALIZEDTIME_print, "%p,%p", bio, t);
 
       result = BIOtoString(bio);
-
-      U_RETURN_STRING(result);
       }
 
-   return UString::getStringNull();
+   U_RETURN_STRING(result);
 }
 #endif
 
@@ -91,11 +87,7 @@ UString UStringExt::pregReplace(const UString& pattern, const UString& replaceme
 {
    U_TRACE(0, "UStringExt::pregReplace(%V,%V,%V)", pattern.rep, replacement.rep, subject.rep)
 
-   UPCRE _pcre(pattern, PCRE_FOR_REPLACE);
-
-   UString result = _pcre.replace(subject, replacement);
-
-   U_RETURN_STRING(result);
+   return UPCRE(pattern, PCRE_FOR_REPLACE).replace(subject, replacement);
 }
 
 UString UStringExt::sanitize(const UString& input)
@@ -110,10 +102,10 @@ UString UStringExt::sanitize(const UString& input)
 
    if (strip1 == 0)
       {
-      U_NEW_ULIB_OBJECT(strip1, UPCRE(U_STRING_FROM_CONSTANT("@<script[^>]*?>.*?</script>@si"), 0)); // Strip out javascript
-      U_NEW_ULIB_OBJECT(strip2, UPCRE(U_STRING_FROM_CONSTANT("@<[/!]*?[^<>]*?>@si"), 0));            // Strip out HTML tags
-      U_NEW_ULIB_OBJECT(strip3, UPCRE(U_STRING_FROM_CONSTANT("@<style[^>]*?>.*?</style>@siU"), 0));  // Strip style tags properly
-      U_NEW_ULIB_OBJECT(strip4, UPCRE(U_STRING_FROM_CONSTANT("@<![sS]*?--[ \t\n\r]*>@"), 0));        // Strip multi-line comments
+      U_NEW_ULIB_OBJECT(UPCRE, strip1, UPCRE(U_STRING_FROM_CONSTANT("@<script[^>]*?>.*?</script>@si"), 0U)); // Strip out javascript
+      U_NEW_ULIB_OBJECT(UPCRE, strip2, UPCRE(U_STRING_FROM_CONSTANT("@<[/!]*?[^<>]*?>@si"),            0U)); // Strip out HTML tags
+      U_NEW_ULIB_OBJECT(UPCRE, strip3, UPCRE(U_STRING_FROM_CONSTANT("@<style[^>]*?>.*?</style>@siU"),  0U)); // Strip style tags properly
+      U_NEW_ULIB_OBJECT(UPCRE, strip4, UPCRE(U_STRING_FROM_CONSTANT("@<![sS]*?--[ \t\n\r]*>@"),        0U)); // Strip multi-line comments
 
       strip1->study();
       strip2->study();
@@ -150,62 +142,12 @@ UString UStringExt::stripTags(const UString& html, UString* list_tags_allowed)
 }
 #endif
 
-UString UStringExt::stringFromNumber(long n)
-{
-   U_TRACE(0, "UStringExt::stringFromNumber(%lld)", n)
-
-   UString x(20U);
-
-#if SIZEOF_LONG == 4
-   x.setFromNumber32s(n);
-#else
-   x.setFromNumber64s(n);
-#endif
-
-   U_RETURN_STRING(x);
-}
-
-UString UStringExt::printSize(off_t n)
-{
-   U_TRACE(0, "UStringExt::printSize(%I)", n)
-
-   UString x(32U);
-
-   u_printSize(x.data(), n);
-
-   x.size_adjust();
-
-   U_RETURN_STRING(x);
-}
-
-UString UStringExt::numberToString(double n)
-{
-   U_TRACE(0, "UStringExt::numberToString(%f)", n)
-
-   UString x(32U);
-
-   x.snprintf("%f", n);
-
-   U_RETURN_STRING(x);
-}
-
-UString UStringExt::numberToString(uint32_t n)
-{
-   U_TRACE(0, "UStringExt::numberToString(%u)", n)
-
-   UString x(22U);
-
-   x.setFromNumber32(n);
-
-   U_RETURN_STRING(x);
-}
-
 UString UStringExt::numberToString(uint64_t n)
 {
    U_TRACE(0, "UStringExt::numberToString(%llu)", n)
 
-   int i;
    UString x(32U);
+   unsigned int i;
    uint64_t u = 1024ULL;
 
    for (i = 0; i < U_CONSTANT_SIZE("bKMGTPEZY"); ++i)
@@ -225,7 +167,7 @@ UString UStringExt::numberToString(uint64_t n)
       {
       float fsize = (float)((double)n/(u/1024ULL));
 
-      x.snprintf("%.1f%c", fsize, "bKMGTPEZY"[i]);
+      x.snprintf(U_CONSTANT_TO_PARAM("%.1f%c"), fsize, "bKMGTPEZY"[i]);
       }
 
    U_RETURN_STRING(x);
@@ -247,11 +189,11 @@ UString UStringExt::expandTab(const char* s, uint32_t n, int tab)
          {
          len = _end - start;
 
-         (void) x.reserve(x.size() + len + tab);
+         (void) x.reserve(len + tab);
 
          if (len)
             {
-            U_MEMCPY(x.rep->end(), s + start, len);
+            U_MEMCPY(x.pend(), s + start, len);
 
             x.rep->_length += len;
             }
@@ -281,12 +223,12 @@ UString UStringExt::substitute(const char* s, uint32_t n, const char* a, uint32_
 {
    U_TRACE(1, "UStringExt::substitute(%.*S,%u,%.*S,%u,%.*S,%u)", n, s, n, n1, a, n1, n2, b, n2)
 
-   U_INTERNAL_ASSERT_MAJOR_MSG(n, 0, "elaborazione su stringa vuota: inserire if empty()...")
+   U_INTERNAL_ASSERT_MAJOR(n1, 0)
 
    void* p;
    uint32_t start = 0, len, capacity = (n / n1);
 
-   if (capacity == 0)                     capacity  = 10U;
+   if (capacity == 0)                     capacity  = 22U;
    if (n2)                                capacity *= n2;
    if (capacity > (256U * 1024U * 1024U)) capacity  = (256U * 1024U * 1024U); // worst case... 
 
@@ -300,18 +242,18 @@ UString UStringExt::substitute(const char* s, uint32_t n, const char* a, uint32_
 
       U_INTERNAL_DUMP("start = %u _end = %u len = %u", start, _end, len)
 
-      (void) x.reserve(x.size() + len + n2);
+      (void) x.reserve(len + n2);
 
       if (len)
          {
-         U_MEMCPY(x.rep->end(), s + start, len);
+         U_MEMCPY(x.pend(), s + start, len);
 
          x.rep->_length += len;
          }
 
       if (n2)
          {
-         U_MEMCPY(x.rep->end(), b, n2);
+         U_MEMCPY(x.pend(), b, n2);
 
          x.rep->_length += n2;
          }
@@ -326,7 +268,7 @@ UString UStringExt::substitute(const char* s, uint32_t n, const char* a, uint32_
    U_RETURN_STRING(x);
 }
 
-// dos2unix '\n' convertor
+// dos2unix: '\n' <=> '\r\n' convertor
 
 UString UStringExt::dos2unix(const UString& s, bool unix2dos)
 {
@@ -335,7 +277,7 @@ UString UStringExt::dos2unix(const UString& s, bool unix2dos)
    UString result(s.size() * 2);
 
    const char* ptr   = s.data();
-   const char* _end  = s.end();
+   const char* _end  = s.pend();
          char* str   = result.data();
          char* start = str;
 
@@ -364,10 +306,9 @@ UString UStringExt::expandPath(const char* s, uint32_t n, const UString* environ
 {
    U_TRACE(0, "UStringExt::expandPath(%.*S,%u,%p)", n, s, n, environment)
 
-   U_INTERNAL_ASSERT_MAJOR_MSG(n, 0, "elaborazione su stringa vuota: inserire if empty()...")
+   UString x(n+100);
 
    char c = *s;
-   UString x(n+100);
 
    if (c == '~' ||
        c == '$')
@@ -428,18 +369,16 @@ UString UStringExt::prepareForEnvironmentVar(const char* s, uint32_t n)
 {
    U_TRACE(0, "UStringExt::prepareForEnvironmentVar(%.*S,%u)", n, s, n)
 
-   U_INTERNAL_ASSERT_MAJOR_MSG(n, 0, "elaborazione su stringa vuota: inserire if empty()...")
-
    bool quoted;
    const char* p;
    const char* ptr;
    const char* ptr1;
    uint32_t len, sz = 0;
    UString result(n + (n / 4));
-   const char* _end = s + n - 1;
    char c = 0, delimiter = (memchr(s, '\n', n) ? '\n' : ' ');
 
    char* str = result.data();
+   const char* _end = s + n - 1;
 
    while (s < _end)
       {
@@ -549,8 +488,6 @@ end:
 UString UStringExt::expandEnvironmentVar(const char* s, uint32_t n, const UString* environment)
 {
    U_TRACE(0, "UStringExt::expandEnvironmentVar(%.*S,%u,%p)", n, s, n, environment)
-
-   U_INTERNAL_ASSERT_MAJOR_MSG(n, 0, "elaborazione su stringa vuota: inserire if empty()...")
 
    char* new_ptr;
    const char* p;
@@ -678,7 +615,7 @@ loop:
       U_INTERNAL_DUMP("quoted = %b", quoted)
 
       s   = environment->c_pointer(++start);
-      end = environment->end();
+      end = environment->pend();
 
       U_INTERNAL_DUMP("end - s = %ld", end - s)
 
@@ -691,7 +628,11 @@ loop:
 
             if (quoted)
                {
-               if (c1 != c || ptr[-1] == '\\') continue;
+               if (c1 != c ||
+                   ptr[-1] == '\\')
+                  {
+                  continue;
+                  }
                }
             else
                {
@@ -709,8 +650,8 @@ loop:
          while (++ptr < end);
 
          n = end - s;
-assign:
-         U_INTERNAL_DUMP("n = %u", n)
+
+assign:  U_INTERNAL_DUMP("n = %u", n)
 
          U_INTERNAL_ASSERT_MAJOR(n, 0)
 
@@ -720,8 +661,7 @@ assign:
       }
    else
       {
-next:
-      char buffer[128];
+next: char buffer[128];
 
       U_INTERNAL_ASSERT_MINOR(n, sizeof(buffer))
 
@@ -737,19 +677,6 @@ end:
    U_RETURN_STRING(value);
 }
 
-UString UStringExt::getPidProcess()
-{
-   U_TRACE(0, "UStringExt::getPidProcess()")
-
-   UString value(32U);
-
-   U_MEMCPY(value.data(), u_pid_str, u_pid_str_len);
-
-   value.size_adjust(u_pid_str_len);
-
-   U_RETURN_STRING(value);
-}
-
 extern void* expressionParserAlloc(void* (*mallocProc)(size_t));
 extern void  expressionParserFree(void* p, void (*freeProc)(void*));
 extern void  expressionParserTrace(FILE* stream, char* zPrefix);
@@ -760,18 +687,21 @@ UString UStringExt::evalExpression(const UString& expr, const UString& environme
    U_TRACE(0, "UStringExt::evalExpression(%V,%V)", expr.rep, environment.rep)
 
    int token_id;
+   UString* ptoken;
    UTokenizer t(expr);
    UString token, result = *UString::str_true;
 
    void* pParser = expressionParserAlloc(malloc);
 
-#ifdef DEBUG
-// (void) fprintf(stderr, "start parsing expr: \"%v\"\n", expr));
-// expressionParserTrace(stderr, (char*)"parser: ");
+#ifdef U_DEBUG
+   /*
+   (void) fprintf(stderr, "start parsing expr: \"%.*s\"\n", U_STRING_TO_TRACE(expr));
+
+    expressionParserTrace(stderr, (char*)"parser: ");
+   */
 #endif
 
-   while (result &&
-          (token_id = t.getTokenId(token)) > 0)
+   while ((token_id = t.getTokenId(&token)) > 0)
       {
       if (token_id == U_TK_NAME)
          {
@@ -784,15 +714,25 @@ UString UStringExt::evalExpression(const UString& expr, const UString& environme
          token_id = U_TK_VALUE;
          }
 
-      expressionParser( pParser, token_id, U_NEW(UString(token)), &result);
+      U_NEW(UString, ptoken, UString(token));
+
+      expressionParser(pParser, token_id, ptoken, &result);
+
+      U_INTERNAL_DUMP("result = %V", result.rep)
+
+      if (result.empty()) break;
       }
 
-   expressionParser(    pParser,        0,                     0, &result);
+   expressionParser(pParser, 0, 0, &result);
 
    expressionParserFree(pParser, free);
 
-#ifdef DEBUG
-// (void) fprintf(stderr, "ended parsing expr: \"%v\"\n", expr));
+#if defined(U_DEBUG) && !defined(U_SUBSTR_INC_REF)
+   /*
+   (void) fprintf(stderr, "ended parsing expr: \"%.*s\"\n", U_STRING_TO_TRACE(expr));
+
+   U_INTERNAL_DUMP("token.rep->parent->child = %d", token.rep->parent->child)
+   */
 #endif
 
    U_RETURN_STRING(result);
@@ -804,15 +744,11 @@ UString UStringExt::insertEscape(const char* s, uint32_t n, char delimiter)
 {
    U_TRACE(0, "UStringExt::insertEscape(%.*S,%u,%C)", n, s, n, delimiter)
 
-   U_INTERNAL_ASSERT_MAJOR_MSG(n,0,"elaborazione su stringa vuota: inserire if empty()...")
-
-   U_INTERNAL_ASSERT_POINTER(memchr(s, delimiter, n))
-
    char* p;
    uint32_t sz, sz1 = 0;
    UString result(n * 2);
-   const char* _end = s + n;
    char* str = result.data();
+   const char* _end = s + n;
 
    while (s < _end)
       {
@@ -855,15 +791,11 @@ UString UStringExt::removeEscape(const char* s, uint32_t n)
 {
    U_TRACE(0, "UStringExt::removeEscape(%.*S,%u,%C)", n, s, n)
 
-   U_INTERNAL_ASSERT_MAJOR_MSG(n,0,"elaborazione su stringa vuota: inserire if empty()...")
-
-   U_INTERNAL_ASSERT_POINTER(memchr(s, '\\', n))
-
    char* p;
    UString result(n);
    uint32_t sz, sz1 = 0;
-   const char* _end = s + n;
    char* str = result.data();
+   const char* _end = s + n;
 
    while (s < _end)
       {
@@ -935,8 +867,6 @@ UString UStringExt::trimPunctuation(const char* s, uint32_t n)
 {
    U_TRACE(0, "UStringExt::trimPunctuation(%.*S,%u)", n, s, n)
 
-   // U_INTERNAL_ASSERT_MAJOR_MSG(n,0,"elaborazione su stringa vuota: inserire if empty()...")
-
    int32_t i = 0;
    UString result(n);
 
@@ -961,13 +891,11 @@ UString UStringExt::trimPunctuation(const char* s, uint32_t n)
 }
 
 // returns a string that has whitespace removed from the start and the end,
-// and which has each sequence of internal whitespace replaced with a single space.
+// and which has each sequence of internal whitespace replaced with a single space
 
 UString UStringExt::simplifyWhiteSpace(const char* s, uint32_t n)
 {
    U_TRACE(0, "UStringExt::simplifyWhiteSpace(%.*S,%u)", n, s, n)
-
-// U_INTERNAL_ASSERT_MAJOR_MSG(n,0,"elaborazione su stringa vuota: inserire if empty()...")
 
    UString result(n);
    uint32_t sz1, sz = 0;
@@ -1015,8 +943,6 @@ UString UStringExt::removeWhiteSpace(const char* s, uint32_t n)
 {
    U_TRACE(0, "UStringExt::removeWhiteSpace(%.*S,%u)", n, s, n)
 
-   // U_INTERNAL_ASSERT_MAJOR_MSG(n,0,"elaborazione su stringa vuota: inserire if empty()...")
-
    UString result(n);
    uint32_t sz1, sz = 0;
    char* str = result.data();
@@ -1061,8 +987,6 @@ UString UStringExt::removeEmptyLine(const char* s, uint32_t n)
 {
    U_TRACE(0, "UStringExt::removeEmptyLine(%.*S,%u)", n, s, n)
 
-// U_INTERNAL_ASSERT_MAJOR_MSG(n,0,"elaborazione su stringa vuota: inserire if empty()...")
-
    UString result(n);
    uint32_t sz1, sz = 0;
    char* str = result.data();
@@ -1104,7 +1028,7 @@ UString UStringExt::removeEmptyLine(const char* s, uint32_t n)
 }
 
 // Within a string we can count number of occurrence of another string by using substr_count function.
-// This function takes the main string and the search string as inputs and returns number of time search string is found inside the main string.
+// This function takes the main string and the search string as inputs and returns number of time search string is found inside the main string
 
 __pure uint32_t UStringExt::substr_count(const char* s, uint32_t n, const char* a, uint32_t n1)
 {
@@ -1195,19 +1119,8 @@ UString UStringExt::basename(const char* s, uint32_t n)
    U_RETURN_STRING(same);
 }
 
-__pure uint32_t UStringExt::getBaseNameLen(const UString& s)
-{
-   U_TRACE(0, "UStringExt::getBaseNameLen(%V)", s.rep)
-
-   uint32_t len = s.size(),
-            pos = s.rfind('/'); // Find last '/'
-
-   if (pos != U_NOT_FOUND) len -= pos + 1;
-
-   U_RETURN(len);
-}
-
-/* Sort two version numbers, comparing equivalently seperated strings of digits numerically.
+/**
+ * Sort two version numbers, comparing equivalently seperated strings of digits numerically.
  *
  * Returns a positive number if (a > b)
  * Returns a negative number if (a < b)
@@ -1246,8 +1159,11 @@ __pure int UStringExt::compareversion(const char* a, uint32_t alen, const char* 
 
       U_INTERNAL_ASSERT_DIFFERS(apos1,apos2) 
 
-      /* isdigit(a[0]) != isdigit(b[0])
-       * arbitrarily sort the non-digit first */
+      /**
+       * isdigit(a[0]) != isdigit(b[0])
+       *
+       * arbitrarily sort the non-digit first
+       */
 
       if (bpos1 == bpos2) U_RETURN(isnum ? 1 : -1);
 
@@ -1279,17 +1195,6 @@ __pure int UStringExt::compareversion(const char* a, uint32_t alen, const char* 
 
    /* the version with a suffix remaining is greater */
    U_RETURN(apos2 < alen ? 1 : -1);
-}
-
-__pure int UStringExt::compareversion(const UString& s, const UString& a) { return compareversion(U_STRING_TO_PARAM(s), U_STRING_TO_PARAM(a)); }
-
-__pure bool UStringExt::isEmailAddress(const UString& s)
-{
-   U_TRACE(0, "UStringExt::isEmailAddress(%V)", s.rep)
-
-   if (u_validate_email_address(U_STRING_TO_PARAM(s))) U_RETURN(true);
-
-   U_RETURN(false);
 }
 
 UString UStringExt::compress(const char* s, uint32_t sz)
@@ -1414,7 +1319,7 @@ UString UStringExt::deflate(const char* s, uint32_t len, int type) // .gz compre
          }
 #  endif
 
-      sz = (len + U_PAGEMASK) & ~U_PAGEMASK;
+      sz = UFile::getSizeAligned(len);
 
       UString result(len, sz, UFile::pfree);
 
@@ -1481,44 +1386,6 @@ UString UStringExt::gunzip(const char* ptr, uint32_t sz, uint32_t space) // .gz 
 #else
    return UString::getStringNull();
 #endif
-}
-
-// convert letter to upper or lower case
-
-UString UStringExt::tolower(const char* s, uint32_t n)
-{
-   U_TRACE(0, "UStringExt::tolower(%.*S,%u)", n, s, n)
-
-   U_INTERNAL_ASSERT_MAJOR_MSG(n, 0, "elaborazione su stringa vuota: inserire if empty()...")
-
-   UString r(n);
-
-         char* ptr =      r.rep->data();
-   const char* end = s + (r.rep->_length = n);
-
-   while (s < end) *ptr++ = u__tolower(*s++);
-
-   *ptr = '\0';
-
-   U_RETURN_STRING(r);
-}
-
-UString UStringExt::toupper(const char* s, uint32_t n)
-{
-   U_TRACE(0, "UStringExt::toupper(%.*S,%u)", n, s, n)
-
-   U_INTERNAL_ASSERT_MAJOR_MSG(n, 0, "elaborazione su stringa vuota: inserire if empty()...")
-
-   UString r(n);
-
-         char* ptr =      r.rep->data();
-   const char* end = s + (r.rep->_length = n);
-
-   while (s < end) *ptr++ = u__toupper(*s++);
-
-   *ptr = '\0';
-
-   U_RETURN_STRING(r);
 }
 
 // gived the name retrieve pointer on value element from headers "name1:value1\nname2:value2\n"...
@@ -1728,24 +1595,6 @@ uint32_t UStringExt::getNameValueFromData(const UString& content, UVector<UStrin
    U_RETURN(result);
 }
 
-void UStringExt::buildTokenInt(const char* token, uint32_t value, UString& buffer)
-{
-   U_TRACE(0, "UStringExt::buildTokenInt(%S,%u,%V)", token, value, buffer.rep)
-
-   U_INTERNAL_ASSERT_POINTER(token)
-   U_INTERNAL_ASSERT(u__strlen(token, __PRETTY_FUNCTION__) == U_TOKEN_NM)
-
-   uint32_t start = buffer.size();
-
-   char* ptr = buffer.c_pointer(start);
-
-   U_MEMCPY(ptr, token, U_TOKEN_NM);
-
-   u_int2hex(ptr + U_TOKEN_NM, value);
-
-   buffer.size_adjust(start + U_TOKEN_LN);
-}
-
 // Minifies CSS/JS by removing comments and whitespaces
 
 static inline bool unextendable(char c)
@@ -1768,7 +1617,7 @@ static inline bool unextendable(char c)
 }
 
 // return true for any character that must separated from other "extendable"
-// characters by whitespace on the _right_ in order keep tokens separate.
+// characters by whitespace on the _right_ in order keep tokens separate
 
 static inline bool isExtendableOnRight(char c)
 {
@@ -1782,7 +1631,7 @@ static inline bool isExtendableOnRight(char c)
 }
 
 // return true for any character that must separated from other "extendable"
-// characters by whitespace on the _left_ in order keep tokens separate.
+// characters by whitespace on the _left_ in order keep tokens separate
 
 static inline bool isExtendableOnLeft(char c)
 {
@@ -1790,16 +1639,14 @@ static inline bool isExtendableOnLeft(char c)
 
    // NB: right paren only here
 
-   bool result = ((unextendable(c) || c == ')') == false);
+   if ((unextendable(c) || c == ')') == false) U_RETURN(true);
 
-   U_RETURN(result);
+   U_RETURN(false);
 }
 
 UString UStringExt::minifyCssJs(const char* s, uint32_t n)
 {
    U_TRACE(0+256, "UStringExt::minifyCssJs(%.*S,%u)", n, s, n)
-
-   U_INTERNAL_ASSERT_MAJOR_MSG(n, 0, "elaborazione su stringa vuota: inserire if empty()...")
 
    char quote;
    UString r(n);

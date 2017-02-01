@@ -55,7 +55,7 @@ int UProxyPlugIn::handlerConfig(UFileConfig& cfg)
 
 int UProxyPlugIn::handlerInit()
 {
-   U_TRACE(0, "UProxyPlugIn::handlerInit()")
+   U_TRACE_NO_PARAM(0, "UProxyPlugIn::handlerInit()")
 
    if (UHTTP::vservice == 0 ||
        UHTTP::vservice->empty())
@@ -68,7 +68,7 @@ int UProxyPlugIn::handlerInit()
 #endif
 */
 
-   client_http = U_NEW(UHttpClient<UTCPSocket>((UFileConfig*)0));
+   U_NEW(UHttpClient<UTCPSocket>, client_http, UHttpClient<UTCPSocket>((UFileConfig*)0));
 
    U_RETURN(U_PLUGIN_HANDLER_PROCESSED | U_PLUGIN_HANDLER_GO_ON);
 }
@@ -77,7 +77,7 @@ int UProxyPlugIn::handlerInit()
 
 int UProxyPlugIn::handlerRequest()
 {
-   U_TRACE(0, "UProxyPlugIn::handlerRequest()")
+   U_TRACE_NO_PARAM(0, "UProxyPlugIn::handlerRequest()")
 
    if (UHTTP::isProxyRequest())
       {
@@ -88,11 +88,11 @@ int UProxyPlugIn::handlerRequest()
          {
          U_ASSERT(UClientImage_Base::environment->empty())
 
-         if (UHTTP::getCGIEnvironment(*UClientImage_Base::environment, U_CGI))
+         if (UHTTP::getCGIEnvironment(*UClientImage_Base::environment, U_GENERIC))
             {
             if (UHTTP::service->environment) UClientImage_Base::environment->append(UHTTP::service->environment);
 
-            if (UHTTP::processCGIRequest(*(UHTTP::service->command), "") &&
+            if (UHTTP::processCGIRequest(UHTTP::service->command) &&
                 UHTTP::processCGIOutput(false, false))
                {
                if (UHTTP::service->isResponseForClient()) output_to_client = true; // send output as response to client...
@@ -153,7 +153,7 @@ int UProxyPlugIn::handlerRequest()
             {
             UWebSocket::checkForInitialData(); // check if we have read more data than necessary...
 
-            while (UWebSocket::handleDataFraming(UServer_Base::csocket) == STATUS_CODE_OK                                                             &&
+            while (UWebSocket::handleDataFraming(UServer_Base::csocket) == STATUS_CODE_OK                                                            &&
                    (client_http->UClient_Base::prepareRequest(*UClientImage_Base::wbuffer), client_http->UClient_Base::sendRequestAndReadResponse()) &&
                    UWebSocket::sendData(UWebSocket::message_type, (const unsigned char*)U_STRING_TO_PARAM(client_http->UClient_Base::response)))
                {
@@ -168,7 +168,7 @@ int UProxyPlugIn::handlerRequest()
                                                 client_http->setFollowRedirects(UHTTP::service->isFollowRedirects(), true);
          if (UHTTP::service->isAuthorization()) client_http->setRequestPasswordAuthentication(UHTTP::service->getUser(), UHTTP::service->getPassword());
 
-         // connect to server and send request and get response
+         // connect to server, send request and get response
 
          if (output_to_server == false) *UClientImage_Base::wbuffer = *UClientImage_Base::request;
 
@@ -188,7 +188,9 @@ int UProxyPlugIn::handlerRequest()
                }
             else
                {
-               U_http_data_chunked = false;
+               U_http_flag &= ~HTTP_IS_DATA_CHUNKED;
+
+               U_INTERNAL_DUMP("U_http_data_chunked = %b", U_http_data_chunked)
 
                // NB: in this case we broke the transparency of the response to avoid a duplication of effort to read chunked data...
 
@@ -207,18 +209,18 @@ int UProxyPlugIn::handlerRequest()
                U_ASSERT(UStringExt::endsWith(content_type, U_CONSTANT_TO_PARAM(U_CRLF)))
 
 #           ifdef USE_LIBZ
-               if (body.size() > U_MIN_SIZE_FOR_DEFLATE &&
-                   UHttpClient_Base::u_http_info_save.flag[12]) // U_http_is_accept_gzip
+               if (U_http_is_accept_gzip_save &&
+                   body.size() > U_MIN_SIZE_FOR_DEFLATE)
                   {
                   body = UStringExt::deflate(body, 1);
                   }
 #           endif
 
-               UHTTP::setResponse(&content_type, &body);
+               UHTTP::setResponse(content_type, &body);
                }
             }
-#     ifdef U_LOG_ENABLE
-         else if (UServer_Base::isLog()) ULog::logResponse(*UClientImage_Base::wbuffer, UServer_Base::mod_name[0], "", 0);
+#     ifndef U_LOG_DISABLE
+         else if (UServer_Base::isLog()) ULog::logResponse(*UClientImage_Base::wbuffer, UServer_Base::mod_name[0], U_CONSTANT_TO_PARAM(""), 0);
 #     endif
 
          client_http->reset(); // reset reference to request...

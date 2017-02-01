@@ -1,4 +1,4 @@
-// ============================================================================
+/* ============================================================================
 //
 // = LIBRARY
 //    ULib - c++ library
@@ -9,7 +9,7 @@
 // = AUTHOR
 //    Stefano Casazza
 //
-// ============================================================================
+// ============================================================================ */
 
 #include <ulib/base/utility.h>
 #include <ulib/base/coder/quoted_printable.h>
@@ -44,7 +44,7 @@
  * gateways from eating them. If a line ends with = followed by CR-LF, those characters are ignored; this lets you
  * continue ("wrap") a long line. Lines must be no more than 76 characters long, not counting the final CR-LF. Longer
  * lines will be broken when the message is encoded and joined again by decoding.
- * Quoted-printable text was designed to be (mostly) readable by people with non-MIME mail programs. 
+ * Quoted-printable text was designed to be (mostly) readable by people with non-MIME mail programs 
  */
 
 uint32_t u_quoted_printable_encode(const unsigned char* restrict inptr, uint32_t len, unsigned char* restrict out)
@@ -84,8 +84,8 @@ uint32_t u_quoted_printable_encode(const unsigned char* restrict inptr, uint32_t
             if (ws)
                {
                *outptr++ = '=';
-               *outptr++ = u_hex_upper[(ws >> 4) & 0xf];
-               *outptr++ = u_hex_upper[ ws       & 0xf];
+               *outptr++ = "0123456789ABCDEF"[(ws >> 4) & 0xf];
+               *outptr++ = "0123456789ABCDEF"[ ws       & 0xf];
 
                ws = '\0';
                }
@@ -111,8 +111,8 @@ uint32_t u_quoted_printable_encode(const unsigned char* restrict inptr, uint32_t
                 ch == '=')
                {
                *outptr++ = '=';
-               *outptr++ = u_hex_upper[(ch >> 4) & 0xf];
-               *outptr++ = u_hex_upper[ ch       & 0xf];
+               *outptr++ = "0123456789ABCDEF"[(ch >> 4) & 0xf];
+               *outptr++ = "0123456789ABCDEF"[ ch       & 0xf];
 
                n += 3;
                }
@@ -135,8 +135,9 @@ uint32_t u_quoted_printable_encode(const unsigned char* restrict inptr, uint32_t
             ws = '\0';
             }
 
-         *outptr++ = '=';
-         *outptr++ = '\n';
+         u_put_unalignedp16(outptr, U_MULTICHAR_CONSTANT16('=','\n'));
+         
+         outptr += 2;
 
          n = 0;
          }

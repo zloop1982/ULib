@@ -27,8 +27,6 @@ public:
    U_MEMORY_ALLOCATOR
    U_MEMORY_DEALLOCATOR
 
-   // Costruttori
-
    UXMLElement()
       {
       U_TRACE_REGISTER_OBJECT(0, UXMLElement, "", 0)
@@ -81,9 +79,9 @@ public:
 #ifdef U_STDCPP_ENABLE
    friend U_EXPORT ostream& operator<<(ostream& os, const UXMLElement& e);
 
-#  ifdef DEBUG
+# ifdef DEBUG
    const char* dump(bool reset) const;
-#  endif
+# endif
 #endif
 
 protected:
@@ -95,11 +93,7 @@ protected:
    UVector<UXMLAttribute*> attributeContainer; // Retrieve attributes using attribute name
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UXMLElement& operator=(const UXMLElement&) = delete;
-#else
-   UXMLElement& operator=(const UXMLElement&) { return *this; }
-#endif      
+   U_DISALLOW_ASSIGN(UXMLElement)
 };
 
 #endif

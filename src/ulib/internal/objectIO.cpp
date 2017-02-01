@@ -37,9 +37,9 @@ void UObjectIO::init(char* t, uint32_t sz)
 #endif
 }
 
-void UObjectIO::input(char* t, uint32_t tlen)
+void UObjectIO::input(const char* t, uint32_t tlen)
 {
-   U_INTERNAL_TRACE("UObjectIO::input(%s,%u)", t, tlen)
+   U_INTERNAL_TRACE("UObjectIO::input(%.*s,%u)", tlen, t, tlen)
 
 #ifdef HAVE_OLD_IOSTREAM
    is = new istrstream(t, tlen);
@@ -75,13 +75,16 @@ void UObjectIO::output()
    U_INTERNAL_PRINT("pos = %ld, os->pcount() = %d", pos, os->pcount())
 }
 
-UStringRep* UObjectIO::create()
+UStringRep* UObjectIO::create(bool bcopy)
 {
-   U_TRACE(0, "UObjectIO::create()")
+   U_TRACE(0, "UObjectIO::create(%b)", bcopy)
 
    UObjectIO::output();
 
-   UStringRep* rep = U_NEW(UStringRep(buffer_output, buffer_output_len));
+   UStringRep* rep;
+
+   if (bcopy) rep = UStringRep::create(buffer_output_len, buffer_output_len, (const char*)buffer_output);
+   else       U_NEW(UStringRep, rep, UStringRep(buffer_output, buffer_output_len));
 
    U_INTERNAL_PRINT("rep = %V", rep)
 

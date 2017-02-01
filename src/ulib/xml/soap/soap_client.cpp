@@ -24,7 +24,7 @@ USOAPClient_Base::~USOAPClient_Base()
 
 void USOAPClient_Base::clearData()
 {
-   U_TRACE(0, "USOAPClient_Base::clearData()")
+   U_TRACE_NO_PARAM(0, "USOAPClient_Base::clearData()")
 
    if (parser)
       {
@@ -35,7 +35,7 @@ void USOAPClient_Base::clearData()
 
 bool USOAPClient_Base::readResponse()
 {
-   U_TRACE(0, "USOAPClient_Base::readResponse()")
+   U_TRACE_NO_PARAM(0, "USOAPClient_Base::readResponse()")
 
    if (UClient_Base::readHTTPResponse()) U_RETURN(true);
 
@@ -50,16 +50,17 @@ bool USOAPClient_Base::processRequest(URPCMethod& method)
 
    UString req = URPCMethod::encoder->encodeMethodCall(method, *UString::str_ns);
 
-   UClient_Base::prepareRequest(UHttpClient_Base::wrapRequest(&req, UClient_Base::host_port, 2, U_CONSTANT_TO_PARAM("/soap"), "", "application/soap+xml; charset=\"utf-8\""));
+   UClient_Base::prepareRequest(UHttpClient_Base::wrapRequest(&req, UClient_Base::host_port, 2,
+                                U_CONSTANT_TO_PARAM("/soap"), "", U_CONSTANT_TO_PARAM("application/soap+xml; charset=\"utf-8\"")));
 
    if (sendRequest() &&
        readResponse())
       {
-      if (parser == 0) parser = U_NEW(USOAPParser);
+      if (parser == 0) U_NEW(USOAPParser, parser, USOAPParser);
 
       if (parser->parse(UClient_Base::response))
          {
-         if (parser->getMethodName() == *UString::str_fault) UClient_Base::response = parser->getFaultResponse();
+         if (parser->getMethodName().equal(U_CONSTANT_TO_PARAM("Fault"))) UClient_Base::response = parser->getFaultResponse();
          else
             {
 #        ifndef U_COVERITY_FALSE_POSITIVE // Explicit null dereferenced (FORWARD_NULL)

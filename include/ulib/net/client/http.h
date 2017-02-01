@@ -14,6 +14,7 @@
 #ifndef U_HTTP_CLIENT_H
 #define U_HTTP_CLIENT_H 1
 
+#include <ulib/mime/entity.h>
 #include <ulib/net/client/client.h>
 
 /**
@@ -28,7 +29,7 @@
  * A UHttpClient instance can make only one HTTP request (although
  * this one request may involve several message exchanges if HTTP redirection
  * or authorization is involved). However, HTTP 1.1 introduces
- * persistent connections which can make more effective use of TCP/IP.
+ * persistent connections which can make more effective use of TCP/IP
  */
 
 class UMimeHeader;
@@ -37,6 +38,7 @@ class WiAuthNodog;
 class UServer_Base;
 class UProxyPlugIn;
 class UNoCatPlugIn;
+class UTwilioClient;
 class USOAPClient_Base;
 
 class U_EXPORT UHttpClient_Base : public UClient_Base {
@@ -56,11 +58,28 @@ public:
     * @param value the value to be associated with the named property
     */
 
-   void    setHeader(const UString& name, const UString& value);
-   void removeHeader(const UString& name);
+   void setHeader(const char* key, uint32_t keylen, const UString& value)
+      {
+      U_TRACE(0, "UHttpClient_Base::setHeader(%.*S,%u,%V)", keylen, key, keylen, value.rep)
 
-   void setHeaderHostPort( const UString& h) { setHeader(*UString::str_host, h); }
-   void setHeaderUserAgent(const UString& u) { setHeader(*UString::str_user_agent, u); }
+      U_INTERNAL_ASSERT(value)
+      U_INTERNAL_ASSERT_POINTER(requestHeader)
+
+      requestHeader->setHeader(key, keylen, value);
+      }
+
+   void removeHeader(const UString& name)
+      {
+      U_TRACE(0, "UHttpClient_Base::removeHeader(%V,)", name.rep)
+
+      U_INTERNAL_ASSERT(name)
+      U_INTERNAL_ASSERT_POINTER(requestHeader)
+
+      requestHeader->removeHeader(name);
+      }
+
+   void setHeaderHostPort( const UString& h) { setHeader(U_CONSTANT_TO_PARAM("Host"), h); }
+   void setHeaderUserAgent(const UString& u) { setHeader(U_CONSTANT_TO_PARAM("User-Agent"), u); }
 
    // Returns the MIME header that were received in response from the HTTP server
 
@@ -81,11 +100,15 @@ public:
 
    bool isPasswordAuthentication() const
       {
-      U_TRACE(0, "UHttpClient_Base::isPasswordAuthentication()")
+      U_TRACE_NO_PARAM(0, "UHttpClient_Base::isPasswordAuthentication()")
 
-      bool result = (user && password);
+      if (user &&
+          password)
+         {
+         U_RETURN(true);
+         }
 
-      U_RETURN(result);
+      U_RETURN(false);
       }
 
    void setRequestPasswordAuthentication(const UString& _user, const UString& _password)
@@ -116,7 +139,7 @@ public:
    // Redirection may be an iterative process, so it continues until
    // we receive a 200 OK response or the maximum number of redirects is exceeded.
    //
-   // We do not process Location headers when accompanying a 200 OK response.
+   // We do not process Location headers when accompanying a 200 OK response
    //=============================================================================
 
    bool sendRequest();
@@ -134,12 +157,15 @@ public:
 
    bool putRequestOnQueue();
 
-   bool upload(const UString& url, UFile& file, const char* filename = 0, uint32_t filename_len = 0);
-   bool sendPost(const UString& url, const UString& pbody, const char* content_type = "application/x-www-form-urlencoded");
+   bool sendPost(const UString& url, const UString& pbody,
+                 const char* content_type     =                 "application/x-www-form-urlencoded",
+                 uint32_t    content_type_len = U_CONSTANT_SIZE("application/x-www-form-urlencoded"));
 
    UString getContent() const     { return body; }
    UString getSetCookie() const   { return setcookie; }
    UString getLastRequest() const { return last_request; }
+
+   bool upload(const UString& url, UFile& file, const char* filename = 0, uint32_t filename_len = 0, int method = 2); // 2 => POST
 
    // DEBUG
 
@@ -154,37 +180,45 @@ protected:
    uint32_t method_num;
    bool bFollowRedirects, bproxy;
 
+   static bool server_context_flag;
    static struct uhttpinfo u_http_info_save;
 
    bool sendRequestEngine();
    void parseRequest(uint32_t n = 3);
-   void composeRequest(const char* content_type = 0);
+   void composeRequest(const char* content_type = 0, uint32_t content_type_len = 0);
    int  sendRequestAsync(const UString& url, bool bqueue, const char* log_msg, int log_fd);
+   bool sendRequest(int method, const char* content_type, uint32_t content_type_len, const char* data, uint32_t data_len, const char* uri, uint32_t uri_len);
 
    // Add the MIME-type headers to the request for HTTP server
 
    static UString wrapRequest(UString* req, const UString& host_port, uint32_t method_num,
-                              const char* uri, uint32_t uri_len, const char* extension, const char* content_type = 0);
+                              const char* uri, uint32_t uri_len, const char* extension, const char* content_type = 0, uint32_t content_type_len = 0);
 
-   // In response to a HTTP_UNAUTHORISED response from the HTTP server, this function will attempt
-   // to generate an Authentication header to satisfy the server
+   // In response to a HTTP_UNAUTHORISED response from the HTTP server, this function will attempt to generate an Authentication header to satisfy the server
 
-   bool createAuthorizationHeader();
-   int  checkResponse(int& redirectCount);
+   UString getBasicAuthorizationHeader();
+   int     checkResponse(int& redirectCount);
+   bool    createAuthorizationHeader(bool bProxy);
 
-   // COSTRUTTORI
+   void setAuthorizationHeader(bool bProxy, const UString& headerValue)
+      {
+      U_TRACE(0, "UHttpClient_Base::setAuthorizationHeader(%b,%V)", bProxy, headerValue.rep)
 
-    UHttpClient_Base(UFileConfig* _cfg);
-   ~UHttpClient_Base();
+      if (bProxy == false) requestHeader->setHeader(U_CONSTANT_TO_PARAM("Authorization"),       headerValue);
+      else                 requestHeader->setHeader(U_CONSTANT_TO_PARAM("Proxy-Authorization"), headerValue);
+      }
+
+    UHttpClient_Base(UFileConfig* _cfg = 0);
+   ~UHttpClient_Base()
+      {
+      U_TRACE_UNREGISTER_OBJECT(0, UHttpClient_Base)
+
+      delete requestHeader;
+      delete responseHeader;
+      }
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UHttpClient_Base(const UHttpClient_Base&) = delete;
-   UHttpClient_Base& operator=(const UHttpClient_Base&) = delete;
-#else
-   UHttpClient_Base(const UHttpClient_Base&) : UClient_Base(0) {}
-   UHttpClient_Base& operator=(const UHttpClient_Base&)        { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UHttpClient_Base)
 
    friend class USSLSocket;
    friend class Application;
@@ -192,19 +226,19 @@ private:
    friend class UServer_Base;
    friend class UProxyPlugIn;
    friend class UNoCatPlugIn;
+   friend class UTwilioClient;
    friend class USOAPClient_Base;
+   friend class UElasticSearchClient;
 };
 
 template <class Socket> class U_EXPORT UHttpClient : public UHttpClient_Base {
 public:
 
-   // COSTRUTTORI
-
    UHttpClient(UFileConfig* _cfg) : UHttpClient_Base(_cfg)
       {
       U_TRACE_REGISTER_OBJECT(0, UHttpClient, "%p", _cfg)
 
-      UClient_Base::socket = U_NEW(Socket(UClient_Base::bIPv6));
+      U_NEW(Socket, UClient_Base::socket, Socket(UClient_Base::bIPv6));
       }
 
    ~UHttpClient()
@@ -219,17 +253,10 @@ public:
 #endif
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UHttpClient(const UHttpClient&) = delete;
-   UHttpClient& operator=(const UHttpClient&) = delete;
-#else
-   UHttpClient(const UHttpClient&) : UHttpClient_Base(0) {}
-   UHttpClient& operator=(const UHttpClient&)            { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UHttpClient)
 };
 
-#ifdef USE_LIBSSL // specializzazione con USSLSocket
-
+#ifdef USE_LIBSSL
 template <> class U_EXPORT UHttpClient<USSLSocket> : public UHttpClient_Base {
 public:
 
@@ -254,14 +281,7 @@ public:
 protected:
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UHttpClient<USSLSocket>(const UHttpClient<USSLSocket>&) = delete;
-   UHttpClient<USSLSocket>& operator=(const UHttpClient<USSLSocket>&) = delete;
-#else
-   UHttpClient<USSLSocket>(const UHttpClient<USSLSocket>&) : UHttpClient_Base(0) {}
-   UHttpClient<USSLSocket>& operator=(const UHttpClient<USSLSocket>&)            { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UHttpClient<USSLSocket>)
 };
-
 #endif
 #endif

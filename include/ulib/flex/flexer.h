@@ -23,7 +23,7 @@
 /**
  * @class UFlexer
  *
- * Implementazione of FlexLexer for ULib
+ * Implementation of FlexLexer for ULib
  */
 
 struct U_NO_EXPORT UFlexerReference {
@@ -48,8 +48,6 @@ public:
    // Allocator e Deallocator
    U_MEMORY_ALLOCATOR
    U_MEMORY_DEALLOCATOR
-
-   // COSTRUTTORI
 
    UFlexer() : yyFlexLexer()
       {
@@ -106,14 +104,12 @@ public:
 
    void reset()
       {
-      U_TRACE(0, "UFlexer::reset()")
+      U_TRACE_NO_PARAM(0, "UFlexer::reset()")
 
    // yyFlexLexer::yy_flush_buffer(yyFlexLexer::yy_current_buffer);
 
       parsed_chars = write_position = 0;
       }
-
-   // VARIE
 
    uint32_t size() const { return data.size(); }
 
@@ -130,7 +126,7 @@ public:
 
    int getParsedChars()
       {
-      U_TRACE(0, "UFlexer::getParsedChars()")
+      U_TRACE_NO_PARAM(0, "UFlexer::getParsedChars()")
 
       U_RETURN(parsed_chars);
       }
@@ -155,13 +151,7 @@ protected:
    int parsed_chars, write_position;
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UFlexer(const UFlexer&) = delete;
-   UFlexer& operator=(const UFlexer&) = delete;
-#else
-   UFlexer(const UFlexer&) : yyFlexLexer() {}
-   UFlexer& operator=(const UFlexer&)      { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UFlexer)
 };
 
 #endif

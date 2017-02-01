@@ -17,19 +17,22 @@
 #include <ulib/event/event_time.h>
 #include <ulib/utility/interrupt.h>
 
-// Il notificatore degli eventi usa questa classe per notificare una scadenza temporale rilevata da select()
+class UNotifier;
+class UServer_Base;
+
+// UNotifier use this class to notify a timeout from select()
 
 class U_EXPORT UTimer {
 public:
+
    // Check for memory error
    U_MEMORY_TEST
 
    // Allocator e Deallocator
-
    U_MEMORY_ALLOCATOR
    U_MEMORY_DEALLOCATOR
 
-   // COSTRUTTORI
+   enum Type { SYNC, ASYNC, NOSIGNAL };
 
    UTimer()
       {
@@ -39,44 +42,93 @@ public:
       alarm = 0;
       }
 
-   ~UTimer();
+   ~UTimer()
+      {
+      U_TRACE_UNREGISTER_OBJECT(0, UTimer)
+      }
 
    // SERVICES
 
    static bool empty()
       {
-      U_TRACE(0, "UTimer::empty()")
+      U_TRACE_NO_PARAM(0, "UTimer::empty()")
 
-      bool result = (first == 0);
+      if (first == 0) U_RETURN(true);
 
-      U_RETURN(result);
+      U_RETURN(false);
       }
 
-   static bool isRunning()
+   static bool isAlarm()
       {
-      U_TRACE(0, "UTimer::isRunning()")
+      U_TRACE_NO_PARAM(0, "UTimer::isAlarm()")
 
-      bool result = (UInterrupt::timerval.it_value.tv_sec  != 0 ||
-                     UInterrupt::timerval.it_value.tv_usec != 0);
+      if (UInterrupt::timerval.it_value.tv_sec  != 0 ||
+          UInterrupt::timerval.it_value.tv_usec != 0)
+         {
+         U_RETURN(true);
+         }
 
-      U_RETURN(result);
+      U_RETURN(false);
       }
 
-   static void stop();
-   static void init(bool async);
-   static void setTimer(bool bsignal);
-   static void clear(bool clean_alarm);
+   static void clear();                    // cancel all timers and free storage, usually in preparation for exitting
+   static void init(Type mode);            // initialize the timer package
+   static void insert(UEventTime* palarm); // set up a timer, either periodic or one-shot
 
-   static void insert(UEventTime* alarm,                  bool set_timer = true);
-   static void  erase(UEventTime* alarm, bool flag_reuse, bool set_timer = true);
+   // deschedule a timer. Note that non-periodic timers are automatically descheduled when they run, so you don't have to call this on them
 
-   static bool isHandler(UEventTime* _alarm)
+   static void erase(UTimer* item)
       {
-      U_TRACE(0, "UTimer::isHandler(%p)", _alarm)
+      U_TRACE(0, "UTimer::erase(%p)", item)
+
+      U_INTERNAL_ASSERT_POINTER(first)
+
+      if (mode != NOSIGNAL) delete item;
+      else
+         {
+         // put it on the free list
+
+         item->next = pool;
+               pool = item;
+         }
+      }
+
+   static void erase(UEventTime* palarm);
+
+   // run the list of timers. Your main program needs to call this every so often, or as indicated by getTimeout()
+
+   static void run();
+   static void setTimer();
+
+   static UEventTime* getTimeout() // returns a timeout indicating how long until the next timer triggers
+      {
+      U_TRACE_NO_PARAM(0, "UTimer::getTimeout()")
+
+      if (        first &&
+          (run(), first))
+         {
+         UEventTime* a = first->alarm;
+
+         U_ASSERT(a->checkTolerance())
+
+         U_RETURN_POINTER(a, UEventTime);
+         }
+
+      U_RETURN_POINTER(0, UEventTime);
+      }
+
+   static bool isHandler(UEventTime* palarm)
+      {
+      U_TRACE(0, "UTimer::isHandler(%p)", palarm)
 
       for (UTimer* item = first; item; item = item->next)
          {
-         if (item->alarm == _alarm) U_RETURN(true);
+         if (item->alarm == palarm)
+            {
+            U_INTERNAL_DUMP("item = %p", item)
+
+            U_RETURN(true);
+            }
          }
 
       U_RETURN(false);
@@ -84,7 +136,12 @@ public:
 
    // manage signal
 
-   static RETSIGTYPE handlerAlarm(int signo);
+   static RETSIGTYPE handlerAlarm(int signo)
+      {
+      U_TRACE(0, "[SIGALRM] UTimer::handlerAlarm(%d)", signo)
+
+      setTimer();
+      }
 
    // STREAM
 
@@ -93,29 +150,31 @@ public:
 
    // DEBUG
 
-#  ifdef DEBUG
-   static void printInfo(ostream& os);
+# ifdef DEBUG
+   static void   printInfo(ostream& os);
           void outputEntry(ostream& os) const U_NO_EXPORT;
 
    const char* dump(bool reset) const;
-#  endif
+# endif
 #endif
 
 protected:
    UTimer* next;
    UEventTime* alarm;
 
-   static bool async;
-   static UTimer* pool;  // lista scadenze da cancellare o riutilizzare
-   static UTimer* first; // lista scadenze
+   static int mode;
+   static UTimer* pool;  //   free list 
+   static UTimer* first; // active list 
+
+   static void callHandlerTimeout();
+   static void updateTimeToExpire(UEventTime* ptime);
 
 #ifdef DEBUG
    static bool invariant();
 #endif
 
 private:
-          void insertEntry() U_NO_EXPORT;
-   inline void callHandlerTime() U_NO_EXPORT;
+   void insertEntry() U_NO_EXPORT;
 
    bool operator< (const UTimer& t) const { return (*alarm < *t.alarm); }
    bool operator> (const UTimer& t) const { return  t.operator<(*this); }
@@ -124,13 +183,10 @@ private:
    bool operator==(const UTimer& t) const { return (*alarm == *t.alarm); }
    bool operator!=(const UTimer& t) const { return !  operator==(t); }
 
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UTimer(const UTimer&) = delete;
-   UTimer& operator=(const UTimer&) = delete;
-#else
-   UTimer(const UTimer&)            {}
-   UTimer& operator=(const UTimer&) { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UTimer)
+
+   friend class UNotifier;
+   friend class UServer_Base;
 };
 
 #endif

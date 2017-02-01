@@ -20,40 +20,14 @@ extern "C" {
 
 U_CREAT_FUNC(orm_driver_mysql, UOrmDriverMySql)
 
-const UString* UOrmDriverMySql::str_name;
-const UString* UOrmDriverMySql::str_secure_auth;
-const UString* UOrmDriverMySql::str_auto_reconnect;
-
-void UOrmDriverMySql::str_allocate()
-{
-   U_TRACE(0, "UOrmDriverMySql::str_allocate()")
-
-   U_INTERNAL_ASSERT_EQUALS(str_name, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_secure_auth, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_auto_reconnect, 0)
-
-   static ustringrep stringrep_storage[] = {
-      { U_STRINGREP_FROM_CONSTANT("mysql") },
-      { U_STRINGREP_FROM_CONSTANT("secure-auth") },
-      { U_STRINGREP_FROM_CONSTANT("auto-reconnect") }
-   };
-
-   U_NEW_ULIB_OBJECT(str_name,           U_STRING_FROM_STRINGREP_STORAGE(0));
-   U_NEW_ULIB_OBJECT(str_secure_auth,    U_STRING_FROM_STRINGREP_STORAGE(1));
-   U_NEW_ULIB_OBJECT(str_auto_reconnect, U_STRING_FROM_STRINGREP_STORAGE(2));
-}
-
 UOrmDriverMySql::~UOrmDriverMySql()
 {
    U_TRACE_UNREGISTER_OBJECT(0, UOrmDriverMySql)
 }
 
-#undef  ENTRY
-#  define ENTRY(name) {name, #name}
-
 void UOrmDriverMySql::handlerError()
 {
-   U_TRACE(0, "UOrmDriverMySql::UOrmDriverMySql()")
+   U_TRACE_NO_PARAM(0, "UOrmDriverMySql::UOrmDriverMySql()")
 
    U_INTERNAL_ASSERT_POINTER(UOrmDriver::connection)
 
@@ -65,76 +39,79 @@ void UOrmDriverMySql::handlerError()
    };
 
    static const struct error_value_info error_value_table[] = {
-      ENTRY(CR_UNKNOWN_ERROR),
-      ENTRY(CR_SOCKET_CREATE_ERROR),
-      ENTRY(CR_CONNECTION_ERROR),
-      ENTRY(CR_CONN_HOST_ERROR),
-      ENTRY(CR_IPSOCK_ERROR),
-      ENTRY(CR_UNKNOWN_HOST),
-      ENTRY(CR_SERVER_GONE_ERROR),
-      ENTRY(CR_VERSION_ERROR),
-      ENTRY(CR_OUT_OF_MEMORY),
-      ENTRY(CR_WRONG_HOST_INFO),
-      ENTRY(CR_LOCALHOST_CONNECTION),
-      ENTRY(CR_TCP_CONNECTION),
-      ENTRY(CR_SERVER_HANDSHAKE_ERR),
-      ENTRY(CR_SERVER_LOST),
-      ENTRY(CR_COMMANDS_OUT_OF_SYNC),
-      ENTRY(CR_NAMEDPIPE_CONNECTION),
-      ENTRY(CR_NAMEDPIPEWAIT_ERROR),
-      ENTRY(CR_NAMEDPIPEOPEN_ERROR),
-      ENTRY(CR_NAMEDPIPESETSTATE_ERROR),
-      ENTRY(CR_CANT_READ_CHARSET),
-      ENTRY(CR_NET_PACKET_TOO_LARGE),
-      ENTRY(CR_EMBEDDED_CONNECTION),
-      ENTRY(CR_PROBE_SLAVE_STATUS),
-      ENTRY(CR_PROBE_SLAVE_HOSTS),
-      ENTRY(CR_PROBE_SLAVE_CONNECT),
-      ENTRY(CR_PROBE_MASTER_CONNECT),
-      ENTRY(CR_SSL_CONNECTION_ERROR),
-      ENTRY(CR_MALFORMED_PACKET),
-      ENTRY(CR_WRONG_LICENSE),
-      ENTRY(CR_NULL_POINTER),
-      ENTRY(CR_NO_PREPARE_STMT),
-      ENTRY(CR_PARAMS_NOT_BOUND),
-      ENTRY(CR_DATA_TRUNCATED),
-      ENTRY(CR_NO_PARAMETERS_EXISTS),
-      ENTRY(CR_INVALID_PARAMETER_NO),
-      ENTRY(CR_INVALID_BUFFER_USE),
-      ENTRY(CR_UNSUPPORTED_PARAM_TYPE),
-      ENTRY(CR_SHARED_MEMORY_CONNECTION),
-      ENTRY(CR_SHARED_MEMORY_CONNECT_REQUEST_ERROR),
-      ENTRY(CR_SHARED_MEMORY_CONNECT_ANSWER_ERROR),
-      ENTRY(CR_SHARED_MEMORY_CONNECT_FILE_MAP_ERROR),
-      ENTRY(CR_SHARED_MEMORY_CONNECT_MAP_ERROR),
-      ENTRY(CR_SHARED_MEMORY_FILE_MAP_ERROR),
-      ENTRY(CR_SHARED_MEMORY_MAP_ERROR),
-      ENTRY(CR_SHARED_MEMORY_EVENT_ERROR),
-      ENTRY(CR_SHARED_MEMORY_CONNECT_ABANDONED_ERROR),
-      ENTRY(CR_SHARED_MEMORY_CONNECT_SET_ERROR),
-      ENTRY(CR_CONN_UNKNOW_PROTOCOL),
-      ENTRY(CR_INVALID_CONN_HANDLE),
-      ENTRY(CR_SECURE_AUTH),
-      ENTRY(CR_FETCH_CANCELED),
-      ENTRY(CR_NO_DATA),
-      ENTRY(CR_NO_STMT_METADATA),
-      ENTRY(CR_NO_RESULT_SET),
-      ENTRY(CR_NOT_IMPLEMENTED),
-      ENTRY(CR_SERVER_LOST_EXTENDED),
-      ENTRY(CR_STMT_CLOSED),
-      ENTRY(CR_NEW_STMT_METADATA),
-      ENTRY(CR_ALREADY_CONNECTED),
-      ENTRY(CR_AUTH_PLUGIN_CANNOT_LOAD)
+      U_ENTRY(CR_UNKNOWN_ERROR),
+      U_ENTRY(CR_SOCKET_CREATE_ERROR),
+      U_ENTRY(CR_CONNECTION_ERROR),
+      U_ENTRY(CR_CONN_HOST_ERROR),
+      U_ENTRY(CR_IPSOCK_ERROR),
+      U_ENTRY(CR_UNKNOWN_HOST),
+      U_ENTRY(CR_SERVER_GONE_ERROR),
+      U_ENTRY(CR_VERSION_ERROR),
+      U_ENTRY(CR_OUT_OF_MEMORY),
+      U_ENTRY(CR_WRONG_HOST_INFO),
+      U_ENTRY(CR_LOCALHOST_CONNECTION),
+      U_ENTRY(CR_TCP_CONNECTION),
+      U_ENTRY(CR_SERVER_HANDSHAKE_ERR),
+      U_ENTRY(CR_SERVER_LOST),
+      U_ENTRY(CR_COMMANDS_OUT_OF_SYNC),
+      U_ENTRY(CR_NAMEDPIPE_CONNECTION),
+      U_ENTRY(CR_NAMEDPIPEWAIT_ERROR),
+      U_ENTRY(CR_NAMEDPIPEOPEN_ERROR),
+      U_ENTRY(CR_NAMEDPIPESETSTATE_ERROR),
+      U_ENTRY(CR_CANT_READ_CHARSET),
+      U_ENTRY(CR_NET_PACKET_TOO_LARGE),
+      U_ENTRY(CR_EMBEDDED_CONNECTION),
+      U_ENTRY(CR_PROBE_SLAVE_STATUS),
+      U_ENTRY(CR_PROBE_SLAVE_HOSTS),
+      U_ENTRY(CR_PROBE_SLAVE_CONNECT),
+      U_ENTRY(CR_PROBE_MASTER_CONNECT),
+      U_ENTRY(CR_SSL_CONNECTION_ERROR),
+      U_ENTRY(CR_MALFORMED_PACKET),
+      U_ENTRY(CR_WRONG_LICENSE),
+      U_ENTRY(CR_NULL_POINTER),
+      U_ENTRY(CR_NO_PREPARE_STMT),
+      U_ENTRY(CR_PARAMS_NOT_BOUND),
+      U_ENTRY(CR_DATA_TRUNCATED),
+      U_ENTRY(CR_NO_PARAMETERS_EXISTS),
+      U_ENTRY(CR_INVALID_PARAMETER_NO),
+      U_ENTRY(CR_INVALID_BUFFER_USE),
+      U_ENTRY(CR_UNSUPPORTED_PARAM_TYPE),
+      U_ENTRY(CR_SHARED_MEMORY_CONNECTION),
+      U_ENTRY(CR_SHARED_MEMORY_CONNECT_REQUEST_ERROR),
+      U_ENTRY(CR_SHARED_MEMORY_CONNECT_ANSWER_ERROR),
+      U_ENTRY(CR_SHARED_MEMORY_CONNECT_FILE_MAP_ERROR),
+      U_ENTRY(CR_SHARED_MEMORY_CONNECT_MAP_ERROR),
+      U_ENTRY(CR_SHARED_MEMORY_FILE_MAP_ERROR),
+      U_ENTRY(CR_SHARED_MEMORY_MAP_ERROR),
+      U_ENTRY(CR_SHARED_MEMORY_EVENT_ERROR),
+      U_ENTRY(CR_SHARED_MEMORY_CONNECT_ABANDONED_ERROR),
+      U_ENTRY(CR_SHARED_MEMORY_CONNECT_SET_ERROR),
+      U_ENTRY(CR_CONN_UNKNOW_PROTOCOL),
+      U_ENTRY(CR_INVALID_CONN_HANDLE),
+#  ifdef CR_SECURE_AUTH
+      U_ENTRY(CR_SECURE_AUTH),
+#  endif
+      U_ENTRY(CR_FETCH_CANCELED),
+      U_ENTRY(CR_NO_DATA),
+      U_ENTRY(CR_NO_STMT_METADATA),
+      U_ENTRY(CR_NO_RESULT_SET),
+      U_ENTRY(CR_NOT_IMPLEMENTED),
+      U_ENTRY(CR_SERVER_LOST_EXTENDED),
+      U_ENTRY(CR_STMT_CLOSED),
+      U_ENTRY(CR_NEW_STMT_METADATA),
+      U_ENTRY(CR_ALREADY_CONNECTED),
+      U_ENTRY(CR_AUTH_PLUGIN_CANNOT_LOAD)
    };
 
-   if (UOrmDriver::errmsg == 0) UOrmDriver::errmsg   = U_SYSCALL(mysql_error,    "%p", (MYSQL*)UOrmDriver::connection);
-                                UOrmDriver::errcode  = U_SYSCALL(mysql_errno,    "%p", (MYSQL*)UOrmDriver::connection);
-                                UOrmDriver::SQLSTATE = U_SYSCALL(mysql_sqlstate, "%p", (MYSQL*)UOrmDriver::connection);
+   UOrmDriver::errcode  = U_SYSCALL(mysql_errno,    "%p", (MYSQL*)UOrmDriver::connection);
+   UOrmDriver::SQLSTATE = U_SYSCALL(mysql_sqlstate, "%p", (MYSQL*)UOrmDriver::connection);
+
+   if (UOrmDriver::errmsg == 0) UOrmDriver::errmsg = U_SYSCALL(mysql_error, "%p", (MYSQL*)UOrmDriver::connection);
 
    if (UOrmDriver::errcode >= CR_ERROR_FIRST) UOrmDriver::errcode -= CR_ERROR_FIRST; // 2000
 
-   if (UOrmDriver::errcode >= 0                                &&
-       UOrmDriver::errcode < U_NUM_ELEMENTS(error_value_table) &&
+   if (UOrmDriver::errcode >= 0                                     &&
+       UOrmDriver::errcode < (int)U_NUM_ELEMENTS(error_value_table) &&
        UOrmDriver::errcode == error_value_table[UOrmDriver::errcode].value)
       {
       UOrmDriver::errname = error_value_table[UOrmDriver::errcode].name;
@@ -143,7 +120,7 @@ void UOrmDriverMySql::handlerError()
       {
       UOrmDriver::errname = "???";
 
-      for (int i = 0; i < U_NUM_ELEMENTS(error_value_table); ++i)
+      for (unsigned int i = 0; i < U_NUM_ELEMENTS(error_value_table); ++i)
          {
          if (UOrmDriver::errcode == error_value_table[i].value)
             {
@@ -159,7 +136,10 @@ UOrmDriver* UOrmDriverMySql::handlerConnect(const UString& option)
 {
    U_TRACE(0, "UOrmDriverMySql::handlerConnect(%V)", option.rep)
 
-   UOrmDriver* pdrv = (UOrmDriver::connection ? U_NEW(UOrmDriverMySql(*str_name)) : this);
+   UOrmDriver* pdrv;
+
+   if (UOrmDriver::connection == 0) pdrv = this;
+   else U_NEW(UOrmDriverMySql, pdrv, UOrmDriverMySql(*UString::str_mysql_name));
 
    if (pdrv->setOption(option) == false)
       {
@@ -181,26 +161,26 @@ UOrmDriver* UOrmDriverMySql::handlerConnect(const UString& option)
       U_RETURN_POINTER(0, UOrmDriver);
       }
 
-   int timeout = pdrv->getOptionValue(*UOrmDriver::str_timeout).strtol(); // generic timeout is specified in seconds
+   int timeout = pdrv->getOptionValue(*UString::str_timeout).strtoul(); // generic timeout is specified in seconds
 
    (void) U_SYSCALL(mysql_options, "%p", (MYSQL*)pdrv->connection, MYSQL_OPT_CONNECT_TIMEOUT, (const char*)&timeout);
 
-   int port = pdrv->getOptionValue(*UOrmDriver::str_port).strtol();
+   int port = pdrv->getOptionValue(*UString::str_port).strtoul();
 
    if (port <= 0 || port > 65535) port = 3306; // if no port was specified, use MySQL's default port to let things run gracefully
 
-   UString host = pdrv->getOptionValue(*UOrmDriver::str_host);
+   UString host = pdrv->getOptionValue(*UString::str_host);
 
    if (host) host.setNullTerminated();
    else      host = *UString::str_localhost;
 
-   UString user           = pdrv->getOptionValue(*UString::str_user),
-           encoding       = pdrv->getOptionValue(*UString::str_encoding),
+   UString user           = pdrv->getOptionValue(U_CONSTANT_TO_PARAM("user")),
+           encoding       = pdrv->getOptionValue(U_CONSTANT_TO_PARAM("encoding")),
            password       = pdrv->getOptionValue(U_CONSTANT_TO_PARAM("password")),
-           compress       = pdrv->getOptionValue(*UOrmDriver::str_compress),
-           secure_auth    = pdrv->getOptionValue(*str_secure_auth),
-           character_set  = pdrv->getOptionValue(*UOrmDriver::str_character_set),
-           auto_reconnect = pdrv->getOptionValue(*str_auto_reconnect);
+           compress       = pdrv->getOptionValue(*UString::str_compress),
+           secure_auth    = pdrv->getOptionValue(*UString::str_secure_auth),
+           character_set  = pdrv->getOptionValue(*UString::str_character_set),
+           auto_reconnect = pdrv->getOptionValue(*UString::str_auto_reconnect);
 
    /**
     * mysql_options() should be called after mysql_init() and before mysql_connect() or mysql_real_connect().
@@ -247,7 +227,7 @@ UOrmDriver* UOrmDriverMySql::handlerConnect(const UString& option)
 
 void UOrmDriverMySql::handlerDisConnect()
 {
-   U_TRACE(0, "UOrmDriverMySql::handlerDisConnect()")
+   U_TRACE_NO_PARAM(0, "UOrmDriverMySql::handlerDisConnect()")
 
    U_INTERNAL_ASSERT_POINTER(UOrmDriver::connection)
 
@@ -307,14 +287,16 @@ USqlStatement* UOrmDriverMySql::handlerStatementCreation(const char* stmt, uint3
    uint32_t num_bind_param  = U_SYSCALL(mysql_stmt_param_count, "%p", pHandle),
             num_bind_result = U_SYSCALL(mysql_stmt_field_count, "%p", pHandle);
 
-   USqlStatement* pstmt = U_NEW(UMySqlStatement(pHandle, num_bind_param, num_bind_result));
+   USqlStatement* pstmt;
+
+   U_NEW(UMySqlStatement, pstmt, UMySqlStatement(pHandle, num_bind_param, num_bind_result));
 
    U_RETURN_POINTER(pstmt, USqlStatement);
 }
 
 void UMySqlStatement::reset()
 {
-   U_TRACE(0, "UMySqlStatement::reset()")
+   U_TRACE_NO_PARAM(0, "UMySqlStatement::reset()")
 
    U_ASSERT_EQUALS(num_bind_param,  vparam.size())
    U_ASSERT_EQUALS(num_bind_result, vresult.size())
@@ -405,7 +387,9 @@ USqlStatementBindParam* UOrmDriverMySql::creatSqlStatementBindParam(USqlStatemen
 
    if (rebind == -1)
       {
-      USqlStatementBindParam* ptr = U_NEW(UMySqlStatementBindParam(s, n, bstatic));
+      USqlStatementBindParam* ptr;
+
+      U_NEW(UMySqlStatementBindParam, ptr, UMySqlStatementBindParam(s, n, bstatic));
 
       U_RETURN_POINTER(ptr, USqlStatementBindParam);
       }
@@ -430,7 +414,7 @@ USqlStatementBindParam* UOrmDriverMySql::creatSqlStatementBindParam(USqlStatemen
 
 void UMySqlStatement::setStringBindedAsResult()
 {
-   U_TRACE(0, "UMySqlStatement::setStringBindedAsResult()")
+   U_TRACE_NO_PARAM(0, "UMySqlStatement::setStringBindedAsResult()")
 
    U_INTERNAL_ASSERT_MAJOR(num_bind_result, 0)
    U_ASSERT_EQUALS(num_bind_result, vresult.size())
@@ -483,7 +467,7 @@ bool UMySqlStatement::setBindResult(UOrmDriver* pdrv)
 
          if (columns_count != num_bind_result)
             {
-            U_ERROR("invalid column count (%u) returned by MySQL - total columns (%u) in SELECT statement", columns_count, num_bind_result);
+            U_ERROR("Invalid column count (%u) returned by MySQL - total columns (%u) in SELECT statement", columns_count, num_bind_result);
             }
 
          U_SYSCALL_VOID(mysql_free_result, "%p", result);
@@ -537,7 +521,7 @@ void UOrmDriverMySql::execute(USqlStatement* pstmt)
    /**
     * mysql_stmt_execute() executes the prepared query associated with the statement handle.
     * The currently bound parameter marker values are sent to server during this call, and the
-    * server replaces the markers with this newly supplied data.
+    * server replaces the markers with this newly supplied data
     */
 
    if (((UMySqlStatement*)pstmt)->setBindParam(this))
@@ -572,7 +556,7 @@ void UOrmDriverMySql::execute(USqlStatement* pstmt)
        * If a fetched data value is a NULL value, the *is_null value of the corresponding MYSQL_BIND structure contains
        * TRUE (1). Otherwise, the data and its length are returned in the *buffer and *length elements based on the buffer
        * type specified by the application. Each numeric and temporal type has a fixed length. The length of the string types
-       * depends on the length of the actual data value, as indicated by data_length.
+       * depends on the length of the actual data value, as indicated by data_length
        */
 
       UOrmDriver::errcode = U_SYSCALL(mysql_stmt_fetch, "%p", (MYSQL_STMT*)pstmt->pHandle);
@@ -580,7 +564,7 @@ void UOrmDriverMySql::execute(USqlStatement* pstmt)
       /**
        * (CR_COMMANDS_OUT_OF_SYNC - Commands were executed in an improper order) can happen, for example,
        * if you are using mysql_use_result() and try to execute a new query before you have called mysql_free_result().
-       * It can also happen if you try to execute two queries that return data without calling mysql_use_result() or mysql_store_result() in between.
+       * It can also happen if you try to execute two queries that return data without calling mysql_use_result() or mysql_store_result() in between
        */
 
       if (UOrmDriver::errcode &&
@@ -662,7 +646,7 @@ unsigned long long UOrmDriverMySql::last_insert_rowid(USqlStatement* pstmt, cons
    U_INTERNAL_ASSERT_POINTER(UOrmDriver::connection)
 
    // Returns the value generated for an AUTO_INCREMENT column by the prepared INSERT or UPDATE statement.
-   // Use this function after you have executed a prepared INSERT statement on a table which contains an AUTO_INCREMENT field. 
+   // Use this function after you have executed a prepared INSERT statement on a table which contains an AUTO_INCREMENT field 
 
    unsigned long long n = (pstmt ? U_SYSCALL(mysql_stmt_insert_id, "%p", (MYSQL_STMT*)pstmt->pHandle)
                                  : U_SYSCALL(mysql_insert_id,      "%p", (MYSQL*)UOrmDriver::connection));

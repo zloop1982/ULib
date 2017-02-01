@@ -38,14 +38,14 @@
  * You can run them in different chroot()s.
  *
  * Running your FastCGI applications doesn't depend on the web server you are running,
- * which allows for easier testing of other web servers.
+ * which allows for easier testing of other web servers
  */
 
 // ---------------------------------------------------------------------------------------------------------------
 // START Fast CGI stuff
 // ---------------------------------------------------------------------------------------------------------------
 
-// Number of bytes in a FCGI_Header. Future versions of the protocol will not reduce this number.
+// Number of bytes in a FCGI_Header. Future versions of the protocol will not reduce this number
 #define FCGI_HEADER_LEN 8
 
 // Value for version component of FCGI_Header
@@ -119,7 +119,7 @@ static FCGI_BeginRequestRecord beginRecord;
 
 void UFCGIPlugIn::set_FCGIBeginRequest()
 {
-   U_TRACE(0, "UFCGIPlugIn::set_FCGIBeginRequest()")
+   U_TRACE_NO_PARAM(0, "UFCGIPlugIn::set_FCGIBeginRequest()")
 
    beginRecord.header.version    = FCGI_VERSION_1;
 // beginRecord.header.request_id = htons((uint16_t)u_pid);
@@ -146,8 +146,8 @@ void UFCGIPlugIn::fill_FCGIBeginRequest(u_char type, u_short content_length)
 
 U_CREAT_FUNC(server_plugin_fcgi, UFCGIPlugIn)
 
-bool          UFCGIPlugIn::bphp;
 bool          UFCGIPlugIn::fcgi_keep_conn;
+char          UFCGIPlugIn::environment_type;
 UClient_Base* UFCGIPlugIn::connection;
 
 UFCGIPlugIn::UFCGIPlugIn()
@@ -187,13 +187,13 @@ int UFCGIPlugIn::handlerConfig(UFileConfig& cfg)
       {
       UClient_Base::cfg = &cfg;
 
-      connection = U_NEW(UClient_Base(&cfg));
+      U_NEW(UClient_Base, connection, UClient_Base(&cfg));
 
       UString x = cfg.at(U_CONSTANT_TO_PARAM("FCGI_URI_MASK"));
 
       U_INTERNAL_ASSERT_EQUALS(UHTTP::fcgi_uri_mask,0)
 
-      if (x) UHTTP::fcgi_uri_mask = U_NEW(UString(x));
+      if (x) U_NEW(UString, UHTTP::fcgi_uri_mask, UString(x));
 
       fcgi_keep_conn = cfg.readBoolean(U_CONSTANT_TO_PARAM("CGI_KEEP_CONN"));
 
@@ -205,7 +205,7 @@ int UFCGIPlugIn::handlerConfig(UFileConfig& cfg)
 
 int UFCGIPlugIn::handlerInit()
 {
-   U_TRACE(1, "UFCGIPlugIn::handlerInit()")
+   U_TRACE_NO_PARAM(1, "UFCGIPlugIn::handlerInit()")
 
    if (connection &&
        UHTTP::fcgi_uri_mask)
@@ -213,10 +213,10 @@ int UFCGIPlugIn::handlerInit()
 #  ifdef _MSWINDOWS_
       U_INTERNAL_ASSERT_DIFFERS(connection->port, 0)
 
-      connection->socket = (USocket*)U_NEW(UTCPSocket(connection->bIPv6));
+      U_NEW(UTCPSocket, connection->socket, UTCPSocket(connection->bIPv6));
 #  else
-      connection->socket = connection->port ? (USocket*)U_NEW(UTCPSocket(connection->bIPv6))
-                                            : (USocket*)U_NEW(UUnixSocket);
+      if (connection->port) U_NEW(UTCPSocket,  connection->socket, UTCPSocket(connection->bIPv6));
+      else                  U_NEW(UUnixSocket, connection->socket, UUnixSocket);
 #  endif
 
       if (connection->connect())
@@ -230,12 +230,12 @@ int UFCGIPlugIn::handlerInit()
 #     else
          // NB: FCGI is NOT a static page...
 
-         if (UHTTP::valias == 0) UHTTP::valias = U_NEW(UVector<UString>(2U));
+         if (UHTTP::valias == 0) U_NEW(UVector<UString>, UHTTP::valias, UVector<UString>(2U));
 
          UHTTP::valias->push_back(*UHTTP::fcgi_uri_mask);
-         UHTTP::valias->push_back(U_STRING_FROM_CONSTANT("/nostat"));
+         UHTTP::valias->push_back(*UString::str_nostat);
 
-         bphp = UHTTP::fcgi_uri_mask->equal(U_CONSTANT_TO_PARAM("*.php"));
+         environment_type = (UHTTP::fcgi_uri_mask->equal(U_CONSTANT_TO_PARAM("*.php")) ? U_PHP : U_CGI);
 
          U_RETURN(U_PLUGIN_HANDLER_PROCESSED | U_PLUGIN_HANDLER_GO_ON);
 #     endif
@@ -252,7 +252,7 @@ int UFCGIPlugIn::handlerInit()
 
 int UFCGIPlugIn::handlerRequest()
 {
-   U_TRACE(0, "UFCGIPlugIn::handlerRequest()")
+   U_TRACE_NO_PARAM(0, "UFCGIPlugIn::handlerRequest()")
 
    if (connection &&
        UHTTP::isFCGIRequest())
@@ -274,7 +274,7 @@ int UFCGIPlugIn::handlerRequest()
 
       UString environment(U_CAPACITY);
 
-      if (UHTTP::getCGIEnvironment(environment, bphp ? U_PHP : U_CGI) == false) U_RETURN(U_PLUGIN_HANDLER_ERROR);
+      if (UHTTP::getCGIEnvironment(environment, environment_type) == false) U_RETURN(U_PLUGIN_HANDLER_ERROR);
 
       n = u_split(U_STRING_TO_PARAM(environment), envp, 0);
 
@@ -396,7 +396,7 @@ int UFCGIPlugIn::handlerRequest()
 
          U_INTERNAL_ASSERT((connection->response.size() - pos) >= FCGI_HEADER_LEN)
 
-         h = (FCGI_Header*) connection->response.c_pointer(pos);
+         h = (FCGI_Header*)connection->response.c_pointer(pos);
 
          U_INTERNAL_DUMP("version = %C request_id = %u", h->version, ntohs(h->request_id))
 
@@ -418,7 +418,7 @@ int UFCGIPlugIn::handlerRequest()
 
          // NB: connection->response can be resized...
 
-         h = (FCGI_Header*) connection->response.c_pointer(pos);
+         h = (FCGI_Header*)connection->response.c_pointer(pos);
 
          // Record fully read
 
@@ -435,7 +435,7 @@ int UFCGIPlugIn::handlerRequest()
             break;
 
             case FCGI_STDERR:
-               (void) UFile::writeToTmp(connection->response.c_pointer(pos), clength, true, "server_plugin_fcgi.err", 0);
+               (void) UFile::writeToTmp(connection->response.c_pointer(pos), clength, O_RDWR | O_APPEND, U_CONSTANT_TO_PARAM("server_plugin_fcgi.err"), 0);
             break;
 
             case FCGI_END_REQUEST:
@@ -479,8 +479,7 @@ int UFCGIPlugIn::handlerRequest()
             }
          }
 
-end:
-      connection->clearData();
+end:  connection->clearData();
 
       if (fcgi_keep_conn == false &&
           connection->isConnected())

@@ -13,142 +13,40 @@
 
 #include <ulib/thread.h>
 
-#include <time.h>
-
-#ifdef HAVE_SYS_SYSCALL_H
-#  include <sys/syscall.h>
+#ifndef _MSWINDOWS_
+#  ifndef HAVE_PTHREAD_CANCEL
+#     ifdef SIGCANCEL
+#        define U_SIG_THREAD_CANCEL SIGCANCEL
+#     else
+#        define U_SIG_THREAD_CANCEL SIGQUIT
+#     endif
+#  endif
 #endif
 
-typedef void* (*exec_t)   (void*);
-typedef void  (*cleanup_t)(void*);
+#include <time.h>
 
 #ifndef HAVE_NANOSLEEP
 extern "C" { int nanosleep (const struct timespec* requested_time,
                                   struct timespec* remaining); }
 #endif
 
-UThread*        UThread::first;
-pthread_cond_t  UThread::cond  = PTHREAD_COND_INITIALIZER;
-pthread_mutex_t UThread::_lock = PTHREAD_MUTEX_INITIALIZER;
-
-class UThreadImpl {
-public:
-   // Check for memory error
-   U_MEMORY_TEST
-
-   // Allocator e Deallocator
-   U_MEMORY_ALLOCATOR
-   U_MEMORY_DEALLOCATOR
-
-    UThreadImpl(bool suspendEnable, bool joinEnable)
-      {
-      U_TRACE(0, "UThreadImpl::UThreadImpl(%b,%b)", suspendEnable, joinEnable)
-
-      _tid           = 0;
-      _signal        = 0;
-      _cancel        = 0;
-      _suspendCount  = 0;
-      _suspendEnable = suspendEnable;
-
-      (void) U_SYSCALL(pthread_attr_init,           "%p",    &_attr);
-      (void) U_SYSCALL(pthread_attr_setdetachstate, "%p,%d", &_attr, (joinEnable ? PTHREAD_CREATE_JOINABLE : PTHREAD_CREATE_DETACHED));
-      }
-
-   ~UThreadImpl()
-      {
-   // U_TRACE(0, "UThreadImpl::~UThreadImpl()") // problem with sanitize address
-
-   // (void) U_SYSCALL(pthread_attr_destroy, "%p", &_attr);
-      (void)           pthread_attr_destroy(       &_attr);
-      }
-
-#ifdef DEBUG
-   const char* dump(bool reset) const;
-#endif
-
-private:
-   pthread_t _tid;
-   pthread_attr_t _attr;
-   int _cancel, _signal, _suspendCount;
-   bool _suspendEnable;
-
-   // derived class copy constructor creates new instance, so base copy constructor of ThreadImpl should do nothing...
-
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UThreadImpl(const UThreadImpl&) = delete;
-   UThreadImpl& operator=(const UThreadImpl&) = delete;
-#else
-   UThreadImpl(const UThreadImpl&)            {}
-   UThreadImpl& operator=(const UThreadImpl&) { return *this; }
-#endif
-
-   friend class UThread;
-};
-
-UThread::UThread(bool suspendEnable, bool joinEnable)
-{
-   U_TRACE_REGISTER_OBJECT(0, UThread, "%b,%b", suspendEnable, joinEnable)
-
-   priv  = U_NEW(UThreadImpl(suspendEnable, joinEnable));
-   next  = first;
-   first = this;
-
-   U_INTERNAL_DUMP("first = %p next = %p", first, next)
-}
-
-UThread::~UThread()
-{
-   U_TRACE_UNREGISTER_OBJECT(0, UThread)
-
-   if (priv) stop();
-
-   U_INTERNAL_DUMP("first = %p next = %p", first, next)
-}
-
-pid_t UThread::getTID()
-{
-   U_TRACE(0, "UThread::getTID()")
-
-   pid_t _tid = syscall(SYS_gettid);
-
-   U_RETURN(_tid);
-}
-
-__pure UThread* UThread::getThread()
-{
-   U_TRACE(1, "UThread::getThread()")
-
-   U_INTERNAL_DUMP("first = %p", first)
-
-   pthread_t _tid = (pthread_t) U_SYSCALL_NO_PARAM(pthread_self);
-
-   for (UThread* obj = first; obj; obj = obj->next)
-      {
-      if (pthread_equal(_tid, obj->priv->_tid)) U_RETURN_POINTER(obj, UThread);
-      }
-
-   U_RETURN_POINTER(0, UThread);
-}
-
-void UThread::stop()
-{
-   U_TRACE(1, "UThread::stop()")
-
-   bool bdetached = isDetached();
-
-   (void) U_SYSCALL(pthread_cancel, "%p", priv->_tid);
-
-   if (bdetached == false) (void) U_SYSCALL(pthread_join, "%p,%p", priv->_tid, 0);
-#ifdef HAVE_PTHREAD_YIELD
-   else                    (void) U_SYSCALL_NO_PARAM(pthread_yield);
-#endif
-}
+UThread* UThread::first;
 
 void UThread::close()
 {
-   U_TRACE(1, "UThread::close()")
+   U_TRACE_NO_PARAM(0, "UThread::close()")
 
-   if (priv)
+#ifdef _MSWINDOWS_
+   DWORD _tid = tid;
+#else
+   pthread_t _tid = tid; 
+#endif
+
+   tid = 0;
+
+   U_INTERNAL_DUMP("tid = %p first = %p next = %p", _tid, first, next)
+
+   if (first)
       {
       UThread* obj;
       UThread** ptr = &first;
@@ -157,51 +55,88 @@ void UThread::close()
          {
          U_INTERNAL_ASSERT_POINTER(obj)
 
-         if (pthread_equal(priv->_tid, obj->priv->_tid))
+#     ifdef _MSWINDOWS_
+         if (tid == obj->tid)
+#     else
+         if (pthread_equal(tid, obj->tid))
+#     endif
             {
-            *ptr = obj->next;
-                   obj->next = 0;
+            U_INTERNAL_ASSERT_EQUALS(this, obj)
+            U_INTERNAL_ASSERT_EQUALS(next, obj->next)
+
+            *ptr = next;
+                   next = 0;
 
             break;
             }
 
          ptr = &(*ptr)->next;
          }
+      }
 
-      delete priv;
-             priv = 0;
+   if (_tid)
+      {
+#  ifdef _MSWINDOWS_ // wait for real w32 thread to cleanup
+      switch (cancel)
+         {
+         case cancelImmediate: TerminateThread((HANDLE)_tid, 0); break;
+
+         default: SetEvent(cancellation);
+         }
+
+      (void) WaitForSingleObject((HANDLE)_tid, INFINITE);
+
+      (void) U_SYSCALL(CloseHandle, "%p", cancellation);
+      (void) U_SYSCALL(CloseHandle, "%p", (HANDLE)_tid);
+
+      _endthreadex(0);
+#  else
+#   ifdef HAVE_PTHREAD_CANCEL
+      (void) U_SYSCALL(pthread_cancel, "%p", _tid);
+#   endif
+
+      if (detachstate == PTHREAD_CREATE_JOINABLE) (void) U_SYSCALL(pthread_join, "%p,%p", _tid, 0);
+#   ifdef HAVE_PTHREAD_YIELD
+      else
+         {
+         (void) U_SYSCALL_NO_PARAM(pthread_yield);
+         }
+#   endif
+#  endif
       }
 }
 
 void UThread::yield()
 {
-   U_TRACE(1, "UThread::yield()")
+   U_TRACE_NO_PARAM(1, "UThread::yield()")
 
    // Yields the current thread's CPU time slice to allow another thread to begin immediate execution
 
-   U_INTERNAL_DUMP("_cancel = %d", priv->_cancel)
+   U_INTERNAL_DUMP("cancel = %d", cancel)
 
-#ifndef CCXX_SIG_THREAD_CANCEL
+#ifdef HAVE_PTHREAD_CANCEL
    U_SYSCALL_VOID_NO_PARAM(pthread_testcancel);
-#else
-   sigset_t cancel, old;
-   bool bcancel = (priv->_cancel != cancelDisabled && priv->_cancel != cancelInitial);
+#elif !defined(_MSWINDOWS_) && !defined(__UNIKERNEL__)
+   sigset_t old = 0;
 
-   if (bcancel)
+   if (cancel != cancelInitial &&
+       cancel != cancelDisabled)
       {
+      sigset_t scancel;
+
 #  ifdef sigemptyset
-      sigemptyset(&cancel);
+                       sigemptyset(&scancel);
 #  else
-      (void) U_SYSCALL(sigemptyset, "%p", &cancel);
+      (void) U_SYSCALL(sigemptyset, "%p", &scancel);
 #  endif
 
 #  ifdef sigaddset
-      sigaddset(&cancel, CCXX_SIG_THREAD_CANCEL);
+                       sigaddset(&scancel, U_SIG_THREAD_CANCEL);
 #  else
-      (void) U_SYSCALL(sigaddset, "%p,%d", &cancel, CCXX_SIG_THREAD_CANCEL);
+      (void) U_SYSCALL(sigaddset, "%p,%d", &scancel, U_SIG_THREAD_CANCEL);
 #  endif
 
-      (void) U_SYSCALL(pthread_sigmask, "%d,%p,%p", SIG_UNBLOCK, &cancel, &old);
+      (void) U_SYSCALL(pthread_sigmask, "%d,%p,%p", SIG_UNBLOCK, &scancel, &old);
       }
 #endif
 
@@ -209,32 +144,39 @@ void UThread::yield()
    (void) U_SYSCALL_NO_PARAM(pthread_yield);
 #endif
 
-#ifdef CCXX_SIG_THREAD_CANCEL
-   if (bcancel) (void) U_SYSCALL(pthread_sigmask, "%d,%p,%p", SIG_SETMASK, &old, 0);
+#if !defined(HAVE_PTHREAD_CANCEL) && !defined(_MSWINDOWS_) && !defined(__UNIKERNEL__)
+   if (old) (void) U_SYSCALL(pthread_sigmask, "%d,%p,%p", SIG_SETMASK, &old, 0);
 #endif
 }
 
-bool UThread::isDetached() const
+#ifdef _MSWINDOWS_
+void UThread::wait(CRITICAL_SECTION* pmutex, CONDITION_VARIABLE* pcond)
 {
-   U_TRACE(1, "UThread::isDetached()")
+   U_TRACE(0, "UThread::wait(%p,%p)", pmutex, pcond)
 
-   U_INTERNAL_DUMP("priv = %p", priv)
-
-   U_INTERNAL_ASSERT_POINTER(priv)
-
-   U_INTERNAL_DUMP("_tid = %p", priv->_tid)
-
-   U_INTERNAL_ASSERT_POINTER(priv->_tid)
-
-   int state;
-
-   (void) U_SYSCALL(pthread_attr_getdetachstate, "%p,%p", &(priv->_attr), &state);
-
-   if (state == PTHREAD_CREATE_DETACHED) U_RETURN(true);
-
-   U_RETURN(false);
+#if _WIN32_WINNT >= 0x0600
+   SleepConditionVariableCS(pcond, pmutex, INFINITE); // block until we are signalled from other...
+#endif
 }
 
+void UThread::signal(CONDITION_VARIABLE* pcond)
+{
+   U_TRACE(0, "UThread::signal(%p)", pcond)
+
+#if _WIN32_WINNT >= 0x0600
+   WakeConditionVariable(pcond); // signal to waiting thread...
+#endif
+}
+
+void UThread::signalAll(CONDITION_VARIABLE* pcond)
+{
+   U_TRACE(0, "UThread::signalAll(%p)", pcond)
+
+#if _WIN32_WINNT >= 0x0600
+   WakeAllConditionVariable(pcond); // signal to waiting thread...
+#endif
+}
+#else
 void UThread::sigInstall(int signo)
 {
    U_TRACE(1, "UThread::sigInstall(%d)", signo)
@@ -242,7 +184,7 @@ void UThread::sigInstall(int signo)
    struct sigaction sa;
 
 #ifdef sigemptyset
-   sigemptyset(&sa.sa_mask);
+                    sigemptyset(&sa.sa_mask);
 #else
    (void) U_SYSCALL(sigemptyset, "%p", &sa.sa_mask);
 #endif
@@ -261,93 +203,49 @@ void UThread::sigInstall(int signo)
    (void) U_SYSCALL(sigaction, "%d,%p,%p", signo,  &sa, 0);
 }
 
-void UThread::sigHandler(int signo)
+void UThread::manageSignal(int signo)
 {
-   U_TRACE(1, "UThread::sigHandler(%d)", signo)
+   U_TRACE(1, "UThread::manageSignal(%d)", signo)
 
-   (void) U_SYSCALL(pthread_mutex_lock, "%p", &_lock);
+   static pthread_cond_t  mcond = PTHREAD_COND_INITIALIZER;
+   static pthread_mutex_t mlock = PTHREAD_MUTEX_INITIALIZER;
 
-   UThread* th = getThread();
+   // Mutexes are used to ensure the exclusive access, where as condition variables are used to synchronize threads based on the events.
+   // We need Mutexes to ensure that condition variables dont end up in an infinite wait. One thing to remember is Mutex operation of lock
+   // and unlock are guaranteed to be atomic, but the condition variables need not be. i.e The thread can get scheduled out while the condition variable wait is half way
 
-   U_INTERNAL_DUMP("_signal = %d _suspendCount = %d", th->priv->_signal, th->priv->_suspendCount)
+   lock(&mlock);
 
-   th->priv->_signal = signo;
+   U_INTERNAL_DUMP("suspendCount = %d", suspendCount)
 
    if (signo == U_SIGSTOP &&
-       th->priv->_suspendCount++ == 0)
+       suspendCount++ == 0)
       {
       U_INTERNAL_DUMP("SUSPEND: start(%2D)")
 
-               (void) U_SYSCALL(pthread_cond_wait, "%p,%p", &cond, &_lock);
+      // A thread can wake up from pthread_cond_wait() at any name, not necessarily only when it is signalled.
+      // This means that you need to pair pthread_cond_wait() with some shared state that encodes the condition that the thread is really waiting for
+
+      do {
+         (void) U_SYSCALL(pthread_cond_wait, "%p,%p", &mcond, &mlock); // NB: pthread_cond_wait() requires that the mutex be locked already when you call it
+         }
+      while (suspendCount == 1);
 
       U_INTERNAL_DUMP("SUSPEND: end(%2D)")
       }
-   else if (signo == U_SIGCONT             &&
-            th->priv->_suspendCount    > 0 &&
-            th->priv->_suspendCount-- == 1)
+   else if (signo == U_SIGCONT  &&
+            suspendCount    > 0 &&
+            suspendCount-- == 1)
       {
-      (void) U_SYSCALL(pthread_cond_signal, "%p",  &cond);
+      (void) U_SYSCALL(pthread_cond_signal, "%p", &mcond);
       }
 
-   (void) U_SYSCALL(pthread_mutex_unlock, "%p", &_lock);
+   unlock(&mlock);
 }
 
-void UThread::signal(int signo)
+void UThread::maskSignal()
 {
-   U_TRACE(1, "UThread::signal(%d)", signo)
-
-   // set the _signal variable to the given value. Can only be done if called from the process that the
-   // thread is associated with. If called from a different process, the given signal is sent to the process
-
-   pthread_t _tid = (pthread_t) U_SYSCALL_NO_PARAM(pthread_self);
-
-   if (pthread_equal(_tid, priv->_tid)) sigHandler(signo);
-   else
-      {
-      (void) U_SYSCALL(pthread_kill, "%p,%d", priv->_tid, signo);
-
-      yield(); // give the signal a time to kick in
-      }
-}
-
-/**
- * You can't kill or stop just one thread from another process. You can send a signal to a particular thread,
- * but the stop/abort action that is taken by the signal affects the whole process. In the earlier implementation
- * of Linux threads, it was possible to stop a single thread with SIGSTOP, but this behaviour has now been fixed
- * to conform to the Posix standard (so it stops all threads in the process)
- */
-
-void UThread::suspend()
-{
-   U_TRACE(1, "UThread::suspend()")
-
-   U_INTERNAL_DUMP("priv = %p", priv)
-
-   U_INTERNAL_ASSERT_POINTER(priv)
-
-   U_INTERNAL_DUMP("_tid = %p", priv->_tid)
-
-   U_INTERNAL_ASSERT_POINTER(priv->_tid)
-
-   if (priv->_suspendEnable) signal(U_SIGSTOP);
-}
-
-void UThread::resume()
-{
-   U_TRACE(1, "UThread::resume()")
-
-   U_INTERNAL_ASSERT_POINTER(priv->_tid)
-
-   if (priv->_suspendEnable) signal(U_SIGCONT);
-}
-
-void UThread::execHandler(UThread* th)
-{
-   U_TRACE(1, "UThread::execHandler(%p)", th)
-
-   th->priv->_tid = (pthread_t) U_SYSCALL_NO_PARAM(pthread_self);
-
-   U_INTERNAL_DUMP("_tid = %p", th->priv->_tid)
+   U_TRACE_NO_PARAM(1, "UThread::maskSignal()")
 
    sigset_t mask;
 
@@ -373,61 +271,157 @@ void UThread::execHandler(UThread* th)
 
    (void) U_SYSCALL(pthread_sigmask, "%d,%p,%p", SIG_BLOCK, &mask, 0);
 
-   if (th->priv->_suspendEnable)
+#ifndef HAVE_PTHREAD_SUSPEND
+# ifdef sigemptyset
+                    sigemptyset(&mask);
+# else
+   (void) U_SYSCALL(sigemptyset, "%p", &mask);
+# endif
+
+# ifdef sigaddset
+                    sigaddset(&mask, U_SIGSTOP);
+                    sigaddset(&mask, U_SIGCONT);
+# else
+   (void) U_SYSCALL(sigaddset, "%p,%d", &mask, U_SIGSTOP);
+   (void) U_SYSCALL(sigaddset, "%p,%d", &mask, U_SIGCONT);
+# endif
+
+   (void) U_SYSCALL(pthread_sigmask, "%d,%p,%p", SIG_UNBLOCK, &mask, 0);
+
+   sigInstall(U_SIGSTOP);
+   sigInstall(U_SIGCONT);
+#endif
+}
+
+bool UThread::initRwLock(pthread_rwlock_t* prwlock)
+{
+   U_TRACE(1, "UThread::initRwLock(%p)", prwlock)
+
+   pthread_rwlockattr_t rwlockattr;
+
+   if (U_SYSCALL(pthread_rwlockattr_init,       "%p",    &rwlockattr)                         != 0 ||
+#     if defined(LINUX) || defined(__LINUX__) || defined(__linux__)
+       U_SYSCALL(pthread_rwlockattr_setpshared, "%p,%d", &rwlockattr, PTHREAD_PROCESS_SHARED) != 0 ||
+#     endif
+       U_SYSCALL(pthread_rwlock_init,           "%p,%p", prwlock, &rwlockattr)                != 0)
       {
-#  ifndef HAVE_PTHREAD_SUSPEND
-      // You can't kill or stop just one thread from another process. You can send a signal to a particular thread,
-      // but the stop/abort action that is taken by the signal affects the whole process. In the earlier implementation
-      // of Linux threads, it was possible to stop a single thread with SIGSTOP, but this behaviour has now been fixed
-      // to conform to the Posix standard (so it stops all threads in the process)
-
-#    ifdef sigemptyset
-      sigemptyset(&mask);
-#    else
-      (void) U_SYSCALL(sigemptyset, "%p", &mask);
-#    endif
-
-#    ifdef sigaddset
-      sigaddset(&mask, U_SIGSTOP);
-      sigaddset(&mask, U_SIGCONT);
-#    else
-      (void) U_SYSCALL(sigaddset, "%p,%d", &mask, U_SIGSTOP);
-      (void) U_SYSCALL(sigaddset, "%p,%d", &mask, U_SIGCONT);
-#    endif
-
-      (void) U_SYSCALL(pthread_sigmask, "%d,%p,%p", SIG_UNBLOCK, &mask, 0);
-
-      th->sigInstall(U_SIGSTOP);
-      th->sigInstall(U_SIGCONT);
-#  endif
+      U_RETURN(false);
       }
 
-   pthread_cleanup_push((cleanup_t)UThread::threadCleanup, th);
-
-   th->setCancel(cancelDeferred);
-
-   th->run();
-
-   pthread_cleanup_pop(0);
-
-   th->close();
+   U_RETURN(true);
 }
+
+bool UThread::initIPC(pthread_mutex_t* pmutex, pthread_cond_t* pcond)
+{
+   U_TRACE(0, "UThread::initIPC(%p,%p)", pmutex, pcond)
+
+   if (pmutex) /* initialize mutex */
+      {
+      pthread_mutexattr_t mutexattr;
+
+      if (U_SYSCALL(pthread_mutexattr_init,       "%p",    &mutexattr)                         != 0 ||
+#        if defined(LINUX) || defined(__LINUX__) || defined(__linux__)
+          U_SYSCALL(pthread_mutexattr_setrobust,  "%p,%d", &mutexattr, PTHREAD_MUTEX_ROBUST)   != 0 ||
+          U_SYSCALL(pthread_mutexattr_setpshared, "%p,%d", &mutexattr, PTHREAD_PROCESS_SHARED) != 0 ||
+#        endif
+          U_SYSCALL(pthread_mutex_init,           "%p,%p", pmutex, &mutexattr)                 != 0)
+         {
+         U_RETURN(false);
+         }
+      }
+
+   if (pcond) /* initialize condition variable */
+      {
+      pthread_condattr_t condattr;
+
+      if (U_SYSCALL(pthread_condattr_init,       "%p",    &condattr)                         != 0 ||
+#        if defined(LINUX) || defined(__LINUX__) || defined(__linux__)
+          U_SYSCALL(pthread_condattr_setpshared, "%p,%d", &condattr, PTHREAD_PROCESS_SHARED) != 0 ||
+#        endif
+          U_SYSCALL(pthread_cond_init,           "%p,%p", pcond, &condattr)                  != 0)
+         {
+         U_RETURN(false);
+         }
+      }
+
+   U_RETURN(true);
+}
+
+void UThread::doIPC(pthread_mutex_t* plock, pthread_cond_t* pcond, vPF function, bool wait)
+{
+   U_TRACE(0, "UThread::doIPC(%p,%p,%p,%b)", plock, pcond, function, wait)
+
+   lock(plock);
+
+   if (wait) (void) U_SYSCALL(pthread_cond_wait, "%p,%p", pcond, plock); // block until we are signalled from other...
+
+   function(); // ...than call function
+
+   unlock(plock);
+
+   if (wait == false) (void) U_SYSCALL(pthread_cond_signal, "%p", pcond); // signal to waiting thread...
+}
+#endif
 
 bool UThread::start(uint32_t timeoutMS)
 {
    U_TRACE(1, "UThread::start(%u)", timeoutMS)
 
-   U_INTERNAL_ASSERT_EQUALS(priv->_tid, 0)
+   U_INTERNAL_ASSERT_EQUALS(tid, 0)
 
-#ifdef DEBUG
-   if (u_plock == 0)
+   next  = first;
+   first = this;
+
+   U_INTERNAL_DUMP("first = %p next = %p", first, next)
+
+#ifdef _MSWINDOWS_
+   HANDLE process = GetCurrentProcess();
+
+   (void) DuplicateHandle(process, GetCurrentThread(), process, (LPHANDLE)&tid, 0, FALSE, DUPLICATE_SAME_ACCESS);
+
+   cancellation = CreateEvent(NULL, TRUE, FALSE, NULL);
+
+   // This starts a free standing procedure as a thread.
+   // That thread instantiates the class and calls its main method
+   void* NO_SECURITY_ATTRIBUTES = NULL;
+   const unsigned CREATE_IN_RUN_STATE    = 0;
+   const unsigned USE_DEFAULT_STACK_SIZE = 0;
+
+   if (_beginthreadex(NO_SECURITY_ATTRIBUTES, USE_DEFAULT_STACK_SIZE, execHandler, this, CREATE_IN_RUN_STATE, (unsigned int*)&id) == 0)
       {
-      static pthread_mutex_t plock = PTHREAD_MUTEX_INITIALIZER;
-                  u_plock = &plock;
-      }
-#endif
+      int m_thread_start_error;
+      errno_t m_return_value = _get_errno(&m_thread_start_error);
 
-   if (U_SYSCALL(pthread_create, "%p,%p,%p,%p", &(priv->_tid), &(priv->_attr), (exec_t)execHandler, this) == 0)
+      if (m_return_value == 0)
+         {
+         U_WARNING("Create Thread Fail, error %d", m_thread_start_error);
+         }
+      else
+         {
+         U_WARNING("Create Thread Fail, get_errno fail, returned %d", m_return_value);
+         }
+
+      CloseHandle(cancellation);
+                cancellation = 0;
+
+      U_RETURN(false);
+      }
+
+   setCancel(cancelInitial);
+
+   SetThreadPriority((HANDLE)tid, THREAD_PRIORITY_NORMAL);
+#else
+   bool result;
+   pthread_attr_t attr;
+   
+   (void) U_SYSCALL(pthread_attr_init,           "%p",    &attr);
+   (void) U_SYSCALL(pthread_attr_setdetachstate, "%p,%d", &attr, detachstate);
+
+   result = (U_SYSCALL(pthread_create, "%p,%p,%p,%p", &tid, &attr, (pvPFpv)execHandler, this) == 0);
+
+   (void) pthread_attr_destroy(&attr);
+
+   if (result)
       {
       if (timeoutMS)
          {
@@ -442,82 +436,81 @@ bool UThread::start(uint32_t timeoutMS)
 
       U_RETURN(true);
       }
+#endif
 
    U_RETURN(false);
-}
-
-bool UThread::detach()
-{
-   U_TRACE(1, "UThread::detach()")
-
-   if (priv->_tid)
-      {
-      if (U_SYSCALL(pthread_detach, "%p", priv->_tid)) U_RETURN(false);
-      }
-   else
-      {
-      if (U_SYSCALL(pthread_attr_setdetachstate, "%p,%d", &(priv->_attr), PTHREAD_CREATE_DETACHED)) U_RETURN(false);
-      }
-
-   U_RETURN(true);
 }
 
 void UThread::setCancel(int mode)
 {
    U_TRACE(1, "UThread::setCancel(%d)", mode)
 
-   int old;
-
    switch (mode)
       {
-      case cancelImmediate:
       case cancelDeferred:
+      case cancelImmediate:
          {
+#     ifdef HAVE_PTHREAD_CANCEL
+         int old;
+
          (void) U_SYSCALL(pthread_setcancelstate, "%d,%p",                           PTHREAD_CANCEL_ENABLE,        &old);
          (void) U_SYSCALL(pthread_setcanceltype,  "%d,%p", (mode == cancelDeferred ? PTHREAD_CANCEL_DEFERRED
                                                                                    : PTHREAD_CANCEL_ASYNCHRONOUS), &old);
+#     endif
          }
       break;
 
       case cancelInitial:
       case cancelDisabled:
+         {
+#     ifdef HAVE_PTHREAD_CANCEL
+         int old;
+
          (void) U_SYSCALL(pthread_setcancelstate, "%d,%p", PTHREAD_CANCEL_DISABLE, &old);
+#     endif
+         }
       break;
       }
 
-   priv->_cancel = mode;
+   cancel = mode;
 
-   U_INTERNAL_DUMP("_cancel = %d", priv->_cancel)
+   U_INTERNAL_DUMP("cancel = %d", cancel)
 }
 
 int UThread::enterCancel()
 {
-   U_TRACE(1, "UThread::enterCancel()")
+   U_TRACE_NO_PARAM(1, "UThread::enterCancel()")
 
-   U_INTERNAL_DUMP("_cancel = %d", priv->_cancel)
+   U_INTERNAL_DUMP("cancel = %d", cancel)
 
-    int old = priv->_cancel;
+   int old = cancel;
 
-    if (old != cancelDisabled &&
-        old != cancelImmediate)
-       {
-       setCancel(cancelImmediate);
+   if (old != cancelDisabled &&
+       old != cancelImmediate)
+      {
+      setCancel(cancelImmediate);
 
-       U_SYSCALL_VOID_NO_PARAM(pthread_testcancel);
-       }
+#  ifdef HAVE_PTHREAD_CANCEL
+      U_SYSCALL_VOID_NO_PARAM(pthread_testcancel);
+#  elif defined(_MSWINDOWS_)
+      yield();
+#  endif
+      }
 
-    U_RETURN(old);
+   U_RETURN(old);
 }
 
 void UThread::exitCancel(int old)
 {
    U_TRACE(1, "UThread::exitCancel(%d)", old)
 
-   U_INTERNAL_DUMP("_cancel = %d", priv->_cancel)
+   U_INTERNAL_DUMP("cancel = %d", cancel)
 
-   if (old != priv->_cancel)
+   if (old != cancel)
       {
+#  ifdef HAVE_PTHREAD_CANCEL
       U_SYSCALL_VOID_NO_PARAM(pthread_testcancel);
+#  endif
 
       setCancel(old);
       }
@@ -525,20 +518,39 @@ void UThread::exitCancel(int old)
 
 void UThread::sleep(time_t timeoutMS)
 {
-   U_TRACE(1+256, "UThread::sleep(%ld)", timeoutMS)
+   U_TRACE(1, "UThread::sleep(%ld)", timeoutMS)
 
-#ifdef CCXX_SIG_THREAD_CANCEL
-   UThread* th = getThread();
+// U_ASSERT(isCurrentThread(tid))
 
-   int old = th->enterCancel();
-#endif
-   struct timespec ts = {  timeoutMS / 1000L, (timeoutMS % 1000L) * 1000000L };
+   struct timespec ts = { timeoutMS / 1000L, (timeoutMS % 1000L) * 1000000L };
 
    U_INTERNAL_ASSERT(ts.tv_sec >= 0L)
    U_INTERNAL_ASSERT_RANGE(0L, ts.tv_nsec, 999999999L)
 
-#ifdef  HAVE_PTHREAD_DELAY
-    pthread_delay(&ts);
+#ifdef HAVE_PTHREAD_CANCEL
+   int old = enterCancel();
+#endif
+
+#ifdef _MSWINDOWS_
+   switch (cancel)
+      {
+      case cancelInitial:
+      case cancelDisabled: SleepEx(timeoutMS, FALSE); break;
+
+      default:
+         {
+         if (WaitForSingleObject(cancellation, timeoutMS) == WAIT_OBJECT_0)
+            {
+            if (cancel != cancelManual) close();
+            }
+         }
+      }
+#endif
+
+#ifdef HAVE_PTHREAD_DELAY
+   (void) pthread_delay(&ts);
+#elif defined(HAVE_PTHREAD_DELAY_NP)
+   (void) pthread_delay_np(&ts);
 #else
    U_INTERNAL_DUMP("Call   nanosleep(%2D)")
 
@@ -547,68 +559,167 @@ void UThread::sleep(time_t timeoutMS)
    U_INTERNAL_DUMP("Return nanosleep(%2D)")
 #endif
 
-#ifdef CCXX_SIG_THREAD_CANCEL
-   th->exitCancel(old);
+#ifdef HAVE_PTHREAD_CANCEL
+   exitCancel(old);
 #endif
 }
 
-// Inter Process Communication
+// THREAD POOL
 
-bool UThread::initIPC(pthread_mutex_t* mutex, pthread_cond_t* cond)
+UThreadPool::UThreadPool(uint32_t size) : UThread(PTHREAD_CREATE_DETACHED), pool(size)
 {
-   U_TRACE(0, "UThread::initIPC(%p,%p)", mutex, cond)
+   U_TRACE_REGISTER_OBJECT(0, UThreadPool, "%u", size)
 
-   if (mutex) /* initialize mutex */
+   UThread* th;
+
+   active = true;
+
+#if defined(_MSWINDOWS_)
+   // Task queue mutex
+   InitializeCriticalSection(&tasks_mutex);
+# if _WIN32_WINNT >= 0x0600
+   // Condition variable
+   InitializeConditionVariable(&condition);
+   InitializeConditionVariable(&condition_task_finished);
+# endif
+   // This starts a free standing procedure as a thread.
+   // That thread instantiates the class and calls its main method
+   void* NO_SECURITY_ATTRIBUTES = NULL;
+   const unsigned CREATE_IN_RUN_STATE    = 0;
+   const unsigned USE_DEFAULT_STACK_SIZE = 0;
+
+   for (uint32_t i = 0; i < size; ++i)
       {
-      pthread_mutexattr_t mutexattr;
+      U_NEW(UThread, th, UThread(UThread::detachstate));
 
-      if (U_SYSCALL(pthread_mutexattr_init,       "%p",    &mutexattr)                         != 0 ||
-          U_SYSCALL(pthread_mutexattr_setrobust,  "%p,%d", &mutexattr, PTHREAD_MUTEX_ROBUST)   != 0 ||
-          U_SYSCALL(pthread_mutexattr_setpshared, "%p,%d", &mutexattr, PTHREAD_PROCESS_SHARED) != 0 ||
-          U_SYSCALL(pthread_mutex_init,           "%p,%p", mutex, &mutexattr)                  != 0)
+      if (_beginthreadex(NO_SECURITY_ATTRIBUTES, USE_DEFAULT_STACK_SIZE, execHandler, this, CREATE_IN_RUN_STATE, (unsigned int*)&id) == 0)
          {
-         U_RETURN(false);
+         int m_thread_start_error;
+         errno_t m_return_value = _get_errno(&m_thread_start_error);
+
+         if (m_return_value == 0)
+            {
+            U_WARNING("Create Thread Fail, error %d", m_thread_start_error);
+            }
+         else
+            {
+            U_WARNING("Create Thread Fail, get_errno fail, returned %d", m_return_value);
+            }
+
+         delete th;
+
+         continue;
          }
+
+      pool.push_back(th);
+      }
+#else
+   pthread_attr_t attr;
+
+   // Task queue mutex
+   tasks_mutex = PTHREAD_MUTEX_INITIALIZER;
+   // Condition variable
+   condition               =
+   condition_task_finished = PTHREAD_COND_INITIALIZER;
+
+   (void) pthread_attr_init(&attr);
+   (void) pthread_attr_setdetachstate(&attr, UThread::detachstate);
+
+   for (uint32_t i = 0; i < size; ++i)
+      {
+      U_NEW(UThread, th, UThread(UThread::detachstate));
+
+      if (pthread_create(&(th->tid), &attr, (pvPFpv)execHandler, this))
+         {
+         delete th;
+
+         continue;
+         }
+
+      pool.push(th);
       }
 
-   if (cond) /* initialize condition variable */
-      {
-      pthread_condattr_t condattr;
+   (void) pthread_attr_destroy(&attr);
+#endif
 
-      if (U_SYSCALL(pthread_condattr_init,       "%p",    &condattr)                         != 0 ||
-          U_SYSCALL(pthread_condattr_setpshared, "%p,%d", &condattr, PTHREAD_PROCESS_SHARED) != 0 ||
-          U_SYSCALL(pthread_cond_init,           "%p,%p", cond, &condattr)                   != 0)
-         {
-         U_RETURN(false);
-         }
-      }
-
-   U_RETURN(true);
+   UTimeVal::nanosleep(200); // wait for UThreadPool init completion
 }
 
-void UThread::doIPC(pthread_mutex_t* mutex, pthread_cond_t* cond, vPF function, bool wait)
+UThreadPool::~UThreadPool()
 {
-   U_TRACE(0, "UThread::doIPC(%p,%p,%p,%b)", mutex, cond, function, wait)
+   U_TRACE_UNREGISTER_OBJECT(0, UThread)
 
-   lock(mutex);
+   active = false;
 
-   if (wait) (void) U_SYSCALL(pthread_cond_wait, "%p,%p", cond, mutex); // block until we are signalled from other...
+   lock(&tasks_mutex);
 
-   function(); // ...than call function
+   signalAll(&condition);
 
-   unlock(mutex);
+   queue.clear();
 
-   if (wait == false) (void) U_SYSCALL(pthread_cond_signal, "%p", cond); // signal to waiting thread...
+   unlock(&tasks_mutex);
+
+#ifdef _MSWINDOWS_
+   DeleteCriticalSection(&tasks_mutex);
+#endif
+}
+
+// define method VIRTUAL of class UThread
+
+void UThreadPool::run()
+{
+   U_TRACE_NO_PARAM(0, "UThreadPool::run()")
+
+   UThread* current_task;
+
+   do {
+      // We need to put pthread_cond_wait in a loop for two reasons:
+      //
+      // 1. There can be spurious wakeups (due to signal/ENITR)
+      //
+      // 2. When tasks_mutex is released for waiting, another thread can be waken up from a signal/broadcast and that
+      //    thread can miss up the condition. So when the current thread wakes up the condition may no longer be actually true!
+
+      lock(&tasks_mutex);
+
+      while (queue._length == 0 && active)
+         {
+         // Wait until there is a task in the queue
+
+         wait(&tasks_mutex, &condition); // Unlock tasks_mutex while wait, then lock it back when signaled
+         }
+
+      if (active == false) // Destructor ordered on abort
+         {
+         unlock(&tasks_mutex);
+
+         return;
+         }
+
+      // If we got here, we successfully acquired the lock and the queue<Task> is not empty
+
+      current_task = queue.pop();
+
+      unlock(&tasks_mutex);
+
+      current_task->run(); // execute the task
+
+      delete current_task;
+
+      signal(&condition_task_finished);
+      }
+   while (active);
 }
 
 #if defined(U_STDCPP_ENABLE) && defined(DEBUG)
-const char* UThreadImpl::dump(bool reset) const
+const char* UThread::dump(bool reset) const
 {
-   *UObjectIO::os << "_tid           " << _tid           << '\n'
-                  << "_cancel        " << _cancel        << '\n'
-                  << "_signal        " << _signal        << '\n'
-                  << "_suspendCount  " << _suspendCount  << '\n'
-                  << "_suspendEnable " << _suspendEnable;
+   *UObjectIO::os << "id             " << id           << '\n'
+                  << "tid            " << (void*)tid   << '\n'
+                  << "cancel         " << cancel       << '\n'
+                  << "detachstate    " << detachstate  << '\n'
+                  << "next  (UThread " << (void*)next  << ")\n"
+                  << "first (UThread " << (void*)first << ')';
 
    if (reset)
       {
@@ -620,10 +731,11 @@ const char* UThreadImpl::dump(bool reset) const
    return 0;
 }
 
-const char* UThread::dump(bool reset) const
+const char* UThreadPool::dump(bool reset) const
 {
-   *UObjectIO::os << "next  (UThread " << (void*)next  << ")\n"
-                  << "first (UThread " << (void*)first << ')';
+   *UObjectIO::os << "active         " << active        << '\n'
+                  << "pool  (UVector " << (void*)&pool  << ")\n"
+                  << "queue (UVector " << (void*)&queue << ')';
 
    if (reset)
       {

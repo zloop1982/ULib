@@ -14,7 +14,6 @@
 #ifndef U_MOD_GEOIP_H
 #define U_MOD_GEOIP_H 1
 
-#include <ulib/string.h>
 #include <ulib/net/server/server_plugin.h>
 
 #include <GeoIP.h>
@@ -26,8 +25,6 @@ public:
    // Check for memory error
    U_MEMORY_TEST
 
-   // COSTRUTTORI
-
             UGeoIPPlugIn();
    virtual ~UGeoIPPlugIn();
 
@@ -35,13 +32,13 @@ public:
 
    // Server-wide hooks
 
-   virtual int handlerConfig(UFileConfig& cfg) U_DECL_OVERRIDE;
-   virtual int handlerInit() U_DECL_OVERRIDE;
+   virtual int handlerConfig(UFileConfig& cfg) U_DECL_FINAL;
+   virtual int handlerInit() U_DECL_FINAL;
 
    // Connection-wide hooks
 
-   virtual int handlerREAD() U_DECL_OVERRIDE;
-   virtual int handlerRequest() U_DECL_OVERRIDE;
+   virtual int handlerREAD() U_DECL_FINAL;
+   virtual int handlerRequest() U_DECL_FINAL;
 
    // DEBUG
 
@@ -66,13 +63,7 @@ protected:
    static bool checkCountryForbidden();
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UGeoIPPlugIn(const UGeoIPPlugIn&) = delete;
-   UGeoIPPlugIn& operator=(const UGeoIPPlugIn&) = delete;
-#else
-   UGeoIPPlugIn(const UGeoIPPlugIn&) : UServerPlugIn() {}
-   UGeoIPPlugIn& operator=(const UGeoIPPlugIn&)        { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UGeoIPPlugIn)
 };
 
 #endif

@@ -41,7 +41,6 @@ bool UModProxyService::loadConfig(UFileConfig& cfg)
 {
    U_TRACE(0, "UModProxyService::loadConfig(%p)", &cfg)
 
-   // -----------------------------------------------------------------------------------------------------------------------------------
    // proxy - plugin parameters
    // -----------------------------------------------------------------------------------------------------------------------------------
    // ERROR MESSAGE        Allows you to tell clients about what type of error
@@ -76,7 +75,7 @@ bool UModProxyService::loadConfig(UFileConfig& cfg)
          {
          U_INTERNAL_ASSERT_EQUALS(UHTTP::vmsg_error, 0)
 
-         UHTTP::vmsg_error = U_NEW(UVector<UString>(n));
+         U_NEW(UVector<UString>, UHTTP::vmsg_error, UVector<UString>(n));
 
          for (uint32_t i = 0; i < n; ++i)
             {
@@ -92,49 +91,48 @@ bool UModProxyService::loadConfig(UFileConfig& cfg)
    UString x;
    UModProxyService* service;
 
-   UHTTP::vservice = U_NEW(UVector<UModProxyService*>);
+   U_NEW(UVector<UModProxyService*>, UHTTP::vservice, UVector<UModProxyService*>);
 
    while (cfg.searchForObjectStream())
       {
-      service = U_NEW(UModProxyService);
+      U_NEW(UModProxyService, service, UModProxyService);
 
       (void) cfg.loadVector(service->vreplace_response, "REPLACE_RESPONSE");
 
       if (cfg.loadTable())
          {
-         service->user      = cfg[*UString::str_USER];
-         service->server    = cfg[*UString::str_SERVER];
-         service->password  = cfg[*UString::str_PASSWORD];
-
+         service->user      = cfg.at(U_CONSTANT_TO_PARAM("USER"));
+         service->server    = cfg.at(U_CONSTANT_TO_PARAM("SERVER"));;
+         service->password  = cfg.at(U_CONSTANT_TO_PARAM("PASSWORD"));
          service->host_mask = cfg.at(U_CONSTANT_TO_PARAM("HOST"));
 
-         service->port             = cfg.readLong(*UString::str_PORT, 80);
+         service->port             = cfg.readLong(   U_CONSTANT_TO_PARAM("PORT"), 80);
          service->websocket        = cfg.readBoolean(U_CONSTANT_TO_PARAM("WEBSOCKET"));
          service->request_cert     = cfg.readBoolean(U_CONSTANT_TO_PARAM("CLIENT_CERTIFICATE"));
-         service->response_client  = cfg.readBoolean(*UString::str_RESPONSE_TYPE);
+         service->response_client  = cfg.readBoolean(U_CONSTANT_TO_PARAM("RESPONSE_TYPE"));
          service->follow_redirects = cfg.readBoolean(U_CONSTANT_TO_PARAM("FOLLOW_REDIRECTS"));
 
          x = cfg.at(U_CONSTANT_TO_PARAM("URI"));
 
          if (x)
             {
-#        ifdef USE_LIBPCRE
-            service->uri_mask.set(x, 0);
-            service->uri_mask.study();
-#        else
+#        ifndef USE_LIBPCRE
             service->uri_mask = x;
+#        else
+            service->uri_mask.set(x, 0U);
+            service->uri_mask.study();
 #        endif
             }
 
-         x = cfg[*UString::str_METHOD_NAME];
+         x = cfg.at(U_CONSTANT_TO_PARAM("METHOD_NAME"));
 
          if (x)
             {
             U_INTERNAL_ASSERT(x.isNullTerminated())
 
             const char* msk = x.data();
-loop:
-            switch (u_get_unalignedp32(msk))
+
+loop:       switch (u_get_unalignedp32(msk))
                {
                case U_MULTICHAR_CONSTANT32('G','E','T', 0):  service->method_mask |= HTTP_GET; break;
                case U_MULTICHAR_CONSTANT32('P','U','T', 0):  service->method_mask |= HTTP_PUT; break;
@@ -179,7 +177,7 @@ loop:
 
          if (x)
             {
-            service->vremote_address = U_NEW(UVector<UIPAllow*>);
+            U_NEW(UVector<UIPAllow*>, service->vremote_address, UVector<UIPAllow*>);
 
             if (UIPAllow::parseMask(x, *(service->vremote_address)) == 0)
                {
@@ -201,14 +199,14 @@ loop:
 
 __pure UModProxyService* UModProxyService::findService()
 {
-   U_TRACE(0, "UModProxyService::findService()")
+   U_TRACE_NO_PARAM(0, "UModProxyService::findService()")
 
    uint32_t sz;
    const char* ptr = UClientImage_Base::getRequestUri(sz);
 
    // ------------------------------------------------------------------------------
    // The difference between U_HTTP_HOST_.. and U_HTTP_VHOST_.. is that
-   // U_HTTP_HOST_.. can include the «:PORT» text, and U_HTTP_VHOST_.. only the name
+   // U_HTTP_HOST_.. can include the :PORT text, and U_HTTP_VHOST_.. only the name
    // ------------------------------------------------------------------------------
 
    return findService(U_HTTP_HOST_TO_PARAM, ptr, sz);
@@ -230,11 +228,11 @@ __pure UModProxyService* UModProxyService::findService(const char* host, uint32_
          if ((elem->method_mask     == 0    || (U_http_method_type & elem->method_mask) != 0)                                                  &&
              (elem->vremote_address == 0    || UClientImage_Base::isAllowed(*(elem->vremote_address)))                                         &&
              (elem->host_mask.empty()       || (host_len && UServices::dosMatchWithOR(host, host_len, U_STRING_TO_PARAM(elem->host_mask), 0))) &&
-#        ifdef USE_LIBPCRE
+#           ifdef USE_LIBPCRE
              (elem->uri_mask.getPcre() == 0 || elem->uri_mask.search(uri, uri_len)))
-#        else
+#           else
              (elem->uri_mask.empty()        || UServices::dosMatchWithOR(uri, uri_len, U_STRING_TO_PARAM(elem->uri_mask), 0)))
-#        endif
+#           endif
             {
             U_RETURN_POINTER(elem, UModProxyService);
             }
@@ -252,7 +250,7 @@ bool UModProxyService::setServerAddress(const UString& dir, const char* address,
 
    UString dest(U_CAPACITY);
 
-   dest.snprintf(U_SRV_ADDR_FMT, dir.rep, U_CLIENT_ADDRESS_TO_TRACE, UHTTP::getUserAgent());
+   dest.snprintf(U_CONSTANT_TO_PARAM(U_SRV_ADDR_FMT), dir.rep, U_CLIENT_ADDRESS_TO_TRACE, UHTTP::getUserAgent());
 
    if (UFile::writeTo(dest, address, address_len)) U_RETURN(true);
 
@@ -261,13 +259,13 @@ bool UModProxyService::setServerAddress(const UString& dir, const char* address,
 
 UString UModProxyService::getServer() const
 {
-   U_TRACE(0, "UModProxyService::getServer()")
+   U_TRACE_NO_PARAM(0, "UModProxyService::getServer()")
 
    const char* ptr = server.data();
 
    if (u_get_unalignedp16(ptr) == U_MULTICHAR_CONSTANT16('$','<'))
       {
-      // NB: as example look at Service_GOOGLE_MAP for nodog...
+      // NB: look for example at Service_GOOGLE_MAP for nodog...
 
       UString result(U_HTTP_VHOST_TO_PARAM);
 
@@ -280,7 +278,7 @@ UString UModProxyService::getServer() const
 
       U_INTERNAL_ASSERT(dir)
 
-      pathname.snprintf(U_SRV_ADDR_FMT, dir.rep, U_CLIENT_ADDRESS_TO_TRACE, UHTTP::getUserAgent());
+      pathname.snprintf(U_CONSTANT_TO_PARAM(U_SRV_ADDR_FMT), dir.rep, U_CLIENT_ADDRESS_TO_TRACE, UHTTP::getUserAgent());
 
       UString address = UFile::contentOf(pathname);
 
@@ -317,12 +315,13 @@ void UModProxyService::setMsgError(int err)
 {
    U_TRACE(0, "UModProxyService::setMsgError(%d)", err)
 
-   /*
-   INTERNAL_ERROR = 1, // NB: we need to start from 1 because we use a vector...
-   BAD_REQUEST    = 2,
-   NOT_FOUND      = 3,
-   FORBIDDEN      = 4,
-   */
+   /**
+    * INTERNAL_ERROR = 1, // NB: we need to start from 1 because we use a vector...
+    * BAD_REQUEST    = 2,
+    * NOT_FOUND      = 3,
+    * FORBIDDEN      = 4,
+    * ....
+    */
 
    U_INTERNAL_ASSERT_RANGE(1, err, UModProxyService::ERROR_A_X509_NOBASICAUTH)
 
@@ -339,7 +338,7 @@ void UModProxyService::setMsgError(int err)
             {
             UString fmt = (*UHTTP::vmsg_error)[err - UModProxyService::FORBIDDEN - 1];
 
-            UClientImage_Base::wbuffer->snprintf(fmt.c_str());
+            UClientImage_Base::wbuffer->snprintf(U_STRING_TO_PARAM(fmt));
             }
          }
       }

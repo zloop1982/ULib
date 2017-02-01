@@ -64,12 +64,12 @@ public:
       }
 
    /**
-    * Deletes this object.
+    * Deletes this object
     */
 
    void clear()
       {
-      U_TRACE(0, "UPKCS10::clear()")
+      U_TRACE_NO_PARAM(0, "UPKCS10::clear()")
 
       U_INTERNAL_ASSERT_POINTER(request)
 
@@ -85,17 +85,15 @@ public:
       if (request) clear();
       }
 
-   // VARIE
-
    bool isValid() const
       {
-      U_TRACE(0, "UPKCS10::isValid()")
+      U_TRACE_NO_PARAM(0, "UPKCS10::isValid()")
 
       U_RETURN(request != 0);
       }
 
    /**
-    * Returns <i>subject</i> of this certificateRequest.
+    * Returns <i>subject</i> of this certificateRequest
     */
 
    static UString getSubject(X509_REQ* request);
@@ -103,12 +101,12 @@ public:
    UString getSubject() const { return getSubject(request); }
 
    /**
-    * Returns the <i>versionNumber</i> of this certificateRequest. 
+    * Returns the <i>versionNumber</i> of this certificateRequest
     */
 
    long getVersionNumber() const
       {
-      U_TRACE(1, "UPKCS10::getVersionNumber()")
+      U_TRACE_NO_PARAM(1, "UPKCS10::getVersionNumber()")
 
       U_INTERNAL_ASSERT_POINTER(request)
 
@@ -118,51 +116,12 @@ public:
       }
 
    /**
-    * Returns the <i>signature</i> of this certificateRequest.
-    */
-
-   UString getSignature() const
-      {
-      U_TRACE(0, "UPKCS10::getSignature()")
-
-      U_INTERNAL_ASSERT_POINTER(request)
-
-      UString signature( (const char*) request->signature->data,
-                                       request->signature->length );
-
-      U_RETURN_STRING(signature);
-      }
-
-   /**
-    * Returns <i>signatureAlgorithm</i> of this certificateRequest.
-    */ 
-
-   UString getSignatureAlgorithm() const
-      {
-      U_TRACE(0, "UPKCS10::getSignatureAlgorithm()")
-
-      U_INTERNAL_ASSERT_POINTER(request)
-
-      UString signature_algorithm( OBJ_nid2sn( OBJ_obj2nid(request->sig_alg->algorithm) ) );
-
-      U_RETURN_STRING(signature_algorithm);
-      }
-
-   /**
-    * Returns the part of this certificateRequest that is signed.
-    */ 
-
-   static UString getSignable(X509_REQ* request);
-
-   UString getSignable() const { return getSignable(request); }
-
-   /**
-    * Returns <i>publicKey</i> of this certificateRequest.
+    * Returns <i>publicKey</i> of this certificateRequest
     */
 
    EVP_PKEY* getSubjectPublicKey() const
       {
-      U_TRACE(1, "UPKCS10::getSubjectPublicKey()")
+      U_TRACE_NO_PARAM(1, "UPKCS10::getSubjectPublicKey()")
 
       U_INTERNAL_ASSERT_POINTER(request)
 
@@ -172,7 +131,7 @@ public:
       }
 
    /**
-    * Returns true if the signature of the request verifies.
+    * Returns true if the signature of the request verifies
     */
 
    bool verify(EVP_PKEY* publicKey) const
@@ -188,7 +147,7 @@ public:
 
    /**
     * Returns either the DER or PEM encoding of the CertificateRequest (depending on the value of format)
-    * that can be sent to a CA for signing.
+    * that can be sent to a CA for signing
     */
 
    UString getEncoded(const char* format = "PEM") const;
@@ -207,13 +166,7 @@ protected:
    X509_REQ* request;
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UPKCS10(const UPKCS10&) = delete;
-   UPKCS10& operator=(const UPKCS10&) = delete;
-#else
-   UPKCS10(const UPKCS10&)            {}
-   UPKCS10& operator=(const UPKCS10&) { return *this; }
-#endif      
+   U_DISALLOW_COPY_AND_ASSIGN(UPKCS10)
 };
 
 #endif

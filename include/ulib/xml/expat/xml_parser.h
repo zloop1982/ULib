@@ -19,10 +19,10 @@
 #include <expat.h>
 
 /**
-   @class UXMLParser
-
-   @brief UXMLParser is a parser XML based on Expat (Expat is a stream-oriented parser)
-*/
+ * @class UXMLParser 
+ *
+ * @brief UXMLParser is a parser XML based on Expat (Expat is a stream-oriented parser)
+ */
 
 class U_EXPORT UXMLParser {
 public:
@@ -33,8 +33,6 @@ public:
    // Allocator e Deallocator
    U_MEMORY_ALLOCATOR
    U_MEMORY_DEALLOCATOR
-
-   // COSTRUTTORI
 
    UXMLParser()
       {
@@ -74,7 +72,7 @@ public:
 
    const char* getErrorMessage()
       {
-      U_TRACE(0, "UXMLParser::getErrorMessage()")
+      U_TRACE_NO_PARAM(0, "UXMLParser::getErrorMessage()")
 
       U_INTERNAL_ASSERT_POINTER(m_parser)
 
@@ -160,13 +158,7 @@ protected:
    static void _endNamespace(void* userData, const XML_Char* prefix) { ((UXMLParser*)userData)->endNamespace(prefix); }
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UXMLParser(const UXMLParser&) = delete;
-   UXMLParser& operator=(const UXMLParser&) = delete;
-#else
-   UXMLParser(const UXMLParser&)            {}
-   UXMLParser& operator=(const UXMLParser&) { return *this; }
-#endif      
+   U_DISALLOW_COPY_AND_ASSIGN(UXMLParser)
 };
 
 #endif

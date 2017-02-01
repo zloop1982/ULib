@@ -17,6 +17,25 @@
 #include <ulib/dynamic/plugin.h>
 #include <ulib/container/vector.h>
 
+typedef enum ParamType {
+      NULL_VALUE =  0, // null value
+   BOOLEAN_VALUE =  1, // bool value
+      CHAR_VALUE =  2, //   signed char value
+     UCHAR_VALUE =  3, // unsigned char value
+     SHORT_VALUE =  4, //   signed short integer value
+    USHORT_VALUE =  5, // unsigned short integer value
+       INT_VALUE =  6, //   signed integer value
+      UINT_VALUE =  7, // unsigned integer value
+      LONG_VALUE =  8, //   signed long value
+     ULONG_VALUE =  9, // unsigned long value
+     LLONG_VALUE = 10, //   signed long long value
+    ULLONG_VALUE = 11, // unsigned long long value
+     FLOAT_VALUE = 12, // float value
+      REAL_VALUE = 13, // double value
+     LREAL_VALUE = 14, // long double value
+    STRING_VALUE = 15, // UTF-8 string value
+} ParamType;
+
 class U_EXPORT USqlStatementBindParam {
 public:
 
@@ -156,7 +175,7 @@ public:
 
    void reset() // Resets a prepared statement on client and server to state after creation
       {
-      U_TRACE(0, "USqlStatement::reset()")
+      U_TRACE_NO_PARAM(0, "USqlStatement::reset()")
 
        vparam.clear();
       vresult.clear();
@@ -205,22 +224,8 @@ class UOrmStatement;
 class U_EXPORT UOrmDriver {
 public:
 
-   static const UString* str_host;
-   static const UString* str_port;
-   static const UString* str_root;
-   static const UString* str_UTF8;
-   static const UString* str_UTF16;
-   static const UString* str_dbname;
-   static const UString* str_timeout;
-   static const UString* str_compress;
-   static const UString* str_character_set;
-
-   static void str_allocate();
-
    // Check for memory error
    U_MEMORY_TEST
-
-   // COSTRUTTORE
 
    UOrmDriver()
       {
@@ -260,7 +265,7 @@ public:
 
    static bool isSQLite()
       {
-      U_TRACE(0, "UOrmDriver::isSQLite()")
+      U_TRACE_NO_PARAM(0, "UOrmDriver::isSQLite()")
 
       U_INTERNAL_ASSERT_MAJOR(env_driver_len, 0)
 
@@ -271,7 +276,7 @@ public:
 
    static bool isMYSQL()
       {
-      U_TRACE(0, "UOrmDriver::isMYSQL()")
+      U_TRACE_NO_PARAM(0, "UOrmDriver::isMYSQL()")
 
       U_INTERNAL_ASSERT_MAJOR(env_driver_len, 0)
 
@@ -282,7 +287,7 @@ public:
 
    static bool isPGSQL()
       {
-      U_TRACE(0, "UOrmDriver::isPGSQL()")
+      U_TRACE_NO_PARAM(0, "UOrmDriver::isPGSQL()")
 
       U_INTERNAL_ASSERT_MAJOR(env_driver_len, 0)
 
@@ -383,7 +388,7 @@ public:
 
    virtual void handlerError()
       {
-      U_TRACE(0, "UOrmDriver::handlerError()")
+      U_TRACE_NO_PARAM(0, "UOrmDriver::handlerError()")
 
       // set error value
       }
@@ -406,7 +411,7 @@ public:
 
    virtual void handlerDisConnect()
       {
-      U_TRACE(0, "UOrmDriver::handlerDisConnect()")
+      U_TRACE_NO_PARAM(0, "UOrmDriver::handlerDisConnect()")
       }
 
    // Executes the SQL statement pointed to by the null-terminated string
@@ -451,7 +456,7 @@ public:
     * a column in a WHERE clause to specify a comparison value. However, they are not permitted for identifiers (such as table or
     * column names), or to specify both operands of a binary operator such as the = equal sign. The latter restriction is necessary
     * because it would be impossible to determine the parameter type. In general, parameters are legal only in Data Manipulation Language
-    * (DML) statements, and not in Data Definition Language (DDL) statements. 
+    * (DML) statements, and not in Data Definition Language (DDL) statements 
     */
 
    virtual USqlStatement* handlerStatementCreation(const char* stmt, uint32_t len)
@@ -475,21 +480,21 @@ public:
 
    // CREATE BIND PARAM
 
-   virtual USqlStatementBindParam* creatSqlStatementBindParam()                         { return 0; }
-   virtual USqlStatementBindParam* creatSqlStatementBindParam(int* v)                   { return 0; }
-   virtual USqlStatementBindParam* creatSqlStatementBindParam(bool* v)                  { return 0; }
-   virtual USqlStatementBindParam* creatSqlStatementBindParam(char* v)                  { return 0; }
-   virtual USqlStatementBindParam* creatSqlStatementBindParam(long* v)                  { return 0; }
-   virtual USqlStatementBindParam* creatSqlStatementBindParam(short* v)                 { return 0; }
-   virtual USqlStatementBindParam* creatSqlStatementBindParam(float* v)                 { return 0; }
-   virtual USqlStatementBindParam* creatSqlStatementBindParam(double* v)                { return 0; }
-   virtual USqlStatementBindParam* creatSqlStatementBindParam(long long* v)             { return 0; }
-   virtual USqlStatementBindParam* creatSqlStatementBindParam(long double* v)           { return 0; }
-   virtual USqlStatementBindParam* creatSqlStatementBindParam(unsigned  int* v)         { return 0; }
-   virtual USqlStatementBindParam* creatSqlStatementBindParam(unsigned  char* v)        { return 0; }
-   virtual USqlStatementBindParam* creatSqlStatementBindParam(unsigned  long* v)        { return 0; }
-   virtual USqlStatementBindParam* creatSqlStatementBindParam(unsigned  short* v)       { return 0; }
-   virtual USqlStatementBindParam* creatSqlStatementBindParam(unsigned long long* v)    { return 0; }
+   virtual USqlStatementBindParam* creatSqlStatementBindParam()                      { return 0; }
+   virtual USqlStatementBindParam* creatSqlStatementBindParam(int* v)                { return 0; }
+   virtual USqlStatementBindParam* creatSqlStatementBindParam(bool* v)               { return 0; }
+   virtual USqlStatementBindParam* creatSqlStatementBindParam(char* v)               { return 0; }
+   virtual USqlStatementBindParam* creatSqlStatementBindParam(long* v)               { return 0; }
+   virtual USqlStatementBindParam* creatSqlStatementBindParam(short* v)              { return 0; }
+   virtual USqlStatementBindParam* creatSqlStatementBindParam(float* v)              { return 0; }
+   virtual USqlStatementBindParam* creatSqlStatementBindParam(double* v)             { return 0; }
+   virtual USqlStatementBindParam* creatSqlStatementBindParam(long long* v)          { return 0; }
+   virtual USqlStatementBindParam* creatSqlStatementBindParam(long double* v)        { return 0; }
+   virtual USqlStatementBindParam* creatSqlStatementBindParam(unsigned int* v)       { return 0; }
+   virtual USqlStatementBindParam* creatSqlStatementBindParam(unsigned char* v)      { return 0; }
+   virtual USqlStatementBindParam* creatSqlStatementBindParam(unsigned long* v)      { return 0; }
+   virtual USqlStatementBindParam* creatSqlStatementBindParam(unsigned short* v)     { return 0; }
+   virtual USqlStatementBindParam* creatSqlStatementBindParam(unsigned long long* v) { return 0; }
 
    virtual USqlStatementBindParam* creatSqlStatementBindParam(USqlStatement* pstmt, const char* s, int n, bool bstatic, int rebind);
 
@@ -502,9 +507,9 @@ public:
    virtual USqlStatementBindResult* creatSqlStatementBindResult(short* v)              { return 0; }
    virtual USqlStatementBindResult* creatSqlStatementBindResult(float* v)              { return 0; }
    virtual USqlStatementBindResult* creatSqlStatementBindResult(double* v)             { return 0; }
-   virtual USqlStatementBindResult* creatSqlStatementBindResult(UStringRep& str)       { return 0; }
    virtual USqlStatementBindResult* creatSqlStatementBindResult(long long* v)          { return 0; }
    virtual USqlStatementBindResult* creatSqlStatementBindResult(long double* v)        { return 0; }
+   virtual USqlStatementBindResult* creatSqlStatementBindResult(UStringRep& str)       { return 0; }
    virtual USqlStatementBindResult* creatSqlStatementBindResult(unsigned char* v)      { return 0; }
    virtual USqlStatementBindResult* creatSqlStatementBindResult(unsigned short* v)     { return 0; }
    virtual USqlStatementBindResult* creatSqlStatementBindResult(unsigned int* v)       { return 0; }
@@ -541,11 +546,7 @@ protected:
 private:
    static void loadStaticLinkedModules(const char* name) U_NO_EXPORT;
 
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UOrmDriver& operator=(const UOrmDriver&) = delete;
-#else
-   UOrmDriver& operator=(const UOrmDriver&) { return *this; }
-#endif
+   U_DISALLOW_ASSIGN(UOrmDriver)
 
    friend class UOrmSession;
    friend class UServer_Base;
@@ -574,8 +575,8 @@ template <> void UOrmDriver::bindResult<long>(USqlStatement* pstmt, long& v);
 template <> void UOrmDriver::bindResult<short>(USqlStatement* pstmt, short& v);
 template <> void UOrmDriver::bindResult<float>(USqlStatement* pstmt, float& v);
 template <> void UOrmDriver::bindResult<double>(USqlStatement* pstmt, double& v);
-template <> void UOrmDriver::bindResult<UStringRep>(USqlStatement* pstmt, UStringRep& v);
 template <> void UOrmDriver::bindResult<long long>(USqlStatement* pstmt, long long& v);
+template <> void UOrmDriver::bindResult<UStringRep>(USqlStatement* pstmt, UStringRep& v);
 template <> void UOrmDriver::bindResult<long double>(USqlStatement* pstmt, long double& v);
 template <> void UOrmDriver::bindResult<unsigned int>(USqlStatement* pstmt, unsigned int& v);
 template <> void UOrmDriver::bindResult<unsigned char>(USqlStatement* pstmt, unsigned char& v);

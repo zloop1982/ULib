@@ -107,7 +107,7 @@ public:
    /**
     * Constructor of the class
     *
-    * This constructor copy the url from the string
+    * This constructor set the url from the string
     *
     * @param x Reference to a string with an url
     */
@@ -148,13 +148,13 @@ public:
    void set(const Url& u)
       {
       service_end = u.service_end;
-      user_begin  = u.user_begin;
-      user_end    = u.user_end;
-      host_begin  = u.host_begin;
-      host_end    = u.host_end;
-      path_begin  = u.path_begin;
-      path_end    = u.path_end;
-      query       = u.query;
+       user_begin = u.user_begin;
+         user_end = u.user_end;
+       host_begin = u.host_begin;
+         host_end = u.host_end;
+       path_begin = u.path_begin;
+         path_end = u.path_end;
+            query = u.query;
       }
 
    Url(const Url& u) : url(u.url)
@@ -175,7 +175,16 @@ public:
       return *this;
       }
 
-   void set(const UString& x);
+   void set(const char* str, uint32_t len)
+      {
+      U_TRACE(0, "Url::set(%.*S,%u)", len, str, len)
+
+      (void) url.replace(str, len);
+
+      findpos();
+      }
+
+   void set(const UString& x) { set(U_STRING_TO_PARAM(x)); }
 
    UString   get() const { return url; }
    bool    empty() const { return url.empty(); }
@@ -185,11 +194,18 @@ public:
 
    void clear()
       {
-      U_TRACE(0, "Url::clear()")
+      U_TRACE_NO_PARAM(0, "Url::clear()")
 
       url.clear();
 
-      service_end = user_begin = user_end = host_begin = host_end = path_begin = path_end = query = -1;
+      service_end =
+       user_begin =
+         user_end =
+       host_begin =
+         host_end =
+       path_begin =
+         path_end =
+            query = -1;
       }
 
    /**
@@ -205,38 +221,47 @@ public:
 
    bool isHTTP() const
       {
-      U_TRACE(0, "Url::isHTTP()")
+      U_TRACE_NO_PARAM(0, "Url::isHTTP()")
 
-      bool result = (getService() == *UString::str_http);
+      if (service_end == 4 &&
+          UString::str_http->equal(url.data(), (uint32_t)service_end))
+         {
+         U_RETURN(true);
+         }
 
-      U_RETURN(result);
+      U_RETURN(false);
       }
 
    bool isHTTPS() const
       {
-      U_TRACE(0, "Url::isHTTPS()")
+      U_TRACE_NO_PARAM(0, "Url::isHTTPS()")
 
-      bool result = getService().equal(U_CONSTANT_TO_PARAM("https"));
+      if (service_end == 5     &&
+          url.c_char(4) == 's' &&
+          UString::str_http->equal(url.data(), 4))
+         {
+         U_RETURN(true);
+         }
 
-      U_RETURN(result);
+      U_RETURN(false);
       }
 
    bool isLDAP() const
       {
-      U_TRACE(0, "Url::isLDAP()")
+      U_TRACE_NO_PARAM(0, "Url::isLDAP()")
 
-      bool result = getService().equal(U_CONSTANT_TO_PARAM("ldap"));
+      if (getService().equal(U_CONSTANT_TO_PARAM("ldap"))) U_RETURN(true);
 
-      U_RETURN(result);
+      U_RETURN(false);
       }
 
    bool isLDAPS() const
       {
-      U_TRACE(0, "Url::isLDAPS()")
+      U_TRACE_NO_PARAM(0, "Url::isLDAPS()")
 
-      bool result = getService().equal(U_CONSTANT_TO_PARAM("ldaps"));
+      if (getService().equal(U_CONSTANT_TO_PARAM("ldaps"))) U_RETURN(true);
 
-      U_RETURN(result);
+      U_RETURN(false);
       }
 
    /**
@@ -274,7 +299,7 @@ public:
 
    void eraseUser()
       {
-      U_TRACE(0, "Url::eraseUser()")
+      U_TRACE_NO_PARAM(0, "Url::eraseUser()")
 
       if (user_begin < user_end)
          {
@@ -293,11 +318,13 @@ public:
 
    bool isLocalFile()
       {
-      U_TRACE(0, "Url::isLocalFile()")
+      U_TRACE_NO_PARAM(0, "Url::isLocalFile()")
 
-      bool result = (host_begin < host_end ? true : false); // Is there a host ?
+      // Is there a host ?
 
-      U_RETURN(result);
+      if (host_begin < host_end) U_RETURN(true);
+
+      U_RETURN(false);
       }
 
    /**
@@ -353,11 +380,11 @@ public:
 
    bool isPath() const
       {
-      U_TRACE(0, "Url::isPath()")
+      U_TRACE_NO_PARAM(0, "Url::isPath()")
 
-      bool result = (path_begin < path_end);
+      if (path_begin < path_end) U_RETURN(true);
 
-      U_RETURN(result);
+      U_RETURN(false);
       }
 
    /**
@@ -401,11 +428,11 @@ public:
 
    bool isQuery()
       {
-      U_TRACE(0, "Url::isQuery()")
+      U_TRACE_NO_PARAM(0, "Url::isQuery()")
 
-      bool result = (path_end < (int)(url.size() - 1));
+      if (path_end < (int)(url.size() - 1)) U_RETURN(true);
 
-      U_RETURN(result);
+      U_RETURN(false);
       }
 
    /**
@@ -419,6 +446,8 @@ public:
    UString  getQuery();
    uint32_t getQuery(UVector<UString>& vec);
 
+   static UString getQueryBody(UVector<UString>& vec);
+
    /**
     * This methode set the query of the url
     *
@@ -426,7 +455,7 @@ public:
     */
 
    bool setQuery(UVector<UString>& vec);
-   bool setQuery(const char* query, uint32_t n);
+   bool setQuery(const char* query, uint32_t query_len);
 
    /**
     * This methode erase the query from the url
@@ -434,7 +463,7 @@ public:
 
    void eraseQuery()
       {
-      U_TRACE(0, "Url::eraseQuery()")
+      U_TRACE_NO_PARAM(0, "Url::eraseQuery()")
 
       if (path_end < (int)url.size())
          {
@@ -472,6 +501,7 @@ public:
 
       U_ASSERT(buffer.uniq())
       U_ASSERT(buffer.capacity() >= len * 3)
+      U_INTERNAL_ASSERT_EQUALS(u_isBase64(input, len), false)
 
       buffer.rep->_length = u_url_encode((const unsigned char*)input, len, (unsigned char*)buffer.data());
 
@@ -510,13 +540,13 @@ public:
 
    // DEBUG
 
-#  ifdef DEBUG
+# ifdef DEBUG
    const char* dump(bool reset) const;
-#  endif
+# endif
 #endif
 
 protected:
-   UString url;      // Content string - not first for object dump...
+   UString url;      // content string
    int service_end,  // End position of the service
        user_begin,   // begin position of the user
        user_end,     // end position of the user
@@ -526,10 +556,10 @@ protected:
        path_end,     // end position of the path
        query;        // start position of the last readed query entry
 
-   void findpos(); // scanns the structure of the url and is updating the position attributs of the class
+   void findpos();   // scans the structure of the url and is updating the position attributs of the class
 
 private:
-   bool prepareForQuery() U_NO_EXPORT; // prepeats the string to add a query
+   bool prepareForQuery() U_NO_EXPORT; // prepare the string to add a query
 };
 
 #endif

@@ -42,13 +42,6 @@ class USocket;
 class U_EXPORT UWebSocket {
 public:
 
-   // strings 
-
-   static const UString* str_websocket_key;
-   static const UString* str_websocket_prot;
-
-   static void str_allocate();
-
    // SERVICES
 
    static UString* rbuffer;
@@ -74,7 +67,7 @@ public:
 
    static bool sendClose()
       {
-      U_TRACE(0, "UWebSocket::sendClose()", status_code)
+      U_TRACE_NO_PARAM(0, "UWebSocket::sendClose()")
 
       // Send server-side closing handshake
 
@@ -89,13 +82,7 @@ public:
       }
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UWebSocket(const UWebSocket&) = delete;
-   UWebSocket& operator=(const UWebSocket&) = delete;
-#else
-   UWebSocket(const UWebSocket&)            {}
-   UWebSocket& operator=(const UWebSocket&) { return *this; }
-#endif      
+   U_DISALLOW_COPY_AND_ASSIGN(UWebSocket)
 };
 
 #endif

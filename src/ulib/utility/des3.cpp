@@ -15,31 +15,22 @@
 #include <ulib/utility/base64.h>
 #include <ulib/utility/string_ext.h>
 
-UString UDES3::signData(const char* fmt, ...)
+UString UDES3::signData(const char* fmt, uint32_t fmt_size, ...)
 {
-   U_TRACE(0, "UDES3::signData(%S)", fmt)
+   U_TRACE(0, "UDES3::signData(%.*S,%u)", fmt_size, fmt, fmt_size)
 
-   UString buffer1(U_CAPACITY), buffer2(U_CAPACITY), signed_data(U_CAPACITY);
+   UString     buffer1(U_CAPACITY),
+               buffer2(U_CAPACITY),
+           signed_data(U_CAPACITY);
+
    const char* ptr = buffer1.data();
 
    va_list argp;
-   va_start(argp, fmt);
+   va_start(argp, fmt_size);
 
-   buffer1.vsnprintf(fmt, argp);
+   buffer1.vsnprintf(fmt, fmt_size, argp);
 
    va_end(argp);
-
-// uint32_t sz1 = buffer1.size();
-//
-// if (sz1 <= 2048) encode((const unsigned char*)ptr, sz1, buffer2);
-// else
-//    {
-//    UString data = UStringExt::compress(ptr, sz1);
-//    uint32_t sz2 = data.size();
-//
-//    if (sz2 < (sz1 - (sz1 / 4))) encode((const unsigned char*)data.data(), sz2, buffer2);
-//    else                         encode((const unsigned char*)ptr,         sz1, buffer2);
-//    }
 
    encode((const unsigned char*)ptr, buffer1.size(), buffer2);
 
@@ -61,14 +52,9 @@ UString UDES3::getSignedData(const char* ptr, uint32_t len)
    if (buffer &&
        u_base64_errors == 0)
       {
-      UDES3::decode(buffer, output);
+      decode(buffer, output);
 
-      if (output)
-         {
-         if (UStringExt::isCompress(output)) output = UStringExt::decompress(output);
-
-         (void) output.shrink();
-         }
+      if (output) (void) output.shrink();
       }
 
    U_RETURN_STRING(output);

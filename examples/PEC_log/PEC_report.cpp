@@ -842,7 +842,7 @@ loop1:
 loop2:
       if (t->atEnd()) U_RETURN(true);
 
-      end = line->end();
+      end = line->pend();
 
       while ((*end == '\n') && (++end < enddoc)) {}
 
@@ -888,7 +888,7 @@ bool PEC_report::readContent()
    if (content->empty()) U_RETURN(false);
 
    mese2  = 0;
-   enddoc = content->end();
+   enddoc = content->pend();
 
    // loop for all lines in file
 
@@ -944,7 +944,7 @@ bool PEC_report::readContent()
 
          U_INTERNAL_DUMP("scan line date: %d/%s/%d - %s", day, month, year, time)
 
-         U_INTERNAL_ASSERT_EQUALS(mese1, u_getMonth(month))
+         U_INTERNAL_ASSERT_EQUALS(mese1, (int)u_getMonth(month))
 
          date->set(day, mese1, year);
 
@@ -1198,13 +1198,13 @@ void PEC_report::loadFiles()
 
    UDirWalk dirwalk;
 
-   UDirWalk::setRecurseSubDirs(false);
+   UDirWalk::setRecurseSubDirs(true, false);
 
    dirwalk.call_internal = PEC_report::processFiles;
 
    dirwalk.walk();
 
-   u_printSize(buffer, bytes);
+   (void) u_printSize(buffer, bytes);
 
    U_MESSAGE("checked %u file(s) - skipped %u file(s)\n"
              "start processing %u file(s) for %s of data...", nfiles, nskipped, tfile->size(), buffer);

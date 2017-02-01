@@ -17,14 +17,14 @@
  * min<<5     (min is tm_min, 0-59)
  * sec>>1     (sec is tm_sec, 0-59, that's right, we throw away the LSB)
  * 
- * DOS uses local time, so the localtime() call is used to turn the time_t into a struct tm.
+ * DOS uses local time, so the localtime() call is used to turn the time_t into a struct tm
  */
 
 time_t dos2unixtime(unsigned long dostime)
 {
    struct tm ltime;
 
-   U_gettimeofday; /* NB: optimization if it is enough a time resolution of one second... */
+   U_gettimeofday /* NB: optimization if it is enough a time resolution of one second... */
 
    /* Call localtime to initialize timezone in TIME */
    ltime = *localtime(&(u_now->tv_sec));

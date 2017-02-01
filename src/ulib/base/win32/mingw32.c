@@ -9,7 +9,6 @@
 
 /* We need MS-defined signal and raise here */
 
-#include <errno.h>
 #include <tlhelp32.h>
 #include <ws2tcpip.h>
 #include <mmsystem.h>
@@ -86,7 +85,10 @@ int inet_aton(const char* src, struct in_addr* addr)
    return 1;
 }
 
-const char* inet_ntop(int af, const void* src, char* dst, size_t size)
+/*
+*/
+#if _WIN32_WINNT < 0x0600
+const CHAR* inet_ntop(INT af, PVOID src, LPSTR dst, size_t size)
 {
    U_INTERNAL_TRACE("inet_ntop(%d,%p,%s,%d)", af, src, dst, size)
 
@@ -98,7 +100,7 @@ const char* inet_ntop(int af, const void* src, char* dst, size_t size)
 
       in.sin_family = AF_INET;
 
-      (void) memcpy(&in.sin_addr, src, sizeof(struct in_addr));
+      u__memcpy(&in.sin_addr, src, sizeof(struct in_addr), __PRETTY_FUNCTION__);
 
       getnameinfo((struct sockaddr*)&in, sizeof(struct sockaddr_in), dst, size, 0, 0, NI_NUMERICHOST);
 
@@ -113,7 +115,7 @@ const char* inet_ntop(int af, const void* src, char* dst, size_t size)
 
       in.sin6_family = AF_INET6;
 
-      (void) memcpy(&in.sin6_addr, src, sizeof(struct in_addr6));
+      u__memcpy(&in.sin6_addr, src, sizeof(struct in_addr6), __PRETTY_FUNCTION__);
 
       getnameinfo((struct sockaddr*)&in, sizeof(struct sockaddr_in6), dst, size, NULL, 0, NI_NUMERICHOST);
 
@@ -122,6 +124,7 @@ const char* inet_ntop(int af, const void* src, char* dst, size_t size)
 
    return 0;
 }
+#endif
 
 #define isWindow9x()  (version.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS)
 #define isWindowNT()  (version.dwPlatformId == VER_PLATFORM_WIN32_NT)
@@ -162,16 +165,10 @@ char* realpath(const char* name, char* resolved_path)
       return NULL;
       }
 
-   if (name[0] == '\0')
-      {
-      errno = ENOENT;
-
-      return NULL;
-      }
-
    /* Make sure we can access it in the way we want */
 
-   if (access(u_slashify(name, '/', '\\'), F_OK))
+   if (*name == '\0' ||
+       access(u_slashify(name, '/', '\\'), F_OK))
       {
       errno = ENOENT;
 
@@ -181,11 +178,19 @@ char* realpath(const char* name, char* resolved_path)
    if (strncmp(name, U_CONSTANT_TO_PARAM(".")) == 0) (void) u__strncpy(resolved_path, u_cwd, u_cwd_len);
    else
       {
+      char* restrict path = resolved_path;
+
       /* We can, so normalize the name and return it below */
 
       (void) u__strcpy(resolved_path, name);
 
-      (void) u_canonicalize_pathname(resolved_path);
+      if (u__isalpha(path[0]) &&
+                     path[1] == ':')
+         {
+         path += 2; /* Skip over the disk name in MSDOS pathnames */
+         }
+
+      (void) u_canonicalize_pathname(path, strlen(path));
       }
 
    return resolved_path;
@@ -199,9 +204,11 @@ char* u_slashify(const char* src, char slash_from, char slash_to)
 
    U_INTERNAL_TRACE("u_slashify(%s,%c,%c)", src, slash_from, slash_to)
 
-   /* Skip over the disk name in MSDOS pathnames
-   if (u__isalpha(src[0]) && src[1] == ':') src += 2;
-   */
+   /**
+    * Skip over the disk name in MSDOS pathnames
+    *
+    * if (u__isalpha(src[0]) && src[1] == ':') src += 2;
+    */
 
    while (*src)
       {
@@ -234,15 +241,16 @@ int rename_w32(const char* oldpath, const char* newpath)
    if (newatts != -1 &&
        newatts & FILE_ATTRIBUTE_READONLY)
       {
-      /* Destination file exists and is read only, change that or else the rename won't work. */
+      /* Destination file exists and is read only, change that or else the rename won't work */
 
       (void) SetFileAttributesA(newpath, newatts & ~FILE_ATTRIBUTE_READONLY);
       }
 
-   /* NT4 (and up) provides a way to rename/move a file with similar semantics to what's usually done on UNIX
-   if there's an existing file with <newpath> it is removed before the file is renamed/moved.
-   The MOVEFILE_COPY_ALLOWED is specified to allow such a rename across drives.
-   */
+   /**
+    * NT4 (and up) provides a way to rename/move a file with similar semantics to what's usually done on UNIX
+    * if there's an existing file with <newpath> it is removed before the file is renamed/moved.
+    * The MOVEFILE_COPY_ALLOWED is specified to allow such a rename across drives
+    */
 
    ok = ((isWindowNT() ? MoveFileExA(oldpath, newpath, MOVEFILE_COPY_ALLOWED | MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) :
                          MoveFile   (oldpath, newpath)) != 0);
@@ -281,7 +289,7 @@ int rename_w32(const char* oldpath, const char* newpath)
 
    if (ok == FALSE) return -1;
 
-   (void) SetFileAttributes(newpath, oldatts); /* Reset R/O attributes if neccessary. */
+   (void) SetFileAttributes(newpath, oldatts); /* Reset R/O attributes if neccessary */
 
    return 0;
 }
@@ -332,10 +340,9 @@ int mkstemp(char* tmpl)
 
          for (iChr = 0; iChr < 6; ++iChr)
             {
-            /* 528.5 = RAND_MAX / u_alphabet */
-
             int iRnd  = rand() / 528.5;
-            *(pChr++) = u_alphabet[iRnd > 0 ? iRnd - 1 : 0];
+
+            *(pChr++) = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"[iRnd > 0 ? iRnd - 1 : 0];
             }
          }
       else
@@ -359,33 +366,32 @@ int mkstemp(char* tmpl)
    return ret;
 }
 
-/* INODE FOR WINDOWS - IT IS NOT STABLE FOR FILES ON NETWORK DRIVES (NFS)
--------------------------------------------------------------------------------------------------------------------------
-Basically, the implementation of stat uses as inode number the FileIndex from the  BY_HANDLE_FILE_INFORMATION structure
-returned by the Win32 API function  GetFileInformationByHandle. The FileIndex is a 64-bit number that indicates the
-position of the file in the Master File Table (MFT). On Windows XP one can also obtain this number by using the command
-fsutil usn readdata <path>. It is stable between successive starts of the system, provided the MFT does not overflow and
-therefore has to be rebuilt. On WinNT systems (NT, 2K, XP) the FileIndex is also returned for directories, on Win9x
-(95, 98, ME) it returns zero for directories.  For directories on 9x and network files, the stat uses a hashed value of
-the full path of the file.
-***************************************************
-IT IS NOT STABLE FOR FILES ON NETWORK DRIVES (NFS),
-successive calls to GetFileInformationByHandle return different values.
-***********************************************************************
-The FileIndex consists of two parts: the low 48 bits are the file record number and contain the actual index in the MFT;
-the high 16 bits are the socalled sequence number: each time an entry in the MFT is reused for another file, the sequence
-number is increased by one. This behavior of the sequence number can be observed by creating a file, printing its
-fileindex, deleting it, creating a new file and printing its fileindex; the fileindex of the newest file is equal to that
-of the first file, with the sequence number, in the left most part of the fileindex, increased by one. So the file
-reference number appears to be the equivalent of the Unix inode
--------------------------------------------------------------------------------------------------------------------------
-*/
+/**
+ * INODE FOR WINDOWS - IT IS NOT STABLE FOR FILES ON NETWORK DRIVES (NFS)
+ * -------------------------------------------------------------------------------------------------------------------------
+ * Basically, the implementation of stat uses as inode number the FileIndex from the  BY_HANDLE_FILE_INFORMATION structure
+ * returned by the Win32 API function  GetFileInformationByHandle. The FileIndex is a 64-bit number that indicates the
+ * position of the file in the Master File Table (MFT). On Windows XP one can also obtain this number by using the command
+ * fsutil usn readdata <path>. It is stable between successive starts of the system, provided the MFT does not overflow and
+ * therefore has to be rebuilt. On WinNT systems (NT, 2K, XP) the FileIndex is also returned for directories, on Win9x
+ * (95, 98, ME) it returns zero for directories.  For directories on 9x and network files, the stat uses a hashed value of
+ * the full path of the file.
+ * ***************************************************
+ * IT IS NOT STABLE FOR FILES ON NETWORK DRIVES (NFS),
+ * successive calls to GetFileInformationByHandle return different values.
+ * ***********************************************************************
+ * The FileIndex consists of two parts: the low 48 bits are the file record number and contain the actual index in the MFT;
+ * the high 16 bits are the socalled sequence number: each time an entry in the MFT is reused for another file, the sequence
+ * number is increased by one. This behavior of the sequence number can be observed by creating a file, printing its
+ * fileindex, deleting it, creating a new file and printing its fileindex; the fileindex of the newest file is equal to that
+ * of the first file, with the sequence number, in the left most part of the fileindex, increased by one. So the file
+ * reference number appears to be the equivalent of the Unix inode
+ * -------------------------------------------------------------------------------------------------------------------------
+ */
  
 #define HIDWORD(l)         ((DWORD)((UINT64)(l) >> 32))
 #define LODWORD(w)         ((DWORD)((UINT64)(w) & 0xffffffff))
 #define MAKEDWORDLONG(a,b) ((DWORDLONG)(((DWORD)(a))|(((DWORDLONG)((DWORD)(b)))<<32)))
-
-/*extern uint64_t u_hash64(unsigned char* t, uint32_t tlen);*/
 
 uint64_t u_get_inode(int fd)
 {
@@ -519,16 +525,16 @@ sighandler_t signal_w32(int nsig, sighandler_t handler)
 
    U_INTERNAL_TRACE("signal_w32(%d,%p)", nsig, handler)
 
-   /*
-   We delegate some signals to the system function.
-   The SIGILL, SIGSEGV, and SIGTERM signals are not generated under Windows NT.
-   They are included for ANSI compatibility. Thus you can set signal handlers for these signals with signal,
-   and you can also explicitly generate these signals by calling raise().
-
-   SIGINT is not supported for any Win32 application, including Windows 98/Me and Windows NT/2000/XP.
-   When a CTRL+C interrupt occurs, Win32 operating systems generate a new thread to specifically handle that interrupt.
-   This can cause a single-thread application such as UNIX, to become multithreaded, resulting in unexpected behavior.
-   */
+   /**
+    * We delegate some signals to the system function.
+    * The SIGILL, SIGSEGV, and SIGTERM signals are not generated under Windows NT.
+    * They are included for ANSI compatibility. Thus you can set signal handlers for these signals with signal,
+    * and you can also explicitly generate these signals by calling raise().
+    *
+    * SIGINT is not supported for any Win32 application, including Windows 98/Me and Windows NT/2000/XP.
+    * When a CTRL+C interrupt occurs, Win32 operating systems generate a new thread to specifically handle that interrupt.
+    * This can cause a single-thread application such as UNIX, to become multithreaded, resulting in unexpected behavior
+    */
 
    switch (nsig)
       {
@@ -658,11 +664,11 @@ int sigaction(int signum, const struct sigaction* act, struct sigaction* oldact)
    return ret;
 }
 
-/*
-If SET is not NULL, modify the current set of blocked signals
-according to HOW, which may be SIG_BLOCK, SIG_UNBLOCK or SIG_SETMASK.
-If OSET is not NULL, store the old set of blocked signals in *OSET.
-*/
+/**
+ * If SET is not NULL, modify the current set of blocked signals
+ * according to HOW, which may be SIG_BLOCK, SIG_UNBLOCK or SIG_SETMASK.
+ * If OSET is not NULL, store the old set of blocked signals in *OSET
+ */
 
 int sigprocmask(int how, const sigset_t* set, sigset_t* oldset)
 {
@@ -751,11 +757,11 @@ static int handle_kill_result(HANDLE h)
    return -1;
 }
 
-/*
-Send signal sig to process number pid. If pid is zero,
-send sig to all processes in the current process's process group.
-If pid is < -1, send sig to all processes in process group - pid.
-*/
+/**
+ * Send signal sig to process number pid. If pid is zero,
+ * send sig to all processes in the current process's process group.
+ * If pid is < -1, send sig to all processes in process group - pid
+ */
 
 int kill(pid_t pid, int sig)
 {
@@ -938,14 +944,15 @@ int fsync(int fd)
 }
 */
 
-/* Map addresses starting near ADDR and extending for LEN bytes.
+/**
+ * Map addresses starting near ADDR and extending for LEN bytes.
  * From OFFSET into the file FD describes according to PROT and FLAGS.
  * If ADDR is nonzero, it is the desired mapping address. If the MAP_FIXED
  * bit is set in FLAGS, the mapping will be at ADDR exactly (which must be
  * page-aligned); otherwise the system chooses a convenient nearby address.
  * The return value is the actual mapping address chosen or MAP_FAILED for
  * errors (in which case `errno' is set). A successful `mmap' call deallocates
- * any previous mapping for the affected region.
+ * any previous mapping for the affected region
  */
 
 #ifndef SECTION_MAP_EXECUTE_EXPLICIT
@@ -1188,10 +1195,11 @@ void* mmap(void* start, size_t length, int prot, int flags, int fd, off_t offset
    return mmi->start;
 }
 
-/*
-Deallocate any mapping for the region starting at ADDR and extending LEN bytes.
-Returns 0 if successful, -1 for errors (and sets errno).
-*/
+/**
+ * Deallocate any mapping for the region starting at ADDR and extending LEN bytes.
+ *
+ * Returns 0 if successful, -1 for errors (and sets errno)
+ */
 
 int munmap(void* start, size_t length)
 {
@@ -1255,10 +1263,10 @@ int munmap(void* start, size_t length)
    return 0;
 }
 
-/*
-Synchronize the region starting at ADDR and extending LEN bytes with the file it maps.
-Filesystem operations on a file being mapped are unpredictable before this is done.
-*/
+/**
+ * Synchronize the region starting at ADDR and extending LEN bytes with the file it maps.
+ * Filesystem operations on a file being mapped are unpredictable before this is done
+ */
 
 int msync(void* start, size_t length, int flags)
 {
@@ -1271,24 +1279,25 @@ int msync(void* start, size_t length, int flags)
    return ret;
 }
 
-/* implemented in MINGW Runtime
+/**
+ * implemented in MINGW Runtime
  *
-int gettimeofday(struct timeval* tv, void* tz)
-{
-   U_INTERNAL_TRACE("gettimeofday(%p,%p)", tv, tz)
-
-   struct _timeb theTime;
-
-   _ftime(&theTime);
-
-   tv->tv_sec  = theTime.time;
-   tv->tv_usec = theTime.millitm * 1000;
-
-   U_INTERNAL_PRINT("ret = %d", 0)
-
-   return 0;
-}
-*/
+ * int gettimeofday(struct timeval* tv, void* tz)
+ * {
+ * U_INTERNAL_TRACE("gettimeofday(%p,%p)", tv, tz)
+ *
+ * struct _timeb theTime;
+ *
+ * _ftime(&theTime);
+ *
+ * tv->tv_sec  = theTime.time;
+ * tv->tv_usec = theTime.millitm * 1000;
+ *
+ * U_INTERNAL_PRINT("ret = %d", 0)
+ *
+ * return 0;
+ * }
+ */
 
 static int is_fh_socket(HANDLE fh)
 {
@@ -1385,10 +1394,10 @@ next:
    return result;
 }
 
-/*
-Create a one-way communication channel (__pipe). If successful, two file descriptors are stored in PIPEDES;
-bytes written on PIPEDES[1] can be read from PIPEDES[0]. Returns 0 if successful, -1 if not.
-*/
+/**
+ * Create a one-way communication channel (__pipe). If successful, two file descriptors are stored in PIPEDES;
+ * bytes written on PIPEDES[1] can be read from PIPEDES[0]. Returns 0 if successful, -1 if not
+ */
 
 int pipe(int filedes[2])
 {
@@ -1401,16 +1410,16 @@ int pipe(int filedes[2])
    return ret;
 }
 
-/*
-Wait for a child matching PID to die.
-If PID is greater than 0, match any process whose process ID is PID.
-If PID is (pid_t) -1, match any process.
-If PID is (pid_t)  0, match any process with the same process group as the current process.
-If PID is less than -1, match any process whose process group is the absolute value of PID.
-If the WNOHANG   bit is set in OPTIONS, and that child is not already dead, return (pid_t) 0.
-If the WUNTRACED bit is set in OPTIONS, return status for stopped children; otherwise don't.
-If successful, return PID and store the dead child's status in STAT_LOC. Return (pid_t) -1 for errors
-*/
+/**
+ * Wait for a child matching PID to die.
+ * If PID is greater than 0, match any process whose process ID is PID.
+ * If PID is (pid_t) -1, match any process.
+ * If PID is (pid_t)  0, match any process with the same process group as the current process.
+ * If PID is less than -1, match any process whose process group is the absolute value of PID.
+ * If the WNOHANG   bit is set in OPTIONS, and that child is not already dead, return (pid_t) 0.
+ * If the WUNTRACED bit is set in OPTIONS, return status for stopped children; otherwise don't.
+ * If successful, return PID and store the dead child's status in STAT_LOC. Return (pid_t) -1 for errors
+ */
 
 pid_t waitpid(pid_t pid, int* stat_loc, int options)
 {
@@ -1626,7 +1635,8 @@ static void fdset_sock2fd(fd_set* fileset, fd_set* set)
       }
 }
 
-/* Microsoft Windows does not have a unified IO system, so it doesn't support select() on files, devices, or pipes...
+/**
+ * Microsoft Windows does not have a unified IO system, so it doesn't support select() on files, devices, or pipes...
  * Microsoft provides the Berkeley select() call and an asynchronous select function that sends a WIN32 message when
  * the select condition exists... WSAAsyncSelect()
  */
@@ -1690,12 +1700,12 @@ int select_w32(int nfds, fd_set* rd, fd_set* wr, fd_set* ex, struct timeval* tim
 /*            Async timers                  */
 /*------------------------------------------*/
 
-/*
-setitimer() does not exist on native MS Windows, so we emulate in both cases by using multimedia timers.
-We emulate two timers, one for SIGALRM, another for SIGPROF. Minimum timer resolution on Win32 systems varies,
-and is greater than or equal than 1 ms. The resolution is always wrapped not to attempt to get below the system
-defined limit
-*/
+/**
+ * setitimer() does not exist on native MS Windows, so we emulate in both cases by using multimedia timers.
+ * We emulate two timers, one for SIGALRM, another for SIGPROF. Minimum timer resolution on Win32 systems varies,
+ * and is greater than or equal than 1 ms. The resolution is always wrapped not to attempt to get below the system
+ * defined limit
+ */
 
 /* Last itimerval, as set by call to setitimer */
 static struct itimerval itv;
@@ -1883,18 +1893,17 @@ const char* getSysError_w32(unsigned* len)
 {
    static char buffer[1024];
 
-   int i;
-   unsigned lenMsg;
+   unsigned int i, lenMsg;
 /* const char* msg  = "Unknown error"; */
    const char* name = "???";
 
-   DWORD ret;              // Temp space to hold a return value
-   LPTSTR pBuffer;         // Buffer to hold the textual error description
-   HINSTANCE hInst = NULL; // Instance handle for DLL
+   DWORD ret;              /* Temp space to hold a return value */
+   LPTSTR pBuffer;         /* Buffer to hold the textual error description */
+   HINSTANCE hInst = NULL; /* Instance handle for DLL */
 
-   DWORD dwFlags = FORMAT_MESSAGE_ALLOCATE_BUFFER | // The function will allocate space for pBuffer
+   DWORD dwFlags = FORMAT_MESSAGE_ALLOCATE_BUFFER | /* The function will allocate space for pBuffer */
                    FORMAT_MESSAGE_MAX_WIDTH_MASK  |
-                   FORMAT_MESSAGE_IGNORE_INSERTS;   // No inserts
+                   FORMAT_MESSAGE_IGNORE_INSERTS;   /* No inserts */
 
    U_INTERNAL_TRACE("getSysError_w32(%p)", len)
 
@@ -1911,31 +1920,35 @@ const char* getSysError_w32(unsigned* len)
 
    if (HRESULT_FACILITY(errno) == FACILITY_MSMQ)
       {
-      // MSMQ errors only (see winerror.h for facility info)
-      // Load the MSMQ library containing the error message strings
+      /**
+       * MSMQ errors only (see winerror.h for facility info)
+       * Load the MSMQ library containing the error message strings
+       */
 
       hInst = LoadLibrary( TEXT("mqutil.dll") );
       }
    else if (errno >= NERR_BASE &&
             errno <= MAX_NERR)
       {
-      // Could be a network error
-      // Load the library containing network messages
+      /**
+       * Could be a network error
+       * Load the library containing network messages
+       */
 
       hInst = LoadLibrary( TEXT("netmsg.dll") );
       }
 
-   dwFlags |= (hInst == NULL ? FORMAT_MESSAGE_FROM_SYSTEM      // System wide message
-                             : FORMAT_MESSAGE_FROM_HMODULE);   // Message definition is in a module
+   dwFlags |= (hInst == NULL ? FORMAT_MESSAGE_FROM_SYSTEM    /* System wide message */
+                             : FORMAT_MESSAGE_FROM_HMODULE); /* Message definition is in a module */
 
    ret = FormatMessage(
          dwFlags,
-         hInst,                                       // Handle to the DLL
-         errno,                                       // Message identifier
-         MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),   // Default language
-         (LPTSTR)&pBuffer,                            // Buffer that will hold the text string
-         256,                                         // Allocate at least this many chars for pBuffer
-         NULL                                         // No insert values
+         hInst,                                       /* Handle to the DLL */
+         errno,                                       /* Message identifier */
+         MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),   /* Default language */
+         (LPTSTR)&pBuffer,                            /* Buffer that will hold the text string */
+         256,                                         /* Allocate at least this many chars for pBuffer */
+         NULL                                         /* No insert values */
         );
 
    if (ret == 0) lenMsg = 0;
@@ -1958,7 +1971,7 @@ const char* getSysError_w32(unsigned* len)
 
    (void) snprintf(buffer, sizeof(buffer), "%s (%d, %.*s)", name, errno, lenMsg, pBuffer);
 
-   // Free the buffer.
+   /* Free the buffer */
 
    LocalFree(pBuffer);
 
@@ -2018,11 +2031,12 @@ int fcntl_w32(int fd, int cmd, void* arg)
 
       if (cmd == F_SETFL)
          {
-         /* Set the socket I/O mode: In this case FIONBIO enables or disables
+         /**
+          * Set the socket I/O mode: In this case FIONBIO enables or disables
           * the blocking mode for the socket based on the numerical value of iMode.
           *
           * If iMode  = 0,     blocking mode is enabled
-          * If iMode != 0, non-blocking mode is enabled.
+          * If iMode != 0, non-blocking mode is enabled
           */
 
          u_long iMode = (mode & O_NONBLOCK ? 1 : 0);
@@ -2034,19 +2048,19 @@ int fcntl_w32(int fd, int cmd, void* arg)
          char outBuffer[32];
          DWORD cbBytesReturned;
 
-         /*
-         int WSAIoctl(
-         in  SOCKET s,                                               // A descriptor identifying a socket
-         in  DWORD dwIoControlCode,                                  // The control code of operation to perform
-         in  LPVOID lpvInBuffer,                                     // A pointer to the input buffer
-         in  DWORD cbInBuffer,                                       // The size, in bytes, of the input buffer
-         out LPVOID lpvOutBuffer,                                    // A pointer to the output buffer
-         in  DWORD cbOutBuffer,                                      // The size, in bytes, of the output buffer
-         out LPDWORD lpcbBytesReturned,                              // A pointer to actual number of bytes of output
-         in  LPWSAOVERLAPPED lpOverlapped,                           // A pointer to a WSAOVERLAPPED structure (ignored for non-overlapped sockets)
-         in  LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine) // A pointer to the completion routine called when
-                                                                     // the operation has been completed (ignored for non-overlapped sockets)
-         */
+         /**
+          * int WSAIoctl(
+          * in  SOCKET s,                                               // A descriptor identifying a socket
+          * in  DWORD dwIoControlCode,                                  // The control code of operation to perform
+          * in  LPVOID lpvInBuffer,                                     // A pointer to the input buffer
+          * in  DWORD cbInBuffer,                                       // The size, in bytes, of the input buffer
+          * out LPVOID lpvOutBuffer,                                    // A pointer to the output buffer
+          * in  DWORD cbOutBuffer,                                      // The size, in bytes, of the output buffer
+          * out LPDWORD lpcbBytesReturned,                              // A pointer to actual number of bytes of output
+          * in  LPWSAOVERLAPPED lpOverlapped,                           // A pointer to a WSAOVERLAPPED structure (ignored for non-overlapped sockets)
+          * in  LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine) // A pointer to the completion routine called when
+          *                                                             // the operation has been completed (ignored for non-overlapped sockets)
+          */
 
          res = WSAIoctl(h, cmd, &mode, sizeof(unsigned long), outBuffer, sizeof(outBuffer), &cbBytesReturned, 0, 0);
          }

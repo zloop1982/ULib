@@ -15,7 +15,6 @@
 #define U_MIME_ENTITY_H 1
 
 #include <ulib/mime/header.h>
-#include <ulib/container/vector.h>
 
 /**
  * UMimeEntity -- class representing a MIME entity
@@ -62,9 +61,7 @@ public:
       endHeader    = item.endHeader;
       startHeader  = item.startHeader;
 
-      // passaggio di consegne...
-
-      header = item.header;
+      header = item.header; // NB: move...
 
       ((UMimeEntity*)&item)->header = 0;
       }
@@ -76,20 +73,18 @@ public:
       if (header) delete header;
       }
 
-   // VARIE
-
    bool isEmpty()
       {
-      U_TRACE(0, "UMimeEntity::isEmpty()")
+      U_TRACE_NO_PARAM(0, "UMimeEntity::isEmpty()")
 
-      bool result = content.empty();
+      if (content.empty()) U_RETURN(true);
 
-      U_RETURN(result);
+      U_RETURN(false);
       }
 
    void clear()
       {
-      U_TRACE(0, "UMimeEntity::clear()")
+      U_TRACE_NO_PARAM(0, "UMimeEntity::clear()")
 
               data.clear();
            content.clear();
@@ -104,7 +99,7 @@ public:
 
    bool parse()
       {
-      U_TRACE(0, "UMimeEntity::parse()")
+      U_TRACE_NO_PARAM(0, "UMimeEntity::parse()")
 
       U_INTERNAL_ASSERT(data)
 
@@ -126,7 +121,7 @@ public:
 
    bool isParsingOk()
       {
-      U_TRACE(0, "UMimeEntity::isParsingOk()")
+      U_TRACE_NO_PARAM(0, "UMimeEntity::isParsingOk()")
 
       U_INTERNAL_ASSERT_POINTER(header)
 
@@ -139,6 +134,7 @@ public:
    UString getContentType() const { return content_type; }
    UString getMimeVersion() const { return header->getMimeVersion(); }
 
+   // =============================================================================================================================
    // Content types: "multipart"   / [ "mixed", "alternative", "digest", "parallel", "signed", "encrypted", "report", "form-data" ],
    //                "message"     / [ "rfc822", "disposition-notification" ],
    //                "image"       / [ "jpeg", "gif" ],
@@ -148,6 +144,7 @@ public:
    //                                  "pkcs7-signature", "pkcs7-mime", "ms-tnef", "x-www-form-urlencoded" ]
    //                "text"        / [ "plain" (RFC-1521), "richtext" (RFC-1341), "enriched", "html", "xvcard", "vcal",
    //                                  "rtf", "xml" ],
+   // =============================================================================================================================
 
    bool isMime() { return header->isMime(); }
 
@@ -174,7 +171,7 @@ public:
 
    UString getContentDisposition() const
       {
-      U_TRACE(0, "UMimeEntity::getContentDisposition()")
+      U_TRACE_NO_PARAM(0, "UMimeEntity::getContentDisposition()")
 
       U_INTERNAL_ASSERT_POINTER(header)
 
@@ -185,25 +182,31 @@ public:
 
    bool isAttachment() const
       {
-      U_TRACE(0, "UMimeEntity::isAttachment()")
+      U_TRACE_NO_PARAM(0, "UMimeEntity::isAttachment()")
 
       UString value = getContentDisposition();
 
-      bool result = (value.empty()                         == false &&
-                     U_STRING_FIND(value, 0, "attachment") != U_NOT_FOUND);
+      if (value.empty()                         == false &&
+          U_STRING_FIND(value, 0, "attachment") != U_NOT_FOUND)
+         {
+         U_RETURN(true);
+         }
 
-      U_RETURN(result);
+      U_RETURN(false);
       }
 
    bool isBodyMessage() const
       {
-      U_TRACE(0, "UMimeEntity::isBodyMessage()")
+      U_TRACE_NO_PARAM(0, "UMimeEntity::isBodyMessage()")
 
-      bool result = (isText()                                                                                        &&
-                     UMimeHeader::getValueAttributeFromKeyValue(content_type, *UString::str_name, false).empty() &&
-                     isAttachment() == false);
+      if (isText()                                                                                             &&
+          UMimeHeader::getValueAttributeFromKeyValue(content_type, U_CONSTANT_TO_PARAM("name"), false).empty() &&
+          isAttachment() == false)
+         {
+         U_RETURN(true);
+         }
 
-      U_RETURN(result);
+      U_RETURN(false);
       }
 
    UString getFileName() const { return UMimeHeader::getFileName(getContentDisposition()); }
@@ -230,9 +233,9 @@ public:
 
    // DEBUG
 
-#  ifdef DEBUG
+# ifdef DEBUG
    const char* dump(bool reset) const;
-#  endif
+# endif
 #endif
 
 protected:
@@ -243,7 +246,7 @@ protected:
 
    bool checkContentType()
       {
-      U_TRACE(0, "UMimeEntity::checkContentType()")
+      U_TRACE_NO_PARAM(0, "UMimeEntity::checkContentType()")
 
       U_INTERNAL_ASSERT_POINTER(header)
 
@@ -258,11 +261,7 @@ protected:
    bool parse(const char* ptr, uint32_t len);
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UMimeEntity& operator=(const UMimeEntity&) = delete;
-#else
-   UMimeEntity& operator=(const UMimeEntity&) { return *this; }
-#endif
+   U_DISALLOW_ASSIGN(UMimeEntity)
 
    friend class UHTTP;
    friend class UMimeMultipart;
@@ -272,8 +271,6 @@ private:
 
 class U_EXPORT UMimeMessage : public UMimeEntity {
 public:
-
-   // COSTRUTTORI
 
    UMimeMessage(UMimeEntity& item) : UMimeEntity(item), rfc822(UMimeEntity::content)
       {
@@ -291,8 +288,6 @@ public:
       {
       U_TRACE_UNREGISTER_OBJECT(0, UMimeMessage)
       }
-
-   // VARIE
 
    UMimeEntity& getRFC822() { return rfc822; }
 
@@ -312,30 +307,22 @@ public:
 
    // DEBUG
 
-#  ifdef DEBUG
+# ifdef DEBUG
    const char* dump(bool reset) const;
-#  endif
+# endif
 #endif
 
 protected:
    UMimeEntity rfc822;
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UMimeMessage(const UMimeMessage&) = delete;
-   UMimeMessage& operator=(const UMimeMessage&) = delete;
-#else
-   UMimeMessage(const UMimeMessage&) : UMimeEntity() {}
-   UMimeMessage& operator=(const UMimeMessage&)      { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UMimeMessage)
 };
 
 // If the content type is 'multipart' then the body contains one or more body parts
 
 class U_EXPORT UMimeMultipart : public UMimeEntity {
 public:
-
-   // COSTRUTTORI
 
    UMimeMultipart() : UMimeEntity()
       {
@@ -371,8 +358,6 @@ public:
       clear();
       }
 
-   // VARIE
-
    UString getBoundary() const { return boundary; }
    UString getPreamble() const { return preamble; } 
    UString getEpilogue() const { return epilogue; }
@@ -391,9 +376,9 @@ public:
 
    // DEBUG
 
-#  ifdef DEBUG
+# ifdef DEBUG
    const char* dump(bool reset) const;
-#  endif
+# endif
 #endif
 
 protected:
@@ -412,16 +397,20 @@ protected:
 
    bool isEmpty()
       {
-      U_TRACE(0, "UMimeMultipart::isEmpty()")
+      U_TRACE_NO_PARAM(0, "UMimeMultipart::isEmpty()")
 
-      bool result = (UMimeEntity::isEmpty() && getNumBodyPart() == 0);
+      if (UMimeEntity::isEmpty() &&
+          getNumBodyPart() == 0)
+         {
+         U_RETURN(true);
+         }
 
-      U_RETURN(result);
+      U_RETURN(false);
       }
 
    void setEmpty()
       {
-      U_TRACE(0, "UMimeMultipart::setEmpty()")
+      U_TRACE_NO_PARAM(0, "UMimeMultipart::setEmpty()")
 
       bodypart.clear();
 
@@ -432,13 +421,7 @@ private:
           bool findBoundary(uint32_t pos) U_NO_EXPORT;
    static bool isOnlyWhiteSpaceOrDashesUntilEndOfLine(const char* current, const char* end) U_NO_EXPORT __pure;
 
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UMimeMultipart(const UMimeMultipart&) = delete;
-   UMimeMultipart& operator=(const UMimeMultipart&) = delete;
-#else
-   UMimeMultipart(const UMimeMultipart&) : UMimeEntity() {}
-   UMimeMultipart& operator=(const UMimeMultipart&)      { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UMimeMultipart)
 
    friend class UHTTP;
 };

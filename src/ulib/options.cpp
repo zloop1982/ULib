@@ -152,6 +152,11 @@
 #else
 #  define RUBY_ENABLE       "no"
 #endif
+#ifdef USE_PYTHON 
+#  define PYTHON_ENABLE     "yes ( " _PYTHON_VERSION " )"
+#else
+#  define PYTHON_ENABLE     "no"
+#endif
 #ifdef USE_C_ARES
 #  define C_ARES_ENABLE     "yes ( " _C_ARES_VERSION " )"
 #else
@@ -367,8 +372,8 @@ void UOptions::load(const UString& str)
 
             *(long_opt.c_pointer(long_opt.size())) = '\0';
 
-         //         desc, long_opt, default_value,           has_arg, short_opt
-            add(vec[i+4], long_opt,      vec[i+5], vec[i+3].strtol(), short_opt);
+         //         desc, long_opt, default_value,            has_arg, short_opt
+            add(vec[i+4], long_opt,      vec[i+5], vec[i+3].strtoul(), short_opt);
 
             i += 5;
             }
@@ -387,11 +392,11 @@ void UOptions::printHelp(vPF func)
 
    u_is_tty = isatty(STDOUT_FILENO);
 
-   u__printf(STDOUT_FILENO, "%W%v%W: %v", BRIGHTWHITE, package.rep, RESET, version.rep);
+   u__printf(STDOUT_FILENO, U_CONSTANT_TO_PARAM("%W%v%W: %v"), BRIGHTWHITE, package.rep, RESET, version.rep);
 
-   if (purpose.size()) u__printf(STDOUT_FILENO, "%WPurpose:%W %v", BRIGHTWHITE, RESET, purpose.rep);
+   if (purpose.size()) u__printf(STDOUT_FILENO, U_CONSTANT_TO_PARAM("%WPurpose:%W %v"), BRIGHTWHITE, RESET, purpose.rep);
 
-   u__printf(STDOUT_FILENO, "%WUsage:\n  %W%.*s%W [ %WOptions%W ] %W%v\n%WOptions:%W",
+   u__printf(STDOUT_FILENO, U_CONSTANT_TO_PARAM("%WUsage:\n  %W%.*s%W [ %WOptions%W ] %W%v\n%WOptions:%W"),
                BRIGHTWHITE, BRIGHTCYAN, u_progname_len, u_progname, RESET, BRIGHTGREEN, RESET,
                BRIGHTGREEN, args.rep, BRIGHTWHITE, RESET);
 
@@ -413,13 +418,12 @@ void UOptions::printHelp(vPF func)
       if (name_max_len < name_len) name_max_len = name_len;
       }
 
-   char* ptr;
    char buffer[256] = { ' ', ' ', ' ', '-', 'c', ' ', ' ', '-', '-' };
    ptr_long_options = long_options;
 
    for (i = 0; i < 2 + length; ++i, ++ptr_long_options)
       {
-      ptr = buffer + 3;
+      char* ptr = buffer + 3;
 
       if (ptr_long_options->val)
          {
@@ -503,12 +507,12 @@ void UOptions::printHelp(vPF func)
 
       *ptr = '\0';
 
-      u__printf(STDOUT_FILENO, "%W%s%W", BRIGHTCYAN, buffer, RESET);
+      u__printf(STDOUT_FILENO, U_CONSTANT_TO_PARAM("%W%s%W"), BRIGHTCYAN, buffer, RESET);
       }
 
    if (func) func();
 
-   if (report_bugs) u__printf(STDOUT_FILENO, "%W%v%W", BRIGHTYELLOW, report_bugs.rep, RESET);
+   if (report_bugs) u__printf(STDOUT_FILENO, U_CONSTANT_TO_PARAM("%W%v%W"), BRIGHTYELLOW, report_bugs.rep, RESET);
 
    U_EXIT(EXIT_SUCCESS);
 }
@@ -622,7 +626,7 @@ uint32_t UOptions::getopt(int argc, char** argv, int* poptind)
 #        endif
 
 /* -----------------------------------------------------------------------------
-         ULib version: 1.4.2
+          ULib version: 1.4.2
             Build ULib: Shared=yes, Static=yes
 
             Host setup: x86_64-unknown-linux-gnu
@@ -642,94 +646,100 @@ uint32_t UOptions::getopt(int argc, char** argv, int* poptind)
           Linker Flags:  -Wl,-O1 -Wl,--as-needed -Wl,-z,now,-O1,--hash-style=gnu,--sort-common -Wl,--as-needed
     Preprocessor Flags:  -DDEBUG -DHAVE_SSL_TS -I/usr/include/libxml2 -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -pipe -D_GNU_SOURCE  -fstrict-aliasing -fno-stack-protector -fomit-frame-pointer -finline -findirect-inlining -ftree-switch-conversion -floop-interchange -floop-strip-mine -floop-block -Wstrict-aliasing=2 -Wall -Wextra -Wsign-compare -Wpointer-arith -Wwrite-strings -Wlogical-op -Wmissing-declarations -Wpacked -Wswitch-enum -Wmissing-format-attribute -Winit-self -Wformat -Wformat-extra-args -Wenum-compare -Wno-unused-result -Wshadow -Wsuggest-attribute=pure -Wsuggest-attribute=noreturn -Ofast -flto -Wp,-D_FORTIFY_SOURCE=2 -Wunsafe-loop-optimizations -Wno-unused-parameter
 
-         debug support: enabled
-      final build mode: no (--enable-final)
-   memory pool support: enabled
-           LFS support: enabled
-          ipv6 support: no (--with-ipv6)
-           zip support: enabled
-        thread support: enabled
-          LIBZ support: yes ( 1.2.6 )
-     LIBZOPFLI support: yes ( 1.0.1 )
-        LIBTDB support: yes ( 1.3.5 )
-          PCRE support: yes ( 8.12 )
-           SSL support: yes ( 1.0.0e )
-           SSH support: yes ( 0.4.8 )
-          LDAP support: yes ( 3001 )
-          cURL support: yes ( 7.24.0 )
-           XML support: yes ( 2.0.1 )
-         MAGIC support: yes ( 5.11 )
-        SQLite support: yes ( 3.7.17 )
-         MySQL support: yes ( 50161 )
-         PgSQL support: yes ( 50161 )
-           DBI support: yes ( 0.8.3 )
-       libuuid support: yes ( 1.41.14 )
-      libevent support: no (--with-libevent)
-       libxml2 support: yes ( 2.7.8 )
-    Page-Speed support: yes ( 1.9 )
- V8 JavaScript support: yes ( 3.8.9 )
-  PHP language support: yes ( 5.4.3 )
- RUBY language support: yes ( 1.9 )
+          debug support: enabled
+       final build mode: no (--enable-final)
+    memory pool support: enabled
+            LFS support: enabled
+           ipv6 support: no (--with-ipv6)
+            zip support: enabled
+         thread support: enabled
+           LIBZ support: yes ( 1.2.6 )
+      LIBZOPFLI support: yes ( 1.0.1 )
+         LIBTDB support: yes ( 1.3.5 )
+           PCRE support: yes ( 8.12 )
+            SSL support: yes ( 1.0.0e )
+            SSH support: yes ( 0.4.8 )
+           LDAP support: yes ( 3001 )
+           cURL support: yes ( 7.24.0 )
+            XML support: yes ( 2.0.1 )
+          MAGIC support: yes ( 5.11 )
+         SQLite support: yes ( 3.7.17 )
+          MySQL support: yes ( 50161 )
+          PgSQL support: yes ( 50161 )
+            DBI support: yes ( 0.8.3 )
+        libuuid support: yes ( 1.41.14 )
+       libevent support: no (--with-libevent)
+        libxml2 support: yes ( 2.7.8 )
+     Page-Speed support: yes ( 1.9 )
+  V8 JavaScript support: yes ( 3.8.9 )
+   PHP language support: yes ( 5.4.3 )
+  RUBY language support: yes ( 1.9 )
+PYTHON language support: yes ( 2.7 )
 
-      LEX/YACC support: enabled
-      Lexical analyzer: flex ( flex 2.5.35 )
-      Parser generator: bison -y ( bison (GNU Bison) 2.5 )
+       LEX/YACC support: enabled
+       Lexical analyzer: flex ( flex 2.5.35 )
+       Parser generator: bison -y ( bison (GNU Bison) 2.5 )
 ----------------------------------------------------------------------------- */
 
-            u__printf(STDOUT_FILENO, "%W%v%W (%W%v%W): %v\n\n"
-               "%WDeveloped with ULib (C++ application development framework)%W\n\n"
+#ifndef CONFIGURE_CALL
+#  define U_CONFIGURE_CALL
+#else
+#  define U_CONFIGURE_CALL "configure arguments....:%W%s%W\n"
+#endif
+#ifndef CONFIGURE_DEFINES
+#  define U_CONFIGURE_DEFINES
+#else
+#  define U_CONFIGURE_DEFINES "compile time defines...:%W" CONFIGURE_DEFINES "%W\n\n"
+#endif
 
-#           ifdef CONFIGURE_CALL
-               "configure arguments..:%W%s%W\n"
-#           endif
-#           ifdef CONFIGURE_DEFINES
-               "compile time defines.:%W" CONFIGURE_DEFINES "%W\n\n"
-#           endif
+#define U_PRINT_INFO \
+      "%W%v%W (%W%v%W): %v\n\n" \
+      "%WDeveloped with ULib (C++ application development framework)%W\n\n" \
+      U_CONFIGURE_CALL \
+      U_CONFIGURE_DEFINES \
+      "Building Environment...:%W " PLATFORM_VAR " (" __DATE__ ")%W\n" \
+      "Operating System.......:%W " _OS_VERSION "%W\n" \
+      "C++ Compiler...........:%W " CXX_VAR " ( " GCC_VERSION " )%W\n" \
+      "Linker.................:%W " LD_VAR " ( " LD_VERSION " )%W\n" \
+      "Standard C   library...:%W " LIBC_VERSION "%W\n" \
+      "Standard C++ library...:%W " STDGPP_VERSION "%W\n" \
+      "Libraries..............:%W " LIBS_VAR "%W\n\n" \
+      "C Flags................:%W " CFLAGS_VAR "%W\n" \
+      "C++ Flags..............:%W " CXXFLAGS_VAR "%W\n" \
+      "Linker Flags...........:%W " LDFLAGS_VAR "%W\n" \
+      "Preprocessor Flags.....:%W " CPPFLAGS_VAR "%W\n\n" \
+      "ipv6 support...........:%W " IPV6_ENABLE "%W\n" \
+      "LFS support............:%W " LFS_ENABLE "%W\n" \
+      "zip support............:%W " ZIP_ENABLE "%W\n" \
+      "thread support.........:%W " THREAD_ENABLE "%W\n" \
+      "memory pool support....:%W " MEMORY_POOL_ENABLE "%W\n\n" \
+      "LIBZ support...........:%W " LIBZ_ENABLE "%W\n" \
+      "LIBZOPFLI support......:%W " LIBZOPFLI_ENABLE "%W\n" \
+      "LIBTDB support.........:%W " LIBTDB_ENABLE "%W\n" \
+      "PCRE support...........:%W " LIBPCRE_ENABLE "%W\n" \
+      "SSL support............:%W " LIBSSL_ENABLE "%W\n" \
+      "SSH support............:%W " LIBSSH_ENABLE "%W\n" \
+      "LDAP support...........:%W " LIBLDAP_ENABLE "%W\n" \
+      "cURL support...........:%W " LIBCURL_ENABLE "%W\n" \
+      "XML support............:%W " LIBEXPAT_ENABLE "%W\n" \
+      "MAGIC support..........:%W " MAGIC_ENABLE "%W\n" \
+      "SQLite support.........:%W " SQLITE_ENABLE "%W\n" \
+      "MySQL support..........:%W " MYSQL_ENABLE "%W\n" \
+      "PgSQL support..........:%W " PGSQL_ENABLE "%W\n" \
+      "DBI support............:%W " DBI_ENABLE "%W\n" \
+      "libuuid support........:%W " LIBUUID_ENABLE "%W\n" \
+      "libevent support.......:%W " LIBEVENT_ENABLE "%W\n" \
+      "libxml2 support........:%W " LIBXML2_ENABLE "%W\n" \
+      "c-ares support.........:%W " C_ARES_ENABLE "%W\n" \
+      "Page-Speed support.....:%W " PAGE_SPEED_ENABLE "%W\n" \
+      "V8 JavaScript support..:%W " V8_ENABLE "%W\n" \
+      "PHP language support...:%W " PHP_ENABLE "%W\n" \
+      "RUBY language support..:%W " RUBY_ENABLE "%W\n" \
+      "PYTHON language support:%W " PYTHON_ENABLE "%W\n\n" \
+      "Lexical analyzer.......:%W " _FLEX_VERSION "%W\n" \
+      "Parser generator.......:%W " _BISON_VERSION "%W\n"
 
-               "Building Environment.:%W " PLATFORM_VAR " (" __DATE__ ")%W\n"
-               "Operating System.....:%W " _OS_VERSION "%W\n"
-               "C++ Compiler.........:%W " CXX_VAR " ( " GCC_VERSION " )%W\n"
-               "Linker...............:%W " LD_VAR " ( " LD_VERSION " )%W\n"
-               "Standard C   library.:%W " LIBC_VERSION "%W\n"
-               "Standard C++ library.:%W " STDGPP_VERSION "%W\n"
-               "Libraries............:%W " LIBS_VAR "%W\n\n"
-
-               "C Flags..............:%W " CFLAGS_VAR "%W\n"
-               "C++ Flags............:%W " CXXFLAGS_VAR "%W\n"
-               "Linker Flags.........:%W " LDFLAGS_VAR "%W\n"
-               "Preprocessor Flags...:%W " CPPFLAGS_VAR "%W\n\n"
-
-               "ipv6 support.........:%W " IPV6_ENABLE "%W\n"
-               "LFS support..........:%W " LFS_ENABLE "%W\n"
-               "zip support..........:%W " ZIP_ENABLE "%W\n"
-               "thread support.......:%W " THREAD_ENABLE "%W\n\n"
-               "memory pool support..:%W " MEMORY_POOL_ENABLE "%W\n"
-
-               "LIBZ support.........:%W " LIBZ_ENABLE "%W\n"
-               "LIBZOPFLI support....:%W " LIBZOPFLI_ENABLE "%W\n"
-               "LIBTDB support.......:%W " LIBTDB_ENABLE "%W\n"
-               "PCRE support.........:%W " LIBPCRE_ENABLE "%W\n"
-               "SSL support..........:%W " LIBSSL_ENABLE "%W\n"
-               "SSH support..........:%W " LIBSSH_ENABLE "%W\n"
-               "LDAP support.........:%W " LIBLDAP_ENABLE "%W\n"
-               "cURL support.........:%W " LIBCURL_ENABLE "%W\n"
-               "XML support..........:%W " LIBEXPAT_ENABLE "%W\n"
-               "MAGIC support........:%W " MAGIC_ENABLE "%W\n"
-               "SQLite support.......:%W " SQLITE_ENABLE "%W\n"
-               "MySQL support........:%W " MYSQL_ENABLE "%W\n"
-               "PgSQL support........:%W " PGSQL_ENABLE "%W\n"
-               "DBI support..........:%W " DBI_ENABLE "%W\n"
-               "libuuid support......:%W " LIBUUID_ENABLE "%W\n"
-               "libevent support.....:%W " LIBEVENT_ENABLE "%W\n"
-               "libxml2 support......:%W " LIBXML2_ENABLE "%W\n"
-               "c-ares support.......:%W " C_ARES_ENABLE "%W\n"
-               "Page-Speed support...:%W " PAGE_SPEED_ENABLE "%W\n"
-               "V8 JavaScript support:%W " V8_ENABLE "%W\n"
-               "PHP language support.:%W " PHP_ENABLE "%W\n"
-               "RUBY language support:%W " RUBY_ENABLE "%W\n\n"
-
-               "Lexical analyzer.....:%W " _FLEX_VERSION "%W\n"
-               "Parser generator.....:%W " _BISON_VERSION "%W\n",
+            u__printf(STDOUT_FILENO, U_CONSTANT_TO_PARAM(U_PRINT_INFO),
                BRIGHTCYAN,  package.rep, RESET,
                BRIGHTGREEN, version.rep, RESET,
                purpose.rep, BRIGHTWHITE, RESET,
@@ -781,55 +791,56 @@ uint32_t UOptions::getopt(int argc, char** argv, int* poptind)
                BRIGHTYELLOW, RESET,
                BRIGHTYELLOW, RESET,
                BRIGHTYELLOW, RESET,
+               BRIGHTYELLOW, RESET,
                // parser
                BRIGHTYELLOW, RESET,
                BRIGHTYELLOW, RESET);
 
             // Asking the system what it has
 
-            u__printf(STDOUT_FILENO, "%WRequest:%W", BRIGHTWHITE, BRIGHTGREEN);
+            u__printf(STDOUT_FILENO, U_CONSTANT_TO_PARAM("%WRequest:%W"), BRIGHTWHITE, BRIGHTGREEN);
 #        ifdef _POSIX_SOURCE
-            u__printf(STDOUT_FILENO, "\t_POSIX_SOURCE defined");
-            u__printf(STDOUT_FILENO, "\t_POSIX_C_SOURCE = %ld", _POSIX_C_SOURCE);
+            u__printf(STDOUT_FILENO, U_CONSTANT_TO_PARAM("\t_POSIX_SOURCE defined"));
+            u__printf(STDOUT_FILENO, U_CONSTANT_TO_PARAM("\t_POSIX_C_SOURCE = %ld"), _POSIX_C_SOURCE);
 #        else
-            u__printf(STDOUT_FILENO, "%W\t_POSIX_SOURCE undefined%W", BRIGHTRED, BRIGHTGREEN);
+            u__printf(STDOUT_FILENO, U_CONSTANT_TO_PARAM("%W\t_POSIX_SOURCE undefined%W"), BRIGHTRED, BRIGHTGREEN);
 #        endif
 
 #     ifdef _XOPEN_SOURCE
 #        if _XOPEN_SOURCE == 0
-            u__printf(STDOUT_FILENO, "\t_XOPEN_SOURCE defined (0 or no value)");
+            u__printf(STDOUT_FILENO, U_CONSTANT_TO_PARAM("\t_XOPEN_SOURCE defined (0 or no value)"));
 #        else
-            u__printf(STDOUT_FILENO, "\t_XOPEN_SOURCE = %d", _XOPEN_SOURCE);
+            u__printf(STDOUT_FILENO, U_CONSTANT_TO_PARAM("\t_XOPEN_SOURCE = %d"), _XOPEN_SOURCE);
 #        endif
 #     else
-            u__printf(STDOUT_FILENO, "%W\t_XOPEN_SOURCE undefined%W", BRIGHTRED, BRIGHTGREEN);
+            u__printf(STDOUT_FILENO, U_CONSTANT_TO_PARAM("%W\t_XOPEN_SOURCE undefined%W"), BRIGHTRED, BRIGHTGREEN);
 #     endif
 
 #        ifdef _XOPEN_SOURCE_EXTENDED
-            u__printf(STDOUT_FILENO, "\t_XOPEN_SOURCE_EXTENDED defined");
+            u__printf(STDOUT_FILENO, U_CONSTANT_TO_PARAM("\t_XOPEN_SOURCE_EXTENDED defined"));
 #        else
-            u__printf(STDOUT_FILENO, "%W\t_XOPEN_SOURCE_EXTENDED undefined", BRIGHTRED);
+            u__printf(STDOUT_FILENO, U_CONSTANT_TO_PARAM("%W\t_XOPEN_SOURCE_EXTENDED undefined"), BRIGHTRED);
 #        endif
 
-            u__printf(STDOUT_FILENO, "%WClaims:%W", BRIGHTWHITE, BRIGHTYELLOW);
+            u__printf(STDOUT_FILENO, U_CONSTANT_TO_PARAM("%WClaims:%W"), BRIGHTWHITE, BRIGHTYELLOW);
 #        ifdef _POSIX_VERSION
-            u__printf(STDOUT_FILENO, "\t_POSIX_VERSION = %ld", _POSIX_VERSION);
+            u__printf(STDOUT_FILENO, U_CONSTANT_TO_PARAM("\t_POSIX_VERSION = %ld"), _POSIX_VERSION);
 #        else
-            u__printf(STDOUT_FILENO, "%W\tNot POSIX%W", BRIGHTRED, BRIGHTYELLOW);
+            u__printf(STDOUT_FILENO, U_CONSTANT_TO_PARAM("%W\tNot POSIX%W"), BRIGHTRED, BRIGHTYELLOW);
 #        endif
 
 #     ifdef _XOPEN_UNIX
-            u__printf(STDOUT_FILENO, "\tX/Open");
+            u__printf(STDOUT_FILENO, U_CONSTANT_TO_PARAM("\tX/Open"));
 #        ifdef _XOPEN_VERSION
-            u__printf(STDOUT_FILENO, "\t_XOPEN_VERSION = %d", _XOPEN_VERSION);
+            u__printf(STDOUT_FILENO, U_CONSTANT_TO_PARAM("\t_XOPEN_VERSION = %d"), _XOPEN_VERSION);
 #        else
-            u__printf(STDOUT_FILENO, "\tError: _XOPEN_UNIX defined, but not _XOPEN_VERSION");
+            u__printf(STDOUT_FILENO, U_CONSTANT_TO_PARAM("\tError: _XOPEN_UNIX defined, but not _XOPEN_VERSION"));
 #        endif
 #     else
-            u__printf(STDOUT_FILENO, "%W\tNot X/Open%W", BRIGHTRED, BRIGHTYELLOW);
+            u__printf(STDOUT_FILENO, U_CONSTANT_TO_PARAM("%W\tNot X/Open%W"), BRIGHTRED, BRIGHTYELLOW);
 #     endif
 
-            u__printf(STDOUT_FILENO, "%W", RESET);
+            u__printf(STDOUT_FILENO, U_CONSTANT_TO_PARAM("%W"), RESET);
 
             U_EXIT(EXIT_SUCCESS);
             }
@@ -880,7 +891,7 @@ uint32_t UOptions::getopt(int argc, char** argv, int* poptind)
 
             pvalue->release();
 
-            pvalue = U_NEW(UStringRep(optarg, u__strlen(optarg, __PRETTY_FUNCTION__)));
+            U_NEW(UStringRep, pvalue, UStringRep(optarg, u__strlen(optarg, __PRETTY_FUNCTION__)));
             }
          break;
          }

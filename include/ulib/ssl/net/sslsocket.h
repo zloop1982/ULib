@@ -33,39 +33,9 @@
 #endif
 
 /**
- * --------------------------------------------------------------------------------------------------------------------
  * This class implements TCP/IP sockets with the Secure Sockets Layer (SSL v2/v3) and
  * Transport Layer Security (TLS v1) protocols. The OpenSSL library is used in this implementation,
- * see the OpenSSL homepage for more information.
- * --------------------------------------------------------------------------------------------------------------------
- * Quando un'applicazione (client) chiede di aprire una connessione SSL verso un server si attiva il servizio
- * che utilizza i protocolli di handshake e di scambio delle chiavi di cifratura. Lo scopo di questa fase è quello
- * di utilizzare un sistema crittografico asimmetrico per svolgere due funzioni:
- *
- * 1) Effettuare l'autenticazione reciproca del cliente e del server.
- * 2) Scambiare fra cliente e server le chiavi di cifratura da utilizzare nel corso della connessione.
- *    Le chiavi sono due per il cliente e due per il server. Una di esse serve per la cifratura dei dati
- *    e l'altra per il codice di autenticazione (MAC).
- * 
- * Al termine di questa fase inizia la vera e propria connessione durante la quale il messaggio (ovvero i dati
- * inviati da cliente a server e viceversa) viene trattato come segue:
- *
- * a) Il messaggio viene suddiviso in blocchi di lunghezza prefissata.
- * b) Ciascun blocco viene compresso con un algoritmo di compressione.
- * c) A ciascun blocco viene aggiunto il codice MAC che serve a garantire l'autenticità dei dati.
- * d) Il blocco complessivo (dati compressi+MAC) viene cifrato utilizzando un algoritmo simmetrico e l'opportuna chiave.
- * e) In testa al blocco cifrato viene posto lo "header" SSL.
- * f) Il blocco viene inviato al corrispondente utilizzando il protocollo TCP/IP.
- * 
- * Il corrispondente alla ricezione del blocco dovrà efettuare le operazioni contrarie, ovvero:
- *
- * a) Eliminare lo header SSL
- * b) Decifrare il messaggio utilizzando la chiave opportuna
- * c) Verificare che il codice MAC sia quello del corrispondente
- * d) Eliminare il codice MAC
- * e) Decomprimere il blocco risultante
- * f) Riunire i frammenti del messaggio
- * ---------------------------------------------------------------------------------------------------------------------
+ * see the OpenSSL homepage for more information
  */
 
 #define SSL_VERIFY_PEER_STRICT (SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT)
@@ -77,7 +47,6 @@ class UTCPSocket;
 class UHttpPlugIn;
 class UClient_Base;
 class UServer_Base;
-class UOCSPStapling;
 class UClientImage_Base;
 
 template <class T> class UClient;
@@ -95,12 +64,8 @@ public:
       Old          = 0x002
    };
 
-   // COSTRUTTORI
-
     USSLSocket(bool bSocketIsIPv6 = false, SSL_CTX* ctx = 0, bool server = false);
    ~USSLSocket();
-
-   // VARIE
 
    bool secureConnection();
    bool acceptSSL(USSLSocket* pcConnection);
@@ -144,7 +109,7 @@ public:
     * (a proper certificate chain exists). The certificate chain length from the CA certificate to the peer certificate
     * can be set in the verify_depth field of the SSL_CTX and SSL structures. (The value in SSL is inherited from SSL_CTX
     * when you create an SSL structure using the SSL_new() API). Setting verify_depth to 1 means that the peer certificate
-    * must be directly signed by the CA certificate. 
+    * must be directly signed by the CA certificate 
     */
 
    void setVerifyDepth(int depth = 1)
@@ -179,7 +144,7 @@ public:
 
    long getVerifyResult()
       {
-      U_TRACE(1, "USSLSocket::getVerifyResult()")
+      U_TRACE_NO_PARAM(1, "USSLSocket::getVerifyResult()")
 
       U_INTERNAL_ASSERT_POINTER(ssl)
 
@@ -203,7 +168,7 @@ public:
 
    X509* getPeerCertificate()
       {
-      U_TRACE(1, "USSLSocket::getPeerCertificate()")
+      U_TRACE_NO_PARAM(1, "USSLSocket::getPeerCertificate()")
 
       X509* peer = (X509*) (ssl ? U_SYSCALL(SSL_get_peer_certificate, "%p", ssl) : 0);
 
@@ -222,7 +187,7 @@ public:
 
    uint32_t pending() const
       {
-      U_TRACE(0, "USSLSocket::pending()")
+      U_TRACE_NO_PARAM(0, "USSLSocket::pending()")
 
       if (USocket::isSSLActive())
          {
@@ -243,15 +208,46 @@ public:
 
    // VIRTUAL METHOD
 
-   virtual int send(const char* pData,   uint32_t iDataLen) U_DECL_OVERRIDE;
-   virtual int recv(      void* pBuffer, uint32_t iBufferLen) U_DECL_OVERRIDE;
+   virtual int send(const char* pData,   uint32_t iDataLen) U_DECL_FINAL;
+   virtual int recv(      void* pBuffer, uint32_t iBufferLen) U_DECL_FINAL;
 
    /**
     * This method is called to connect the socket to a server SSL that is specified
     * by the provided host name and port number. We call the SSL_connect() function to perform the connection
     */
 
-   virtual bool connectServer(const UString& server, unsigned int iServPort, int timeoutMS = 0) U_DECL_OVERRIDE;
+   virtual bool connectServer(const UString& server, unsigned int iServPort, int timeoutMS = 0) U_DECL_FINAL;
+
+   /**
+    * OCSP stapling is a way for a SSL server to obtain OCSP responses for his own certificate, and provide them to the client,
+    * under the assumption that the client may need them. This makes the whole process more efficient: the client does not have
+    * to open extra connections to get the OCSP responses itself, and the same OCSP response can be sent by the server to all
+    * clients within a given time frame. One way to see it is that the SSL server acts as a Web proxy for the purpose of
+    * downloading OCSP responses
+    */
+
+#if !defined(OPENSSL_NO_OCSP) && defined(SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB)
+   typedef struct stapling {
+      void* data;
+      char* path;
+      long valid;
+      X509* cert;
+      X509* issuer;
+      UString* url;
+      EVP_PKEY* pkey;
+      int len, verify;
+      OCSP_CERTID* id;
+      OCSP_REQUEST* req;
+      UClient<UTCPSocket>* client;
+   } stapling;
+
+   static stapling staple;
+   static bool doStapling();
+
+   static void cleanupStapling();
+   static bool setDataForStapling();
+   static void certificate_status_callback(SSL* _ssl, void* data);
+#endif
 
 #if defined(U_STDCPP_ENABLE) && defined(DEBUG)
    const char* dump(bool reset) const;
@@ -272,7 +268,23 @@ protected:
    static void setStatus(SSL* _ssl, int _ret, bool _flag);
    static void info_callback(const SSL* ssl, int where, int ret);
 
-   void setStatus(bool _flag) const { return setStatus(ssl, ret, _flag); }
+   void setStatus(bool _flag) const { setStatus(ssl, ret, _flag); }
+
+#ifdef DEBUG
+   void dumpStatus(bool _flag) const
+      {
+      setStatus(ssl, ret, _flag);
+
+      u_buffer_len = 0;
+      }
+
+   void dumpStatus(int _ret, bool _flag) const
+      {
+      setStatus(ssl, _ret, _flag);
+
+      u_buffer_len = 0;
+      }
+#endif
 
    static SSL_CTX* getClientContext() { return getContext(0, false, 0); }
    static SSL_CTX* getServerContext() { return getContext(0, true,  0); }
@@ -288,57 +300,28 @@ protected:
    static int callback_ServerNameIndication(SSL* _ssl, int* alert, void* data);
 #endif
 
-   /**
-    * OCSP stapling is a way for a SSL server to obtain OCSP responses for his own certificate, and provide them to the client,
-    * under the assumption that the client may need them. This makes the whole process more efficient: the client does not have
-    * to open extra connections to get the OCSP responses itself, and the same OCSP response can be sent by the server to all
-    * clients within a given time frame. One way to see it is that the SSL server acts as a Web proxy for the purpose of
-    * downloading OCSP responses.
-    */
-
-#if !defined(OPENSSL_NO_OCSP) && defined(SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB)
-   typedef struct stapling {
-      void* data;
-      char* path;
-      long valid;
-      X509* cert;
-      X509* issuer;
-      UString* url;
-      EVP_PKEY* pkey;
-      int len, verify;
-      OCSP_CERTID* id;
-      OCSP_REQUEST* req;
-      UClient<UTCPSocket>* client;
-   } stapling;
-
-   static stapling staple;
-
-   static bool doStapling();
-   static void cleanupStapling();
-   static bool setDataForStapling();
-   static void certificate_status_callback(SSL* _ssl, void* data);
-#endif
-
 private:
-   static int nextProto(SSL* ssl, const unsigned char** data, unsigned int* len, void* arg) U_NO_EXPORT;
+   static int nextProto(SSL* ssl, const unsigned char** data, unsigned int* len, void* arg)
+      {
+      U_TRACE(0, "USSLSocket::nextProto(%p,%p,%p,%p)", ssl, data, len, arg)
+
+      *data = (unsigned char*)arg;
+      *len  = U_CONSTANT_SIZE("\x2h2\x5h2-16\x5h2-14");
+
+      U_RETURN(SSL_TLSEXT_ERR_OK);
+      }
+
 #if OPENSSL_VERSION_NUMBER >= 0x10002000L
    static int selectProto(SSL* ssl, const unsigned char** out, unsigned char* outlen, const unsigned char* in, unsigned int inlen, void* arg) U_NO_EXPORT;
 #endif
 
-#ifdef U_COMPILER_DELETE_MEMBERS
-   USSLSocket(const USSLSocket&) = delete;
-   USSLSocket& operator=(const USSLSocket&) = delete;
-#else
-   USSLSocket(const USSLSocket&) : USocket(false) {}
-   USSLSocket& operator=(const USSLSocket&)       { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(USSLSocket)
 
                       friend class UHTTP;
                       friend class USocket;
                       friend class UHttpPlugIn;
                       friend class UClient_Base;
                       friend class UServer_Base;
-                      friend class UOCSPStapling;
                       friend class UClientImage_Base;
    template <class T> friend class UClient;
    template <class T> friend class UServer;

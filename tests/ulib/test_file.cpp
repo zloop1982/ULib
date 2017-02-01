@@ -86,6 +86,8 @@ U_EXPORT main (int argc, char* argv[])
    x.setPath(tmp);
    U_ASSERT( x.getPath() == tmp )
 
+   UFile::close( UFile::mkTemp() );
+
 #ifndef __MINGW32__
    buffer.assign(argv[1]);
    x.setPath(U_STRING_FROM_CONSTANT("~"));
@@ -159,9 +161,9 @@ U_EXPORT main (int argc, char* argv[])
 
 #ifdef U_TEST_C_STR
    // test c_str()
-   UString tmp0(PAGESIZE, 'a');
-   UFile::writeTo(U_STRING_FROM_CONSTANT("PROVA"), tmp0);
-   UString tmp1 = UFile::contentOf(U_STRING_FROM_CONSTANT("PROVA"));
+   UString tmp0(PAGESIZE, 'a'), x(U_STRING_FROM_CONSTANT("PROVA"));
+   UFile::writeTo(x, tmp0);
+   UString tmp1 = UFile::contentOf(x);
    tmp1.c_str();
 #endif
 

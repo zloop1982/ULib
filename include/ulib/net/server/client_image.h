@@ -18,6 +18,7 @@
 #include <ulib/event/event_fd.h>
 #include <ulib/internal/chttp.h>
 #include <ulib/utility/socket_ext.h>
+#include <ulib/net/server/server_plugin.h>
 
 #ifdef USE_LIBSSL
 #  include <ulib/ssl/certificate.h>
@@ -39,8 +40,12 @@ class UHttpPlugIn;
 class UNoCatPlugIn;
 class UServer_Base;
 class UStreamPlugIn;
+class UBandWidthThrottling;
 
 template <class T> class UServer;
+
+#define U_ClientImage_idle(obj)   (obj)->UClientImage_Base::flag.c[0]
+#define U_ClientImage_pclose(obj) (obj)->UClientImage_Base::flag.c[1]
 
 #define U_ClientImage_request_is_cached UClientImage_Base::cbuffer[0]
 
@@ -61,7 +66,7 @@ public:
 
    bool isPendingSendfile()
       {
-      U_TRACE(0, "UClientImage_Base::isPendingSendfile()")
+      U_TRACE_NO_PARAM(0, "UClientImage_Base::isPendingSendfile()")
 
       if (count > 0) U_RETURN(true);
 
@@ -70,16 +75,14 @@ public:
 
    // define method VIRTUAL of class UEventFd
 
-   virtual int handlerRead() U_DECL_OVERRIDE;
-   virtual int handlerWrite() U_DECL_OVERRIDE;
-   virtual int handlerTimeout() U_DECL_OVERRIDE;
-
-   virtual void handlerError() U_DECL_OVERRIDE;
-   virtual void handlerDelete() U_DECL_OVERRIDE;
+   virtual int  handlerRead() U_DECL_OVERRIDE;
+   virtual int  handlerWrite() U_DECL_FINAL;
+   virtual int  handlerTimeout() U_DECL_FINAL;
+   virtual void handlerDelete() U_DECL_FINAL;
 
    static void setNoHeaderForResponse()
       {
-      U_TRACE(0, "UClientImage_Base::setNoHeaderForResponse()")
+      U_TRACE_NO_PARAM(0, "UClientImage_Base::setNoHeaderForResponse()")
 
       iov_vec[1].iov_len = 0;
       }
@@ -106,7 +109,7 @@ public:
    static void resetPipeline();
    static void setCloseConnection()
       {
-      U_TRACE(0, "UClientImage_Base::setCloseConnection()")
+      U_TRACE_NO_PARAM(0, "UClientImage_Base::setCloseConnection()")
 
       U_INTERNAL_DUMP("U_ClientImage_pipeline = %b U_ClientImage_parallelization = %d U_ClientImage_request_is_cached = %b U_ClientImage_close = %b",
                        U_ClientImage_pipeline,     U_ClientImage_parallelization,     U_ClientImage_request_is_cached,     U_ClientImage_close)
@@ -116,7 +119,7 @@ public:
 
    static void resetPipelineAndSetCloseConnection()
       {
-      U_TRACE(0, "UClientImage_Base::resetPipelineAndSetCloseConnection()")
+      U_TRACE_NO_PARAM(0, "UClientImage_Base::resetPipelineAndSetCloseConnection()")
 
       // NB: because we close the connection we don't need to process other request in pipeline...
 
@@ -128,16 +131,17 @@ public:
    // request state processing
 
    enum RequestStatusType {
-   // NOT_FOUND         = 0x0000,
-      FORBIDDEN         = 0x0001,
-      NO_CACHE          = 0x0002,
-      IN_FILE_CACHE     = 0x0004,
-      ALREADY_PROCESSED = 0x0008
+   // NOT_FOUND            = 0x0000,
+      FORBIDDEN            = 0x0001,
+      NO_CACHE             = 0x0002,
+      IN_FILE_CACHE        = 0x0004,
+      ALREADY_PROCESSED    = 0x0008,
+      FILE_CACHE_PROCESSED = 0x0010
    };
 
    static bool isRequestNotFound()
       {
-      U_TRACE(0, "UClientImage_Base::isRequestNotFound()")
+      U_TRACE_NO_PARAM(0, "UClientImage_Base::isRequestNotFound()")
 
       U_INTERNAL_DUMP("U_ClientImage_request = %d %B", U_ClientImage_request, U_ClientImage_request)
 
@@ -152,7 +156,7 @@ public:
 
    static void setRequestProcessed()
       {
-      U_TRACE(0, "UClientImage_Base::setRequestProcessed()")
+      U_TRACE_NO_PARAM(0, "UClientImage_Base::setRequestProcessed()")
 
       U_INTERNAL_DUMP("U_ClientImage_request = %d %B", U_ClientImage_request, U_ClientImage_request)
 
@@ -161,7 +165,7 @@ public:
 
    static void setRequestNeedProcessing()
       {
-      U_TRACE(0, "UClientImage_Base::setRequestNeedProcessing()")
+      U_TRACE_NO_PARAM(0, "UClientImage_Base::setRequestNeedProcessing()")
 
       U_INTERNAL_DUMP("U_ClientImage_request = %d %B", U_ClientImage_request, U_ClientImage_request)
 
@@ -172,7 +176,7 @@ public:
 
    static bool isRequestNeedProcessing()
       {
-      U_TRACE(0, "UClientImage_Base::isRequestNeedProcessing()")
+      U_TRACE_NO_PARAM(0, "UClientImage_Base::isRequestNeedProcessing()")
 
       U_INTERNAL_DUMP("U_ClientImage_request = %d %B", U_ClientImage_request, U_ClientImage_request)
 
@@ -183,7 +187,7 @@ public:
 
    static bool isRequestAlreadyProcessed()
       {
-      U_TRACE(0, "UClientImage_Base::isRequestAlreadyProcessed()")
+      U_TRACE_NO_PARAM(0, "UClientImage_Base::isRequestAlreadyProcessed()")
 
       U_INTERNAL_DUMP("U_ClientImage_request = %d %B", U_ClientImage_request, U_ClientImage_request)
 
@@ -194,7 +198,7 @@ public:
 
    static bool isRequestRedirected()
       {
-      U_TRACE(0, "UClientImage_Base::isRequestRedirected()")
+      U_TRACE_NO_PARAM(0, "UClientImage_Base::isRequestRedirected()")
 
       U_INTERNAL_DUMP("U_ClientImage_request = %d %B U_http_info.nResponseCode = %d", U_ClientImage_request,
                        U_ClientImage_request,        U_http_info.nResponseCode)
@@ -211,7 +215,7 @@ public:
 
    static void setRequestForbidden()
       {
-      U_TRACE(0, "UClientImage_Base::setRequestForbidden()")
+      U_TRACE_NO_PARAM(0, "UClientImage_Base::setRequestForbidden()")
 
       U_INTERNAL_DUMP("U_ClientImage_request = %d %B", U_ClientImage_request, U_ClientImage_request)
 
@@ -220,7 +224,7 @@ public:
 
    static bool isRequestForbidden()
       {
-      U_TRACE(0, "UClientImage_Base::isRequestForbidden()")
+      U_TRACE_NO_PARAM(0, "UClientImage_Base::isRequestForbidden()")
 
       U_INTERNAL_DUMP("U_ClientImage_request = %d %B", U_ClientImage_request, U_ClientImage_request)
 
@@ -231,7 +235,7 @@ public:
 
    static void setRequestInFileCache()
       {
-      U_TRACE(0, "UClientImage_Base::setRequestInFileCache()")
+      U_TRACE_NO_PARAM(0, "UClientImage_Base::setRequestInFileCache()")
 
       U_INTERNAL_DUMP("U_ClientImage_request = %d %B", U_ClientImage_request, U_ClientImage_request)
 
@@ -240,7 +244,7 @@ public:
 
    static bool isRequestInFileCache()
       {
-      U_TRACE(0, "UClientImage_Base::isRequestInFileCache()")
+      U_TRACE_NO_PARAM(0, "UClientImage_Base::isRequestInFileCache()")
 
       U_INTERNAL_DUMP("U_ClientImage_request = %d %B", U_ClientImage_request, U_ClientImage_request)
 
@@ -249,15 +253,95 @@ public:
       U_RETURN(false);
       }
 
+   static void setRequestFileCacheProcessed()
+      {
+      U_TRACE_NO_PARAM(0, "UClientImage_Base::setRequestFileCacheProcessed()")
+
+      U_INTERNAL_DUMP("U_ClientImage_request = %d %B", U_ClientImage_request, U_ClientImage_request)
+
+      U_ClientImage_request |= FILE_CACHE_PROCESSED;
+      }
+
+   static bool isRequestFileCacheProcessed()
+      {
+      U_TRACE_NO_PARAM(0, "UClientImage_Base::isRequestFileCacheProcessed()")
+
+      U_INTERNAL_DUMP("U_ClientImage_request = %d %B", U_ClientImage_request, U_ClientImage_request)
+
+      if ((U_ClientImage_request & FILE_CACHE_PROCESSED) != 0) U_RETURN(true);
+
+      U_RETURN(false);
+      }
+
    static void setRequestNoCache()
       {
-      U_TRACE(0, "UClientImage_Base::setRequestNoCache()")
+      U_TRACE_NO_PARAM(0, "UClientImage_Base::setRequestNoCache()")
 
-#  ifndef U_CACHE_REQUEST_DISABLE
+#  if !defined(U_CACHE_REQUEST_DISABLE) && defined(U_HTTP2_DISABLE)
       U_ClientImage_request |= NO_CACHE;
 
       U_INTERNAL_DUMP("U_ClientImage_request = %d %B", U_ClientImage_request, U_ClientImage_request)
 #  endif
+      }
+
+   static void setRequestToCache()
+      {
+      U_TRACE_NO_PARAM(0, "UClientImage_Base::setRequestToCache()")
+
+#  if !defined(U_CACHE_REQUEST_DISABLE) || defined(U_SERVER_CHECK_TIME_BETWEEN_REQUEST) 
+      U_INTERNAL_ASSERT_MAJOR(U_http_info.startHeader, 2)
+      U_INTERNAL_ASSERT_MAJOR(UClientImage_Base::size_request, 0)
+      U_INTERNAL_ASSERT_RANGE(1,UClientImage_Base::uri_offset,64)
+
+      U_http_info.startHeader -= UClientImage_Base::uri_offset + U_CONSTANT_SIZE(" HTTP/1.1\r\n");
+
+      U_INTERNAL_ASSERT(U_http_info.startHeader <= sizeof(cbuffer))
+
+      U_MEMCPY(UClientImage_Base::cbuffer, UClientImage_Base::request->c_pointer(UClientImage_Base::uri_offset), U_http_info.startHeader);
+
+      U_INTERNAL_DUMP("request(%u) = %V", UClientImage_Base::request->size(), UClientImage_Base::request->rep)
+      U_INTERNAL_DUMP("UClientImage_Base::cbuffer(%u) = %.*S", U_http_info.startHeader, U_http_info.startHeader, UClientImage_Base::cbuffer)
+#  endif
+      }
+
+   static uint32_t checkRequestToCache()
+      {
+      U_TRACE_NO_PARAM(0, "UClientImage_Base::checkRequestToCache()")
+
+      U_INTERNAL_DUMP("U_ClientImage_request_is_cached = %b", U_ClientImage_request_is_cached)
+
+#  if !defined(U_CACHE_REQUEST_DISABLE) || defined(U_SERVER_CHECK_TIME_BETWEEN_REQUEST) 
+      U_INTERNAL_ASSERT(U_ClientImage_request_is_cached)
+
+      uint32_t    sz  = request->size();
+      const char* ptr = request->data();
+
+      U_INTERNAL_DUMP("cbuffer(%u) = %.*S", U_http_info.startHeader, U_http_info.startHeader, cbuffer)
+      U_INTERNAL_DUMP("request(%u) = %.*S", sz, sz, ptr)
+
+      U_INTERNAL_DUMP("U_ClientImage_pipeline = %b size_request = %u uri_offset = %u", U_ClientImage_pipeline, size_request, uri_offset)
+
+      U_INTERNAL_ASSERT_MAJOR(size_request, 0)
+      U_INTERNAL_ASSERT_RANGE(1,uri_offset,64)
+      U_INTERNAL_ASSERT_MAJOR(U_http_info.uri_len, 0)
+      U_INTERNAL_ASSERT_MAJOR(U_http_info.startHeader, 0)
+      U_INTERNAL_ASSERT_EQUALS(U_ClientImage_data_missing, false)
+
+      if (u__isblank((ptr+uri_offset)[U_http_info.startHeader]) &&
+          memcmp(ptr+uri_offset, cbuffer, U_http_info.startHeader) == 0)
+         {
+         if (size_request > sz &&
+             (callerIsValidMethod( ptr)     == false ||
+              callerIsValidRequest(ptr, sz) == false))
+            {
+            U_RETURN(1); // partial valid (not complete)
+            }
+
+         if (callerHandlerCache()) U_RETURN(2);
+         }
+#  endif
+
+      U_RETURN(0);
       }
 
    // DEBUG
@@ -285,9 +369,9 @@ public:
    static struct iovec iov_vec[4];
    static bPFpc callerIsValidMethod;
    static vPF callerHandlerEndRequest;
-   static bPFpcu callerIsValidRequest, callerIsValidRequestExt;
    static uint32_t rstart, size_request;
-   static iPF callerHandlerRead, callerHandlerRequest, callerHandlerReset, callerHandlerDataPending;
+   static bPFpcu callerIsValidRequest, callerIsValidRequestExt;
+   static iPF callerHandlerRead, callerHandlerRequest, callerHandlerDataPending;
 
    // NB: these are for ULib Servlet Page (USP) - USP_PRINTF...
 
@@ -297,18 +381,27 @@ public:
 
 protected:
    USocket* socket;
-#ifndef U_HTTP2_DISABLE
-   void* connection;
+#if defined(U_THROTTLING_SUPPORT) && defined(U_HTTP2_DISABLE)
+   UString uri;
+   uint64_t bytes_sent;
+   uint32_t min_limit, max_limit, started_at;
 #endif
    UString* data_pending;
    uint32_t start, count;
-   int sfd, pending_close;
-   time_t last_event;
+   int sfd;
+   uucflag flag;
+   long last_event;
+
+#ifndef U_LOG_DISABLE
+   static int log_request_partial;
+
+   void logRequest();
+#endif
 
    void   set();
    void reset()
       {
-      U_TRACE(0, "UClientImage_Base::reset()")
+      U_TRACE_NO_PARAM(0, "UClientImage_Base::reset()")
 
       UEventFd::op_mask = EPOLLIN | EPOLLRDHUP | EPOLLET;
 
@@ -317,12 +410,38 @@ protected:
       sfd   = -1;
       }
 
-   int  handlerResponse();
+   int manageRead()
+      {
+      U_TRACE_NO_PARAM(0, "UClientImage::manageRead()")
+
+      if ((prepareForRead(), genericRead()) == false &&
+          U_ClientImage_state != U_PLUGIN_HANDLER_AGAIN) // NOT BLOCKING...
+         {
+         U_INTERNAL_ASSERT_EQUALS(U_ClientImage_state, U_PLUGIN_HANDLER_ERROR)
+
+         U_RETURN(U_NOTIFIER_DELETE);
+         }
+
+      U_RETURN(U_NOTIFIER_OK);
+      }
+
+   int handlerResponse();
    void prepareForSendfile();
 
+   void setPendingSendfile()
+      {
+      U_TRACE_NO_PARAM(0, "UClientImage::setPendingSendfile()")
+
+      count = ncount;
+
+      prepareForSendfile();
+
+      U_ClientImage_pclose(this) |= U_CLOSE;
+      }
+      
    static uint32_t getCountToRead()
       {
-      U_TRACE(0, "UClientImage_Base::getCountToRead()")
+      U_TRACE_NO_PARAM(0, "UClientImage_Base::getCountToRead()")
 
       if (size_request == 0) U_RETURN(U_SINGLE_READ);
 
@@ -338,11 +457,6 @@ protected:
       U_RETURN(U_SINGLE_READ);
       }
 
-   static void setSendfile(int _sfd, uint32_t _start, uint32_t _count);
-
-#ifndef U_LOG_DISABLE
-   void logRequest();
-#endif
    bool writeResponse();
    bool logCertificate(); // append on log the peer certicate of client ("issuer","serial")
    bool askForClientCertificate();
@@ -350,7 +464,6 @@ protected:
    static struct iovec* piov;
    static int csfd, idx, iovcnt;
    static UTimeVal* chronometer;
-   static bool log_request_partial;
    static long time_between_request, time_run;
    static uint32_t ncount, nrequest, resto, uri_offset;
 
@@ -361,12 +474,20 @@ protected:
    static void resetWriteBuffer();
    static void saveRequestResponse();
    static void manageReadBufferResize(uint32_t n);
+   static void setSendfile(int _sfd, uint32_t _start, uint32_t _count);
 
-#ifndef U_CACHE_REQUEST_DISABLE
+   static void do_nothing() {}
+
+   // NB: we have default to true to manage pipeline for protocol as RPC...
+
+   static bool handlerCache()                                  { return true; }
+   static bool isValidMethod(    const char* ptr)              { return true; }
+   static bool isValidRequest(   const char* ptr, uint32_t sz) { return true; }
+   static bool isValidRequestExt(const char* ptr, uint32_t sz) { return true; }
+
+#if !defined(U_CACHE_REQUEST_DISABLE) && defined(U_HTTP2_DISABLE)
    static bool isRequestCacheable() __pure;
 #endif
-
-   // COSTRUTTORI
 
             UClientImage_Base();
    virtual ~UClientImage_Base();
@@ -376,14 +497,7 @@ protected:
 #endif
 
 private:
-   static int handlerDataPending() U_NO_EXPORT;
-
-   static bool isValidMethod(    const char* ptr)              U_NO_EXPORT;
-   static bool isValidRequest(   const char* ptr, uint32_t sz) U_NO_EXPORT;
-   static bool isValidRequestExt(const char* ptr, uint32_t sz) U_NO_EXPORT;
-
-   UClientImage_Base(const UClientImage_Base&) : UEventFd() {}
-   UClientImage_Base& operator=(const UClientImage_Base&)   { return *this; }
+   U_DISALLOW_COPY_AND_ASSIGN(UClientImage_Base)
 
                       friend class UHTTP;
                       friend class UHTTP2;
@@ -393,6 +507,8 @@ private:
                       friend class UNoCatPlugIn;
                       friend class UServer_Base;
                       friend class UStreamPlugIn;
+                      friend class UBandWidthThrottling;
+
    template <class T> friend class UServer;
    template <class T> friend void u_delete_vector(      T* _vec, uint32_t offset, uint32_t n);
 #ifdef DEBUG
@@ -403,13 +519,11 @@ private:
 template <class Socket> class U_EXPORT UClientImage : public UClientImage_Base {
 public:
 
-   // COSTRUTTORI
-
    UClientImage() : UClientImage_Base()
       {
       U_TRACE_REGISTER_OBJECT(0, UClientImage<Socket>, "", 0)
 
-      socket = U_NEW(Socket(UClientImage_Base::bIPv6));
+      U_NEW(Socket, socket, Socket(UClientImage_Base::bIPv6));
 
       set();
       }
@@ -426,11 +540,10 @@ public:
 #endif
 
 private:
-   UClientImage(const UClientImage&) : UClientImage_Base() {}
-   UClientImage& operator=(const UClientImage&)            { return *this; }
+   U_DISALLOW_COPY_AND_ASSIGN(UClientImage)
 };
 
-#ifdef USE_LIBSSL // specializzazione con USSLSocket
+#ifdef USE_LIBSSL
 template <> class U_EXPORT UClientImage<USSLSocket> : public UClientImage_Base {
 public:
 
@@ -438,7 +551,7 @@ public:
       {
       U_TRACE_REGISTER_OBJECT(0, UClientImage<USSLSocket>, "", 0)
 
-      socket = U_NEW(USSLSocket(UClientImage_Base::bIPv6, USSLSocket::sctx, true));
+      U_NEW(USSLSocket, socket, USSLSocket(UClientImage_Base::bIPv6, USSLSocket::sctx, true));
 
       set();
       }
@@ -455,13 +568,7 @@ public:
 #endif
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UClientImage<USSLSocket>(const UClientImage<USSLSocket>&) = delete;
-   UClientImage<USSLSocket>& operator=(const UClientImage<USSLSocket>&) = delete;
-#else
-   UClientImage<USSLSocket>(const UClientImage<USSLSocket>&) : UClientImage_Base() {}
-   UClientImage<USSLSocket>& operator=(const UClientImage<USSLSocket>&)            { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UClientImage<USSLSocket>)
 };
 #endif
 

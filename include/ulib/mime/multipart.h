@@ -90,8 +90,6 @@ public:
       U_TRACE_UNREGISTER_OBJECT(0, UMimeMultipartMsg)
       }
 
-   // VARIE
-
    uint32_t message(UString& body, bool bterminator = true);
 
    // manage parts
@@ -101,8 +99,7 @@ public:
       U_TRACE(0, "UMimeMultipartMsg::add(%V)", _section.rep)
 
       U_INTERNAL_ASSERT_MAJOR(U_line_terminator_len, 0)
-   // U_ASSERT_EQUALS(_section.find("MIME-Version: 1.0"), U_NOT_FOUND) /* con rfc822 si possono avere duplicazioni */
-      U_ASSERT_EQUALS(_section.find(boundary+U_line_terminator_len), U_NOT_FOUND)
+      U_ASSERT_EQUALS(_section.find(boundary, U_line_terminator_len, boundary_len), U_NOT_FOUND)
 
       vec_part.push(_section);
       }
@@ -135,9 +132,9 @@ public:
 
    // DEBUG
 
-#  ifdef DEBUG
+# ifdef DEBUG
    const char* dump(bool reset) const;
-#  endif
+# endif
 #endif
 
 protected:
@@ -150,13 +147,7 @@ protected:
 private:
    static inline int encodeAutodetect(const UString& content, const char* charset) U_NO_EXPORT __pure;
 
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UMimeMultipartMsg(const UMimeMultipartMsg&) = delete;
-   UMimeMultipartMsg& operator=(const UMimeMultipartMsg&) = delete;
-#else
-   UMimeMultipartMsg(const UMimeMultipartMsg&)            {}
-   UMimeMultipartMsg& operator=(const UMimeMultipartMsg&) { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UMimeMultipartMsg)
 };
 
 #endif

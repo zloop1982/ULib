@@ -13,51 +13,13 @@
 
 #include <ulib/date.h>
 
-static const short monthDays[] = { 0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
-
-UTimeDate::UTimeDate(int day, int year)
-{
-   U_TRACE_REGISTER_OBJECT(0, UTimeDate, "%d,%d", day, year)
-
-   julian = toJulian(1,1,year) - 1 + day;
-
-   fromJulian(julian);
-}
-
-UTimeDate::UTimeDate(int day, int month, int year)
-{
-   U_TRACE_REGISTER_OBJECT(0, UTimeDate, "%d,%d,%d", day, month, year)
-
-   set(day, month, year);
-}
-
-__pure int UTimeDate::getDayOfYear()
-{
-   U_TRACE(0, "UTimeDate::getDayOfYear()")
-
-   int y = _year - 1901;
-
-   U_RETURN(getJulian() - (y * 365) - (y / 4) - 2415385); // 2415385 -> 31/12/1900
-}
-
-bool UTimeDate::leapYear(int y)
-{
-   U_TRACE(0, "UTimeDate::leapYear(%d)", y)
-
-   // 1. Every year that is divisible by four is a leap year;
-   // 2. of those years, if it can be divided by 100, it is NOT a leap year, unless
-   // 3. the year is divisible by 400. Then it is a leap year
-
-   bool result =  ((y %   4) == 0) &&
-                 (((y % 100) != 0) ||
-                  ((y % 400) == 0));
-
-   U_RETURN(result);
-}
+const char*    UTimeDate::periods[8]    = { "second", "minute", "hour", "day", "week", "month",   "year", "decade" };
+const uint32_t UTimeDate::lengths[8]    = {        1,       60,   3600, 86400, 604800, 2630880, 31570560, 315705600 };
+const short    UTimeDate::monthDays[13] = { 0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
 
 __pure bool UTimeDate::isValid() const
 {
-   U_TRACE(0, "UTimeDate::isValid()")
+   U_TRACE_NO_PARAM(0, "UTimeDate::isValid()")
 
    U_CHECK_MEMORY
 
@@ -70,24 +32,18 @@ __pure bool UTimeDate::isValid() const
       U_RETURN(false);
       }
 
-   bool result = (_day   >   0              &&
-                  _month >   0              &&
-                  _month <= 12)             &&
-                 (_day <= monthDays[_month] ||
-                  (_day == 29               &&
-                   _month == 2              &&
-                   leapYear(_year)));
+   if ((_day   >   0              &&
+        _month >   0              &&
+        _month <= 12)             &&
+       (_day <= monthDays[_month] ||
+       (_day == 29                &&
+        _month == 2               &&
+        leapYear(_year))))
+      {
+      U_RETURN(true);
+      }
 
-   U_RETURN(result);
-}
-
-__pure int UTimeDate::getDaysInMonth() const
-{
-   U_TRACE(0, "UTimeDate::getDaysInMonth()")
-
-   if (_month == 2 && leapYear(_year)) U_RETURN(29);
-
-   U_RETURN(monthDays[_month]);
+   U_RETURN(false);
 }
 
 int UTimeDate::toJulian(int day, int month, int year)
@@ -98,7 +54,7 @@ int UTimeDate::toJulian(int day, int month, int year)
    U_INTERNAL_ASSERT_RANGE(1,   month,   12)
    U_INTERNAL_ASSERT_RANGE(1752, year, 8000)
 
-   int _julian;
+   int _julian, century;
 
    /*
    _julian = day - 32075l +
@@ -117,7 +73,7 @@ int UTimeDate::toJulian(int day, int month, int year)
 
    month += (month > 2 ? -3 : (--year, 9));
 
-   int century = year / 100;
+   century = year / 100;
 
    year -= century * 100;
 
@@ -130,11 +86,28 @@ int UTimeDate::toJulian(int day, int month, int year)
    U_RETURN(_julian);
 }
 
+__pure time_t UTimeDate::getSecondFromDayLight()
+{
+   U_TRACE(0, "UTimeDate::getSecondFromDayLight()")
+
+   time_t t, nhr, now_day_based = (u_now->tv_sec + u_now_adjust) % U_ONE_DAY_IN_SECOND;
+
+   bool hi2 = (now_day_based >= (2 * U_ONE_HOUR_IN_SECOND)),
+        hi3 = (now_day_based >= (3 * U_ONE_HOUR_IN_SECOND));
+
+        if (hi3) nhr = 26;
+   else if (hi2) nhr =  3;
+   else          nhr =  2;
+
+   U_INTERNAL_DUMP("now_day_based = %ld hi2 = %b hi3 = %b nhr = %ld", now_day_based, hi2, hi3, nhr)
+
+   t = (nhr * U_ONE_HOUR_IN_SECOND) - now_day_based + 1;
+
+   U_RETURN(t);
+}
+
 // gcc: call is unlikely and code size would grow
 
-int UTimeDate::getJulian() { return (julian ? julian : julian = toJulian(_day, _month, _year)); }
-
-bool UTimeDate::operator==(UTimeDate& date) { return getJulian() == date.getJulian(); }
 bool UTimeDate::operator!=(UTimeDate& date) { return getJulian() != date.getJulian(); }
 bool UTimeDate::operator< (UTimeDate& date) { return getJulian() <  date.getJulian(); }
 bool UTimeDate::operator<=(UTimeDate& date) { return getJulian() <= date.getJulian(); }
@@ -157,7 +130,7 @@ void UTimeDate::fromJulian(int j)
    _month = 12 * t1 / 367;
    t2     = _month / 11;
 
-   _day    = t1 - 367 * _month / 12;
+   _day   = t1 - 367 * _month / 12;
    _month = _month + 2 - 12 * t2;
    _year  = _year - 4800 + t2;
 
@@ -179,8 +152,8 @@ void UTimeDate::fromJulian(int j)
 
    U_INTERNAL_DUMP("_day = %d, _month = %d, _year = %d", _day, _month, _year)
 
-   U_INTERNAL_ASSERT_RANGE(1,       _day,  31)
-   U_INTERNAL_ASSERT_RANGE(1,     _month,  12)
+   U_INTERNAL_ASSERT_RANGE(1,     _day,   31)
+   U_INTERNAL_ASSERT_RANGE(1,   _month,   12)
    U_INTERNAL_ASSERT_RANGE(1752, _year, 8000)
 
    U_INTERNAL_ASSERT(isValid())
@@ -212,24 +185,6 @@ void UTimeDate::fromTime(time_t tm)
       }
 }
 
-void UTimeDate::setYear(int year)
-{
-   U_TRACE(0, "UTimeDate::setYear(%d)", year)
-
-   // [   0,  50) -> [2000,2050)
-   // [  50, 150] -> [1950,2050)
-   // [1752,8000] -> [1752,8000]
-
-   _year = year;
-
-   if (year < 150) _year += 1900;
-   if (year <  50) _year +=  100;
-
-   U_INTERNAL_ASSERT_RANGE(1752, _year, 8000)
-
-   if (julian) julian = toJulian(_day, _month, _year);
-}
-
 // UTC is flag for date and time in Coordinated Universal Time : format YYMMDDMMSSZ
 
 void UTimeDate::fromUTC(const char* str, const char* format)
@@ -245,7 +200,7 @@ void UTimeDate::fromUTC(const char* str, const char* format)
       {
       // Complete for the user
 
-      U_gettimeofday; // NB: optimization if it is enough a time resolution of one second...
+      U_gettimeofday // NB: optimization if it is enough a time resolution of one second...
 
 #  if defined(DEBUG) && !defined(_MSWINDOWS_)
       U_SYSCALL_VOID(localtime_r, "%p,%p",      &(u_now->tv_sec), &u_strftime_tm);
@@ -267,9 +222,9 @@ void UTimeDate::fromUTC(const char* str, const char* format)
       }
 }
 
-UString UTimeDate::strftime(const char* fmt)
+UString UTimeDate::strftime(const char* fmt, uint32_t fmt_size)
 {
-   U_TRACE(1, "UTimeDate::strftime(%S)", fmt)
+   U_TRACE(1, "UTimeDate::strftime(%.*S,%u)", fmt_size, fmt, fmt_size)
 
    UString result(100U);
 
@@ -279,18 +234,18 @@ UString UTimeDate::strftime(const char* fmt)
    u_strftime_tm.tm_mon  = _month - 1;
    u_strftime_tm.tm_year = _year  - 1900;
 
-   result.rep->_length = u_strftime1(result.data(), result.capacity(), fmt);
+   result.rep->_length = u_strftime1(result.data(), result.capacity(), fmt, fmt_size);
 
    U_RETURN_STRING(result);
 }
 
-UString UTimeDate::strftime(const char* fmt, time_t t, bool blocale)
+UString UTimeDate::strftime(const char* fmt, uint32_t fmt_size, time_t t, bool blocale)
 {
-   U_TRACE(0, "UTimeDate::strftime(%S,%ld,%b)", fmt, t, blocale)
+   U_TRACE(0, "UTimeDate::strftime(%.*S,%u,%ld,%b)", fmt_size, fmt, fmt_size, t, blocale)
 
    UString res(100U);
 
-   res.rep->_length = u_strftime2(res.data(), res.capacity(), fmt, t + (blocale ? u_now_adjust : 0));
+   res.rep->_length = u_strftime2(res.data(), res.capacity(), fmt, fmt_size, t + (blocale ? u_now_adjust : 0));
 
 #ifdef DEBUG
    char dbg[4096];
@@ -391,9 +346,7 @@ scanf:
 
    if (gmt)
       {
-      int _julian = toJulian(tm->tm_mday, tm->tm_mon, tm->tm_year);
-
-      t = getSecondFromJulian(_julian);
+      t = getSecondFromJulian(toJulian(tm->tm_mday, tm->tm_mon, tm->tm_year));
 
 #  if SIZEOF_TIME_T == 8
       if (t < 0L) t  = LONG_MAX;
@@ -425,25 +378,11 @@ scanf:
    U_RETURN(t);
 }
 
-time_t UTimeDate::getSecondFromJulian(int _julian)
-{
-   U_TRACE(0, "UTimeDate::getSecondFromJulian(%d)", _julian)
-
-   if (_julian >= 2440588) // 2440588 -> 01/01/1970
-      {
-      time_t t = (_julian - 2440588);
-
-      t *= U_ONE_DAY_IN_SECOND;
-
-      U_RETURN(t);
-      }
-
-   U_RETURN(0);
-}
-
 void UTimeDate::addMonths(int nmonths)
 {
    U_TRACE(0, "UTimeDate::addMonths(%d)", nmonths)
+
+   julian = 0;
 
    while (nmonths != 0)
       {
@@ -493,9 +432,56 @@ void UTimeDate::addMonths(int nmonths)
          }
       }
 
-   int days_in_month = (_month == 2 && leapYear(_year) ? 29 : monthDays[_month]);
+   int days_in_month = getDaysInMonth();
 
    if (_day > days_in_month) _day = days_in_month;
+
+   U_INTERNAL_DUMP("_day = %d, _month = %d, _year = %d", _day, _month, _year)
+}
+
+// This can be used for comments and other from of communication to tell the time ago instead of the exact time which might not be correct to some one in another time zone
+
+UString UTimeDate::_ago(time_t tm, uint32_t granularity)
+{
+   U_TRACE(0, "UTimeDate::_ago(%ld,%u)", tm, granularity)
+
+   int j = 7;
+   UString result(100U);
+   uint32_t no, diff, difference = u_now->tv_sec - tm;
+
+   U_INTERNAL_ASSERT(u_now->tv_sec >= tm)
+
+   while (true)
+      {
+      if ((no = (difference / lengths[j])) >= 1)
+         {
+         U_INTERNAL_DUMP("j = %u no = %u", j, no)
+
+         break;
+         }
+
+      if (--j < 0)
+         {
+         j = 0;
+
+         break;
+         }
+      }
+
+   result.snprintf(U_CONSTANT_TO_PARAM("%lu %s%s"), no, periods[j], no != 1 ? "s " : " ");
+
+   if (granularity > 0 &&
+       j >= 1          &&
+       (u_now->tv_sec - (diff = (u_now->tv_sec - (difference % lengths[j])))) > 0)
+      {
+      (void) result.append(_ago(diff, --granularity));
+
+      U_RETURN_STRING(result);
+      }
+
+   (void) result.append(U_CONSTANT_TO_PARAM("ago"));
+
+   U_RETURN_STRING(result);
 }
 
 // STREAM

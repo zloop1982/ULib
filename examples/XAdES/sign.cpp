@@ -332,7 +332,7 @@ public:
 
          U_INTERNAL_DUMP("xades_c = %b", xades_c)
 
-         tmp.snprintf("XAdES-%s.%s", (xades_c ? "C" : "BES"), tag);
+         tmp.snprintf(U_CONSTANT_TO_PARAM("XAdES-%s.%s"), (xades_c ? "C" : "BES"), tag);
 
          result = cfg[tmp];
          }
@@ -367,7 +367,7 @@ public:
 
       UServices::generateDigest(alg, 0, X509Certificate, DigestValue, true);
 
-      signingCertificate.snprintf(U_XADES_CERTIFICATE_TEMPLATE,
+      signingCertificate.snprintf(U_CONSTANT_TO_PARAM(U_XADES_CERTIFICATE_TEMPLATE),
                                   U_STRING_TO_TRACE(digest_algorithm),
                                   U_STRING_TO_TRACE(DigestValue),
                                   U_STRING_TO_TRACE(X509IssuerName),
@@ -377,18 +377,18 @@ public:
 
       if (signing_time)
          {
-         UString dateTime = UTimeDate::strftime("%Y-%m-%dT%H:%M:%SZ", u_now->tv_sec);
+         UString dateTime = UTimeDate::strftime(U_CONSTANT_TO_PARAM("%Y-%m-%dT%H:%M:%SZ"), u_now->tv_sec);
 
-         signingTime.snprintf(U_XADES_SIGNING_TIME_TEMPLATE, U_STRING_TO_TRACE(dateTime));
+         signingTime.snprintf(U_CONSTANT_TO_PARAM(U_XADES_SIGNING_TIME_TEMPLATE), U_STRING_TO_TRACE(dateTime));
          }
 
       UString roleTemplate(U_CAPACITY);
 
-      if (claimed_role.empty() == false) roleTemplate.snprintf(U_XADES_SIGNER_ROLE_TEMPLATE, U_STRING_TO_TRACE(claimed_role));
+      if (claimed_role.empty() == false) roleTemplate.snprintf(U_CONSTANT_TO_PARAM(U_XADES_SIGNER_ROLE_TEMPLATE), U_STRING_TO_TRACE(claimed_role));
 
       (void) signedProperties.reserve(U_CONSTANT_SIZE(U_XADES_SIGNED_PROPERTIES_TEMPLATE) + 8192U + signingTime.size());
 
-      signedProperties.snprintf(U_XADES_SIGNED_PROPERTIES_TEMPLATE,
+      signedProperties.snprintf(U_CONSTANT_TO_PARAM(U_XADES_SIGNED_PROPERTIES_TEMPLATE),
                                 U_STRING_TO_TRACE(signingTime),
                                 U_STRING_TO_TRACE(signingCertificate),
                                 U_STRING_TO_TRACE(production_place_city),
@@ -406,7 +406,7 @@ public:
 
       (void) XAdESReference.reserve(U_CONSTANT_SIZE(U_XADES_REFERENCE_TEMPLATE) + signedPropertiesDigestValue.size());
 
-      XAdESReference.snprintf(U_XADES_REFERENCE_TEMPLATE,
+      XAdESReference.snprintf(U_CONSTANT_TO_PARAM(U_XADES_REFERENCE_TEMPLATE),
                               U_STRING_TO_TRACE(digest_algorithm),
                               U_STRING_TO_TRACE(signedPropertiesDigestValue));
       }
@@ -425,7 +425,6 @@ public:
       UString completeCertificateRef(U_CAPACITY), completeCertificateRefs(U_CAPACITY);
 
       uint32_t i, n;
-      long CASerialNumber;
       UVector<UString> vec_CACertificateValue;
       UString item(U_CAPACITY), CACertificateValue(U_CAPACITY), CAIssuerName, CACertificate, DigestValue(U_CAPACITY);
 
@@ -437,17 +436,16 @@ public:
 
          CAIssuerName   = ca->getIssuerForLDAP();
          CACertificate  = ca->getEncoded("DER");
-         CASerialNumber = ca->getSerialNumber();
 
          DigestValue.setEmpty();
 
          UServices::generateDigest(alg, 0, CACertificate, DigestValue, true);
 
-         item.snprintf(U_XADES_CERTIFICATE_TEMPLATE,
+         item.snprintf(U_CONSTANT_TO_PARAM(U_XADES_CERTIFICATE_TEMPLATE),
                        U_STRING_TO_TRACE(digest_algorithm),
                        U_STRING_TO_TRACE(DigestValue),
                        U_STRING_TO_TRACE(CAIssuerName),
-                       CASerialNumber);
+                       ca->getSerialNumber());
 
          (void) completeCertificateRef.append(item);
 
@@ -460,7 +458,7 @@ public:
          vec_CACertificateValue.push_back(CACertificateValue);
          }
 
-      completeCertificateRefs.snprintf(U_XADES_COMPLETE_CERTIFICATE_REFS_TEMPLATE, U_STRING_TO_TRACE(completeCertificateRef));
+      completeCertificateRefs.snprintf(U_CONSTANT_TO_PARAM(U_XADES_COMPLETE_CERTIFICATE_REFS_TEMPLATE), U_STRING_TO_TRACE(completeCertificateRef));
 
       unsignedSignaturePropertiesC14N += UXML2Document::xmlC14N(completeCertificateRefs);
 
@@ -472,13 +470,13 @@ public:
          {
          CACertificateValue = vec_CACertificateValue[i];
 
-         item.snprintf(U_XADES_ENCAPSULATED_X509_CERTIFICATE_TEMPLATE,
+         item.snprintf(U_CONSTANT_TO_PARAM(U_XADES_ENCAPSULATED_X509_CERTIFICATE_TEMPLATE),
                        U_STRING_TO_TRACE(CACertificateValue));
 
          (void) certificateValue.append(item);
          }
 
-      certificateValues.snprintf(U_XADES_CERTIFICATE_VALUES_TEMPLATE, U_STRING_TO_TRACE(certificateValue));
+      certificateValues.snprintf(U_CONSTANT_TO_PARAM(U_XADES_CERTIFICATE_VALUES_TEMPLATE), U_STRING_TO_TRACE(certificateValue));
 
       unsignedSignaturePropertiesC14N += UXML2Document::xmlC14N(certificateValues);
 
@@ -504,13 +502,13 @@ public:
             CRL             = crl.getEncoded("DER");
             CRLNumber       = crl.getNumber();
             CRLIssuerName   = crl.getIssuerForLDAP();
-            CRLIssueTime    = UTimeDate::strftime("%Y-%m-%dT%H:%M:%SZ", crl.getIssueTime());
+            CRLIssueTime    = UTimeDate::strftime(U_CONSTANT_TO_PARAM("%Y-%m-%dT%H:%M:%SZ"), crl.getIssueTime());
 
             DigestValue.setEmpty();
 
             UServices::generateDigest(alg, 0, CRL, DigestValue, true);
 
-            item.snprintf(U_XADES_CRL_TEMPLATE,
+            item.snprintf(U_CONSTANT_TO_PARAM(U_XADES_CRL_TEMPLATE),
                           U_STRING_TO_TRACE(digest_algorithm),
                           U_STRING_TO_TRACE(DigestValue),
                           U_STRING_TO_TRACE(CRLIssuerName),
@@ -529,7 +527,7 @@ public:
             }
          }
 
-      completeRevocationRefs.snprintf(U_XADES_COMPLETE_REVOCATION_REFS_TEMPLATE, U_STRING_TO_TRACE(completeRevocationRef));
+      completeRevocationRefs.snprintf(U_CONSTANT_TO_PARAM(U_XADES_COMPLETE_REVOCATION_REFS_TEMPLATE), U_STRING_TO_TRACE(completeRevocationRef));
 
       unsignedSignaturePropertiesC14N += UXML2Document::xmlC14N(completeRevocationRefs);
 
@@ -541,13 +539,13 @@ public:
          {
          CRLValue = vec_CRLValue[i];
 
-         item.snprintf(U_XADES_ENCAPSULATED_CRL_VALUE_TEMPLATE,
+         item.snprintf(U_CONSTANT_TO_PARAM(U_XADES_ENCAPSULATED_CRL_VALUE_TEMPLATE),
                        U_STRING_TO_TRACE(CRLValue));
 
          (void) revocationValue.append(item);
          }
 
-      revocationValues.snprintf(U_XADES_REVOCATION_VALUES_TEMPLATE, U_STRING_TO_TRACE(revocationValue));
+      revocationValues.snprintf(U_CONSTANT_TO_PARAM(U_XADES_REVOCATION_VALUES_TEMPLATE), U_STRING_TO_TRACE(revocationValue));
 
       unsignedSignaturePropertiesC14N += UXML2Document::xmlC14N(revocationValues);
 
@@ -557,7 +555,7 @@ public:
                                           certificateValues.size() +
                                           revocationValues.size());
 
-      unsignedSignatureProperties.snprintf(U_XADES_UNSIGNED_SIGNATURE_PROPERTIES_TEMPLATE,
+      unsignedSignatureProperties.snprintf(U_CONSTANT_TO_PARAM(U_XADES_UNSIGNED_SIGNATURE_PROPERTIES_TEMPLATE),
                                            U_STRING_TO_TRACE(completeCertificateRefs),
                                            U_STRING_TO_TRACE(certificateValues),
                                            U_STRING_TO_TRACE(completeRevocationRefs),
@@ -630,21 +628,27 @@ public:
 
       // manage arguments...
 
-      U_INTERNAL_ASSERT_POINTER(U_DATA_URI)
+      if ( U_DATA_URI &&
+          *U_DATA_URI == '\0')
+         {
+         U_ERROR("DATA_URI is mandatory");
+         }
 
-      if (*U_DATA_URI == '\0') U_ERROR("DATA_URI is mandatory");
+      if ( U_X509 &&
+          *U_X509 == '\0')
+         {
+         U_ERROR("X509 is mandatory");
+         }
 
-      U_INTERNAL_ASSERT_POINTER(U_X509)
-
-      if (*U_X509 == '\0') U_ERROR("X509 is mandatory");
+      if ( U_KEY_HANDLE &&
+          *U_KEY_HANDLE == '\0')
+         {
+         U_ERROR("KEY_HANDLE is mandatory");
+         }
 
       UCertificate cert(UString(U_X509));
 
       if (cert.isValid() == false) U_ERROR("certificate not valid");
-
-      U_INTERNAL_ASSERT_POINTER(U_KEY_HANDLE)
-
-      if (*U_KEY_HANDLE == '\0') U_ERROR("KEY_HANDLE is mandatory");
 
       U_INTERNAL_DUMP("U_CA_STORE = %S", U_CA_STORE)
 
@@ -705,7 +709,7 @@ public:
 
       u_base64_max_columns = 0;
 
-      KeyInfo.snprintf(U_XMLDSIG_KEYINFO_TEMPLATE,
+      KeyInfo.snprintf(U_CONSTANT_TO_PARAM(U_XMLDSIG_KEYINFO_TEMPLATE),
                        U_STRING_TO_TRACE(modulus),
                        U_STRING_TO_TRACE(exponent),
                        U_STRING_TO_TRACE(X509SubjectName),
@@ -738,7 +742,7 @@ public:
          UServices::generateDigest(alg, 0, to_digest, ObjectDigestValue, true);
          // ---------------------------------------------------------------------------------------------------------------
 
-         Reference.snprintf(U_XMLDSIG_REFERENCE_TEMPLATE, uri.c_str(),
+         Reference.snprintf(U_CONSTANT_TO_PARAM(U_XMLDSIG_REFERENCE_TEMPLATE), uri.c_str(),
                             U_STRING_TO_TRACE(digest_algorithm),
                             U_STRING_TO_TRACE(ObjectDigestValue));
 
@@ -747,7 +751,7 @@ public:
 
          if (data_object_format_mimetype.empty() == false)
             {
-            dataObjectFormat.snprintf(U_XADES_DATA_OBJECT_FORMAT_TEMPLATE, uri.c_str(), U_STRING_TO_TRACE(data_object_format_mimetype));
+            dataObjectFormat.snprintf(U_CONSTANT_TO_PARAM(U_XADES_DATA_OBJECT_FORMAT_TEMPLATE), uri.c_str(), U_STRING_TO_TRACE(data_object_format_mimetype));
 
             DataObjectFormat += dataObjectFormat;
             }
@@ -760,7 +764,7 @@ public:
       // ---------------------------------------------------------------------------------------------------------------
       UString SignedInfo(U_CONSTANT_SIZE(U_XMLDSIG_SIGNED_INFO_TEMPLATE) + XMLDSIGReference.size() + XAdESReference.size());
 
-      SignedInfo.snprintf(U_XMLDSIG_SIGNED_INFO_TEMPLATE,
+      SignedInfo.snprintf(U_CONSTANT_TO_PARAM(U_XMLDSIG_SIGNED_INFO_TEMPLATE),
                           U_STRING_TO_TRACE(digest_algorithm),
                           U_STRING_TO_TRACE(XMLDSIGReference),
                           U_STRING_TO_TRACE(XAdESReference));
@@ -782,7 +786,7 @@ public:
       x = U_KEY_HANDLE;
 #  else
       e = 0;
-      x = UFile::contentOf(U_KEY_HANDLE);
+      x = UFile::contentOf(UString(U_KEY_HANDLE));
 
       if (x.empty() ||
           (u_pkey = UServices::loadKey(x, 0, true, 0, e)) == 0)
@@ -801,7 +805,7 @@ public:
 
       u_base64_max_columns = 0;
 
-      SignatureValue.snprintf(U_XMLDSIG_SIGNATURE_VALUE_TEMPLATE, U_STRING_TO_TRACE(sign));
+      SignatureValue.snprintf(U_CONSTANT_TO_PARAM(U_XMLDSIG_SIGNATURE_VALUE_TEMPLATE), U_STRING_TO_TRACE(sign));
 
       if (signature_timestamp.empty() == false)
          {
@@ -809,7 +813,7 @@ public:
 
          UString token = getTimeStampToken(to_digest, signature_timestamp);
 
-         signatureTimeStamp.snprintf(U_XADES_SIGNATURE_TIMESTAMP_TEMPLATE, U_STRING_TO_TRACE(token));
+         signatureTimeStamp.snprintf(U_CONSTANT_TO_PARAM(U_XADES_SIGNATURE_TIMESTAMP_TEMPLATE), U_STRING_TO_TRACE(token));
          }
 
       // XAdES-C
@@ -823,7 +827,7 @@ public:
                           archiveTimeStamp.size() +
                           signatureTimeStamp.size());
 
-      XAdESObject.snprintf(U_XADES_TEMPLATE,
+      XAdESObject.snprintf(U_CONSTANT_TO_PARAM(U_XADES_TEMPLATE),
                            U_STRING_TO_TRACE(signedProperties),
                            U_STRING_TO_TRACE(unsignedSignatureProperties),
                            U_STRING_TO_TRACE(archiveTimeStamp),
@@ -842,7 +846,7 @@ public:
          OpenDocumentEnd   = U_STRING_FROM_CONSTANT("</document-signatures>");
          }
 
-      output.snprintf(U_XMLDSIG_TEMPLATE,
+      output.snprintf(U_CONSTANT_TO_PARAM(U_XMLDSIG_TEMPLATE),
                         U_STRING_TO_TRACE(OpenDocumentStart),
                         U_STRING_TO_TRACE(SignedInfo),
                         U_STRING_TO_TRACE(SignatureValue),
@@ -872,7 +876,7 @@ private:
            X509IssuerName, X509SubjectName, X509Certificate, signedProperties, signature_timestamp, unsignedSignatureProperties,
            unsignedSignaturePropertiesC14N, OpenDocumentStart, OpenDocumentEnd;
 
-   U_APPLICATION_PRIVATE
+   U_DISALLOW_COPY_AND_ASSIGN(Application)
 };
 
 U_MAIN

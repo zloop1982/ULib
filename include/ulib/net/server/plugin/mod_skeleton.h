@@ -21,7 +21,7 @@
  * Plugins allow you to enhance the functionality of UServer without changing the core of the server. They can be loaded at
  * startup time and can change virtually some aspect of the behaviour of the server.
  *
- * UServer has 8 hooks which are used in different states of the execution of the request:
+ * UServer has 7 hooks which are used in different states of the execution of the request:
  * --------------------------------------------------------------------------------------------
  *  * Server-wide hooks:
  *  ````````````````````
@@ -35,7 +35,6 @@
  *  ````````````````````````
  *  6) handlerREAD:
  *  7) handlerRequest:
- *  8) handlerReset:
  *   called in `UClientImage_Base::handlerRead()`
  * --------------------------------------------------------------------------------------------
  *
@@ -50,33 +49,24 @@
 class U_EXPORT USkeletonPlugIn : public UServerPlugIn {
 public:
 
-   // COSTRUTTORE
-
             USkeletonPlugIn() : UServerPlugIn() {}
    virtual ~USkeletonPlugIn()                   {}
 
    // define method VIRTUAL of class UServerPlugIn
 
    // Server-wide hooks
-   virtual int handlerConfig(UFileConfig& cfg) U_DECL_OVERRIDE;
-   virtual int handlerInit() U_DECL_OVERRIDE;
-   virtual int handlerRun() U_DECL_OVERRIDE;
-   virtual int handlerFork() U_DECL_OVERRIDE;
-   virtual int handlerStop() U_DECL_OVERRIDE;
+   virtual int handlerConfig(UFileConfig& cfg) U_DECL_FINAL;
+   virtual int handlerInit() U_DECL_FINAL;
+   virtual int handlerRun() U_DECL_FINAL;
+   virtual int handlerFork() U_DECL_FINAL;
+   virtual int handlerStop() U_DECL_FINAL;
 
    // Connection-wide hooks
-   virtual int handlerREAD() U_DECL_OVERRIDE;
-   virtual int handlerRequest() U_DECL_OVERRIDE;
-   virtual int handlerReset() U_DECL_OVERRIDE;
+   virtual int handlerREAD() U_DECL_FINAL;
+   virtual int handlerRequest() U_DECL_FINAL;
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   USkeletonPlugIn(const USkeletonPlugIn&) = delete;
-   USkeletonPlugIn& operator=(const USkeletonPlugIn&) = delete;
-#else
-   USkeletonPlugIn(const USkeletonPlugIn&) : UServerPlugIn() {}
-   USkeletonPlugIn& operator=(const USkeletonPlugIn&)        { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(USkeletonPlugIn)
 };
 
 #endif

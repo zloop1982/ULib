@@ -67,15 +67,20 @@ UMimeMultipartMsg::UMimeMultipartMsg(const char* type, uint32_t type_len, Encodi
    u_put_unalignedp32(ptr, U_MULTICHAR_CONSTANT32('-','-','=','_'));
                       ptr += 4;
 
-   boundary_len = (ptr + u_num2str64(ptr, UServices::getUniqUID()) - boundary);
+   boundary_len = (u_num2str64(UServices::getUniqUID(), ptr) - boundary);
 
    UString buffer(U_CAPACITY);
 
-   buffer.snprintf("%.*s%.*s"                                           // MIME-Version: 1.0
+   // MIME-Version: 1.0
+   // Content-Transfer-Encoding: ...
+   // \r\n
+   // RFC2045MIMEMSG
+
+   buffer.snprintf(U_CONSTANT_TO_PARAM("%.*s%.*s"  
                    "Content-Type: multipart/%.*s; boundary=\"%.*s\"%.*s"
-                   "%s%s%.*s"                                           // Content-Transfer-Encoding: ...
-                   "%.*s"                                               // \r\n
-                   "%s",                                                // RFC2045MIMEMSG
+                   "%s%s%.*s"
+                   "%.*s"
+                   "%s"),  
                    header_len, header, (header_len ? U_line_terminator_len : 0), line_terminator,
                    type_len, type, boundary_len - start, boundary + start, U_line_terminator_len, line_terminator,
                    (encoding == NONE ? "" : "Content-Transfer-Encoding: "),
@@ -97,11 +102,11 @@ uint32_t UMimeMultipartMsg::message(UString& body, bool bterminator)
 
    char _buf[64];
    uint32_t content_length = vec_part[0].size(),
-            len = u__snprintf(_buf, sizeof(_buf), "%.*s%.*s", boundary_len, boundary, U_line_terminator_len, line_terminator);
+            len = u__snprintf(_buf, sizeof(_buf), U_CONSTANT_TO_PARAM("%.*s%.*s"), boundary_len, boundary, U_line_terminator_len, line_terminator);
 
    body = vec_part.join(_buf, len);
 
-                    (void) body.append(_buf, u__snprintf(_buf, sizeof(_buf), "%.*s--", boundary_len, boundary));
+                    (void) body.append(_buf, u__snprintf(_buf, sizeof(_buf), U_CONSTANT_TO_PARAM("%.*s--"), boundary_len, boundary));
    if (bterminator) (void) body.append(line_terminator, U_line_terminator_len);
 
    content_length = body.size() - content_length;
@@ -109,7 +114,6 @@ uint32_t UMimeMultipartMsg::message(UString& body, bool bterminator)
    U_RETURN(content_length);
 }
 
-// -------------------------------------------------------------
 // Determine encoding as follows:
 // -------------------------------------------------------------
 // Default to 7bit.
@@ -128,7 +132,7 @@ __pure inline int UMimeMultipartMsg::encodeAutodetect(const UString& content, co
    bool longline = false;
    Encoding encoding = BIT7;
    unsigned char* ptr  = (unsigned char*) content.data();
-   unsigned char* _end = (unsigned char*) content.rep->end();
+   unsigned char* _end = (unsigned char*) content.pend();
 
    while (ptr < _end)
       {
@@ -160,7 +164,6 @@ __pure inline int UMimeMultipartMsg::encodeAutodetect(const UString& content, co
    U_RETURN(encoding);
 }
 
-// -----------------------------------------------------------------------------------------------------
 // Creating a single MIME section
 // -----------------------------------------------------------------------------------------------------
 // The type option encodes content appropriately, adds the "Content-Type: type" and
@@ -210,17 +213,21 @@ UString UMimeMultipartMsg::section(const UString& content,
    UString buffer(U_CAPACITY);
    const char* line_terminator = (U_line_terminator_len == 1 ? U_LF : U_CRLF);
 
-   buffer.snprintf("%.*s%.*s"
-                   "Content-Type: %.*s",
+   buffer.snprintf(U_CONSTANT_TO_PARAM("%.*s%.*s"
+                   "Content-Type: %.*s"),
                    header_len, header, (header_len ? U_line_terminator_len : 0), line_terminator,
                    type_len, type);
 
-   if (*charset) buffer.snprintf_add("; charset=\"%s\"", charset);
-   if (*name)    buffer.snprintf_add("; name=\"%s\"", name);
+   if (*charset) buffer.snprintf_add(U_CONSTANT_TO_PARAM("; charset=\"%s\""), charset);
+   if (*name)    buffer.snprintf_add(U_CONSTANT_TO_PARAM("; name=\"%s\""), name);
 
-   buffer.snprintf_add("%.*s"      // \r\n
-                       "%s%s%.*s"  // Content-Transfer-Encoding: ...
-                       "%.*s",     // \r\n
+   // \r\n
+   // Content-Transfer-Encoding: ...
+   // \r\n
+
+   buffer.snprintf_add(U_CONSTANT_TO_PARAM("%.*s"
+                       "%s%s%.*s"
+                       "%.*s"),
                        U_line_terminator_len,  line_terminator,
                        (encoding == NONE ? "" : "Content-Transfer-Encoding: "),
                        (encoding == NONE ? "" : str_encoding[encoding - 1]),

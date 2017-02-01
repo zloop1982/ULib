@@ -29,22 +29,20 @@ class UHttpPlugIn;
 class U_EXPORT USSLSession : public UDataStorage {
 public:
 
-   // COSTRUTTORE
-
    USSLSession()
       {
       U_TRACE_REGISTER_OBJECT(0, USSLSession, "", 0)
       }
 
-   virtual ~USSLSession()
+   virtual ~USSLSession() U_DECL_FINAL
       {
       U_TRACE_UNREGISTER_OBJECT(0, USSLSession)
       }
 
    // define method VIRTUAL of class UDataStorage
 
-   virtual char* toBuffer();
-   virtual void  fromData(const char* ptr, uint32_t len);
+   virtual char* toBuffer() U_DECL_FINAL;
+   virtual void  fromData(const char* ptr, uint32_t len) U_DECL_FINAL;
 
    // SERVICES
 
@@ -55,17 +53,12 @@ public:
 private:
    static SSL_SESSION* sess;
 
-   static int          newSession(SSL* ssl,     SSL_SESSION* sess);
-   static void      removeSession(SSL_CTX* ctx, SSL_SESSION* sess);
+   static int     newSession(SSL* ssl,     SSL_SESSION* sess);
+   static void removeSession(SSL_CTX* ctx, SSL_SESSION* sess);
+
    static SSL_SESSION* getSession(SSL* ssl, unsigned char* id, int len, int* copy);
 
-#ifdef U_COMPILER_DELETE_MEMBERS
-   USSLSession(const USSLSession&) = delete;
-   USSLSession& operator=(const USSLSession&) = delete;
-#else
-   USSLSession(const USSLSession&) : UDataStorage() {}
-   USSLSession& operator=(const USSLSession&)       { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(USSLSession)
 
    friend class UHTTP;
    friend class UHttpPlugIn;

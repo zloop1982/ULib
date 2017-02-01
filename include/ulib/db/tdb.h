@@ -47,8 +47,6 @@ public:
 
    struct tdb_context* context;
 
-   // COSTRUTTORE
-
    UTDB()
       {
       U_TRACE_REGISTER_OBJECT(0, UTDB, "", 0)
@@ -104,7 +102,7 @@ public:
 
    void close()
       {
-      U_TRACE(1, "UTDB::close()")
+      U_TRACE_NO_PARAM(1, "UTDB::close()")
 
       U_CHECK_MEMORY
 
@@ -122,8 +120,10 @@ public:
 
       _uudata key, dbuf;
 
-       key.d1 = { (unsigned char*)_key,   keylen };
-      dbuf.d1 = { (unsigned char*)_data, datalen };
+       key.d1.dptr  = (unsigned char*)_key;
+       key.d1.dsize = keylen;
+      dbuf.d1.dptr  = (unsigned char*)_data;
+      dbuf.d1.dsize = datalen;
 
       if (U_SYSCALL(tdb_store, "%p,%J,%J,%d", context, key.d2, dbuf.d2, _flag)) U_RETURN(false);
 
@@ -142,7 +142,8 @@ public:
 
       _uudata key;
 
-      key.d1 = { (unsigned char*)_key, keylen };
+      key.d1.dptr  = (unsigned char*)_key;
+      key.d1.dsize = keylen;
 
       if (U_SYSCALL(tdb_delete, "%p,%J", context, key.d2)) U_RETURN(false);
 
@@ -159,7 +160,8 @@ public:
 
       _uudata key;
 
-      key.d1 = { (unsigned char*)_key, keylen };
+      key.d1.dptr  = (unsigned char*)_key;
+      key.d1.dsize = keylen;
 
       TDB_DATA dbuf = (TDB_DATA) U_SYSCALL(tdb_fetch, "%p,%J", context, key.d2);
 
@@ -167,7 +169,7 @@ public:
          {
          UString str((const char*)dbuf.dptr, dbuf.dsize);
 
-         str.rep->_capacity = U_TO_FREE; //  U_SYSCALL_VOID(free, "%p", dbuf.dptr);
+         str.rep->_capacity = U_TO_FREE;
 
          U_RETURN_STRING(str);
          }
@@ -197,14 +199,17 @@ public:
 
       _uudata key;
 
-       key.d1 = { (unsigned char*)_key.data(), _key.size() };
+      key.d1.dptr  = (unsigned char*)_key.data();
+      key.d1.dsize = _key.size();
 
       if (U_SYSCALL(tdb_delete, "%p,%J", context, key.d2) == 0)
          {
          _uudata dbuf;
 
-          key.d1 = { (unsigned char*)new_key.data(), new_key.size() };
-         dbuf.d1 = { (unsigned char*)  _data.data(),   _data.size() };
+          key.d1.dptr  = (unsigned char*)new_key.data();
+          key.d1.dsize = new_key.size();
+         dbuf.d1.dptr  = (unsigned char*)_data.data();
+         dbuf.d1.dsize = _data.size();
 
          if (U_SYSCALL(tdb_store, "%p,%J,%J,%d", context, key.d2, dbuf.d2, TDB_INSERT) == 0) U_RETURN(true);
          }
@@ -217,15 +222,14 @@ public:
    UString operator[](UStringRep* _key)    { return at(_key); }
    UString operator[](const UString& _key) { return at(_key); }
 
-   // Ricerche
-
    bool find(const char* _key, uint32_t keylen)
       {
       U_TRACE(1, "UTDB::find(%.*S,%u)", keylen, _key, keylen)
 
       _uudata key;
 
-      key.d1 = { (unsigned char*)_key, keylen };
+      key.d1.dptr  = (unsigned char*)_key;
+      key.d1.dsize = keylen;
 
       if (U_SYSCALL(tdb_exists, "%p,%J", context, key.d2)) U_RETURN(true);
 
@@ -258,13 +262,7 @@ private:
    static int   _print(TDB_CONTEXT* tdb, TDB_DATA key, TDB_DATA dbuf, void* ptr) U_NO_EXPORT;
    static int _getKeys(TDB_CONTEXT* tdb, TDB_DATA key, TDB_DATA dbuf, void* ptr) U_NO_EXPORT;
    
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UTDB(const UTDB&) = delete;
-   UTDB& operator=(const UTDB&) = delete;
-#else
-   UTDB(const UTDB&)            {}
-   UTDB& operator=(const UTDB&) { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UTDB)
 };
 
 #endif

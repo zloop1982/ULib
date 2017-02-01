@@ -3,6 +3,7 @@
 #include <ulib/base/utility.h>
 
 #include <ulib/net/tcpsocket.h>
+#include <ulib/utility/services.h>
 #include <ulib/net/server/server.h>
 
 #undef  PACKAGE
@@ -23,9 +24,9 @@ static ULog* ulog;
 class Application : public UApplication {
 public:
 
-#define LOG_MSG0(msg)            if (ulog) ulog->log("%.*s",U_CONSTANT_TO_TRACE(msg))
-#define LOG_MSGb(msg)            if (ulog) ulog->log(msg" %.*s",U_STRING_TO_TRACE(buffer))
-#define LOG_MSGB(format,args...) if (ulog) ulog->log(format" %.*s",args,U_STRING_TO_TRACE(buffer))
+#define LOG_MSG0(msg)            if (ulog) ulog->log(U_CONSTANT_TO_PARAM("%.*s"),U_CONSTANT_TO_TRACE(msg))
+#define LOG_MSGb(msg)            if (ulog) ulog->log(U_CONSTANT_TO_PARAM(msg" %.*s"),U_STRING_TO_TRACE(buffer))
+#define LOG_MSGB(format,args...) if (ulog) ulog->log(U_CONSTANT_TO_PARAM(format" %.*s"),args,U_STRING_TO_TRACE(buffer))
 
    void get_welcome()
       {
@@ -39,7 +40,7 @@ public:
             {
             LOG_MSGB("received welcome message %#.*S from", iBytesTransferred, pcBuffer);
 
-            if (u_pfn_match(pcBuffer, iBytesTransferred, U_STRING_TO_PARAM(msg_welcome), u_pfn_flags) == false)
+            if (UServices::dosMatch(pcBuffer, iBytesTransferred, U_STRING_TO_PARAM(msg_welcome)) == false)
                {
                LOG_MSG0("welcome message mismatched...");
                }
@@ -74,7 +75,7 @@ public:
 
          UString resp = request_response[index+1];
 
-         if (u_pfn_match(pcBuffer, iBytesTransferred, U_STRING_TO_PARAM(resp), u_pfn_flags) == false)
+         if (UServices::dosMatch(pcBuffer, iBytesTransferred, U_STRING_TO_PARAM(resp)) == false)
             {
             LOG_MSG0("response message mismatched...");
             }
@@ -93,11 +94,11 @@ public:
 
       // manage config file
 
-      if (argv[optind] == NULL) U_ERROR("arg <file_config> not specified");
+      if (argv[optind] == 0) U_ERROR("arg <file_config> not specified");
 
       // load config file (section SERVER and section REQUEST_AND_RESPONSE)
 
-      UString pathname(argv[optind]);
+      UString pathname(argv[optind], strlen(argv[optind]));
 
       cfg.load(pathname);
 
@@ -143,9 +144,9 @@ public:
 
          u_init_ulib_username();
 
-         ulog = U_NEW(ULog(log_file, 1024 * 1024));
+         U_NEW(ULog, ulog, ULog(log_file, 1024 * 1024));
 
-         ulog->setPrefix(U_SERVER_LOG_PREFIX);
+         ulog->setPrefix(U_CONSTANT_TO_PARAM(U_SERVER_LOG_PREFIX));
 
          // manage max string length for log request and response
 

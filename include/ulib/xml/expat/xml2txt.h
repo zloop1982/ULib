@@ -20,8 +20,6 @@
 class U_EXPORT UXml2Txt : public UXMLParser {
 public:
 
-   // COSTRUTTORI
-
             UXml2Txt(const UString& tag_list, bool _tag_to_exclude, bool _tag_output_also);
    virtual ~UXml2Txt();
 
@@ -65,13 +63,7 @@ protected:
    bool tag_match, tag_to_exclude, tag_output_also;
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UXml2Txt(const UXml2Txt&) = delete;
-   UXml2Txt& operator=(const UXml2Txt&) = delete;
-#else
-   UXml2Txt(const UXml2Txt&)            : UXMLParser() {}
-   UXml2Txt& operator=(const UXml2Txt&)                { return *this; }
-#endif      
+   U_DISALLOW_COPY_AND_ASSIGN(UXml2Txt)
 };
 
 #endif

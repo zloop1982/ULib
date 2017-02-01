@@ -20,11 +20,16 @@
 #include <openssl/x509.h>
 #include <openssl/asn1.h>
 
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+#  define X509_CRL_get_lastUpdate X509_CRL_get0_lastUpdate
+#  define X509_CRL_get_nextUpdate X509_CRL_get0_nextUpdate
+#endif
+
 class UCertificate;
 
 /**
  * This class provides all the services the openssl X509_CRL structure supports. A CRL is a list of certificate revoked.
- * This class contains a openssl X509_CRL structure and basically acts as a wrapper to functions that act on that structure.
+ * This class contains a openssl X509_CRL structure and basically acts as a wrapper to functions that act on that structure
  */
 
 class U_EXPORT UCrl {
@@ -69,7 +74,7 @@ public:
 
    void clear()
       {
-      U_TRACE(1, "UCrl::clear()")
+      U_TRACE_NO_PARAM(1, "UCrl::clear()")
 
       U_INTERNAL_ASSERT_POINTER(crl)
 
@@ -85,11 +90,9 @@ public:
       if (crl) clear();
       }
 
-   // VARIE
-
    bool isValid() const
       {
-      U_TRACE(0, "UCrl::isValid()")
+      U_TRACE_NO_PARAM(0, "UCrl::isValid()")
 
       U_RETURN(crl != 0);
       }
@@ -121,7 +124,7 @@ public:
 
    long hashCode() const
       {
-      U_TRACE(0, "UCrl::hashCode()")
+      U_TRACE_NO_PARAM(0, "UCrl::hashCode()")
 
       U_INTERNAL_ASSERT_POINTER(crl)
 
@@ -147,7 +150,7 @@ public:
 
    long getVersionNumber() const
       {
-      U_TRACE(1, "UCrl::getVersionNumber()")
+      U_TRACE_NO_PARAM(1, "UCrl::getVersionNumber()")
 
       U_INTERNAL_ASSERT_POINTER(crl)
 
@@ -157,32 +160,16 @@ public:
       }
 
    /**
-    * Returns the <i>signature</i> of this CRL
-    */
-
-   UString getSignature() const
-      {
-      U_TRACE(0, "UCrl::getSignature()")
-
-      U_INTERNAL_ASSERT_POINTER(crl)
-
-      UString signature( (const char*) crl->signature->data,
-                                       crl->signature->length );
-
-      U_RETURN_STRING(signature);
-      }
-
-   /**
     * Returns the last update of this CRL
     */
 
    const char* getLastUpdate() const __pure
       {
-      U_TRACE(0, "UCrl::getLastUpdate()")
+      U_TRACE_NO_PARAM(0, "UCrl::getLastUpdate()")
 
       U_INTERNAL_ASSERT_POINTER(crl)
 
-      ASN1_UTCTIME* utctime = X509_CRL_get_lastUpdate(crl);
+      const ASN1_UTCTIME* utctime = X509_CRL_get_lastUpdate(crl);
 
       U_RETURN((const char*)utctime->data);
       }
@@ -196,11 +183,11 @@ public:
 
    const char* getNextUpdate() const __pure
       {
-      U_TRACE(0, "UCrl::getNextUpdate()")
+      U_TRACE_NO_PARAM(0, "UCrl::getNextUpdate()")
 
       U_INTERNAL_ASSERT_POINTER(crl)
 
-      ASN1_UTCTIME* utctime = X509_CRL_get_nextUpdate(crl);
+      const ASN1_UTCTIME* utctime = X509_CRL_get_nextUpdate(crl);
 
       U_RETURN((const char*)utctime->data);
       }
@@ -258,13 +245,7 @@ protected:
    X509_CRL* crl;
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UCrl(const UCrl&) = delete;
-   UCrl& operator=(const UCrl&) = delete;
-#else
-   UCrl(const UCrl&)            {}
-   UCrl& operator=(const UCrl&) { return *this; }
-#endif      
+   U_DISALLOW_COPY_AND_ASSIGN(UCrl)
 };
 
 #endif

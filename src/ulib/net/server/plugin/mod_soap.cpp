@@ -22,11 +22,6 @@ U_CREAT_FUNC(server_plugin_soap, USoapPlugIn)
 
 USOAPParser* USoapPlugIn::soap_parser;
 
-USoapPlugIn::USoapPlugIn()
-{
-   U_TRACE_REGISTER_OBJECT(0, USoapPlugIn, "")
-}
-
 USoapPlugIn::~USoapPlugIn()
 {
    U_TRACE_UNREGISTER_OBJECT(0, USoapPlugIn)
@@ -47,7 +42,7 @@ int USoapPlugIn::handlerConfig(UFileConfig& cfg)
 
    // Perform registration of server SOAP method
 
-   soap_parser = U_NEW(USOAPParser);
+   U_NEW(USOAPParser, soap_parser, USOAPParser);
 
    USOAPObject::loadGenericMethod(&cfg);
 
@@ -56,7 +51,7 @@ int USoapPlugIn::handlerConfig(UFileConfig& cfg)
 
 int USoapPlugIn::handlerInit()
 {
-   U_TRACE(0, "USoapPlugIn::handlerInit()")
+   U_TRACE_NO_PARAM(0, "USoapPlugIn::handlerInit()")
 
    // NB: soap is NOT a static page, so to avoid stat() syscall we use alias mechanism...
 
@@ -65,10 +60,10 @@ int USoapPlugIn::handlerInit()
 #  ifndef U_ALIAS
       U_SRV_LOG("WARNING: Sorry, I can't run soap plugin because alias URI support is missing, please recompile ULib...");
 #  else
-      if (UHTTP::valias == 0) UHTTP::valias = U_NEW(UVector<UString>(2U));
+      if (UHTTP::valias == 0) U_NEW(UVector<UString>, UHTTP::valias, UVector<UString>(2U));
 
-      UHTTP::valias->push_back(U_STRING_FROM_CONSTANT("/soap"));
-      UHTTP::valias->push_back(U_STRING_FROM_CONSTANT("/nostat"));
+      UHTTP::valias->push_back(*UString::str_soap);
+      UHTTP::valias->push_back(*UString::str_nostat);
 
       U_RETURN(U_PLUGIN_HANDLER_PROCESSED | U_PLUGIN_HANDLER_GO_ON);
 #  endif
@@ -81,7 +76,7 @@ int USoapPlugIn::handlerInit()
 
 int USoapPlugIn::handlerRequest()
 {
-   U_TRACE(0, "USoapPlugIn::handlerRequest()")
+   U_TRACE_NO_PARAM(0, "USoapPlugIn::handlerRequest()")
 
    if (UHTTP::isSOAPRequest())
       {
@@ -98,12 +93,12 @@ int USoapPlugIn::handlerRequest()
          U_SRV_LOG_WITH_ADDR("method %V process %s for", method.rep, (bSendingFault ? "failed" : "passed"));
 
 #     ifdef DEBUG
-         (void) UFile::writeToTmp(U_STRING_TO_PARAM(body), false, "soap.res", 0);
+         (void) UFile::writeToTmp(U_STRING_TO_PARAM(body), O_RDWR | O_TRUNC, U_CONSTANT_TO_PARAM("soap.res"), 0);
 #     endif
 
-         U_http_info.nResponseCode  = HTTP_OK;
+         U_http_info.nResponseCode = HTTP_OK;
 
-         UHTTP::setResponse(UHTTP::str_ctype_soap, &body);
+         UHTTP::setResponse(*UString::str_ctype_soap, &body);
          }
 
       U_RETURN(U_PLUGIN_HANDLER_PROCESSED | U_PLUGIN_HANDLER_GO_ON);

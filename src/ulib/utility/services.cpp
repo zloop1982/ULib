@@ -15,13 +15,8 @@
 #include <ulib/command.h>
 #include <ulib/file_config.h>
 #include <ulib/utility/base64.h>
-#include <ulib/utility/hexdump.h>
 #include <ulib/utility/services.h>
 #include <ulib/net/server/server.h>
-
-#ifdef USE_LIBUUID
-#  include <uuid/uuid.h>
-#endif
 
 unsigned char UServices::key[16];
 
@@ -45,15 +40,14 @@ int UServices::getDevNull(const char* file)
 
 bool UServices::isSetuidRoot()
 {
-   U_TRACE(1, "UServices::isSetuidRoot()")
+   U_TRACE_NO_PARAM(1, "UServices::isSetuidRoot()")
 
    if (u_user_name_len == 0) u_init_ulib_username();
 
    U_INTERNAL_DUMP("u_user_name(%u) = %.*S", u_user_name_len, u_user_name_len, u_user_name)
 
-   bool i_am_root = (u_user_name_len == 4 && (uid_t) U_SYSCALL_NO_PARAM(getuid) == 0);
-
-   if (i_am_root ||
+   if ((u_user_name_len == 4                     &&
+        (uid_t) U_SYSCALL_NO_PARAM(getuid) == 0) ||
        ((uid_t) U_SYSCALL_NO_PARAM(geteuid) == 0 ||
         (uid_t) U_SYSCALL_NO_PARAM(getegid) == 0))
       {
@@ -67,7 +61,7 @@ bool UServices::isSetuidRoot()
 
 void UServices::closeStdInputOutput()
 {
-   U_TRACE(1, "UServices::closeStdInputOutput()")
+   U_TRACE_NO_PARAM(1, "UServices::closeStdInputOutput()")
 
    int fd = UFile::open("/dev/null", O_RDONLY, 0);
 
@@ -103,7 +97,7 @@ void UServices::closeStdInputOutput()
  * I/O - read while not received almost count data
  *
  * timeoutMS specified the timeout value, in milliseconds.
- *           A negative value indicates no timeout, i.e. an infinite wait.
+ *           A negative value indicates no timeout, i.e. an infinite wait
  */
 
 bool UServices::read(int fd, UString& buffer, uint32_t count, int timeoutMS)
@@ -163,8 +157,8 @@ read:
 
    if (value == (ssize_t)ncount)
       {
-#  ifdef DEBUG
-      U_MESSAGE("UServices::read(%u) ran out of buffer space(%u)", count, ncount);
+#  ifndef U_SERVER_CAPTIVE_PORTAL
+      U_DEBUG("UServices::read(%u) ran out of buffer space(%u)", count, ncount)
 #  endif
 
       buffer.size_adjust_force(start + byte_read); // NB: we force because string can be referenced...
@@ -196,7 +190,7 @@ int UServices::askToLDAP(UString* pinput, UHashMap<UString>* ptable, const char*
 
    UString output, buffer(U_CAPACITY);
 
-   buffer.vsnprintf(fmt, argp);
+   buffer.vsnprintf(fmt, u__strlen(fmt, __PRETTY_FUNCTION__), argp);
 
    UCommand cmd(buffer);
 
@@ -215,7 +209,7 @@ int UServices::askToLDAP(UString* pinput, UHashMap<UString>* ptable, const char*
       if (output &&
           pinput == 0)
          {
-         (void) UFileConfig::loadProperties(*ptable, output.data(), output.end());
+         (void) UFileConfig::loadProperties(*ptable, output);
          }
 
       U_RETURN(1);
@@ -230,7 +224,7 @@ int UServices::askToLDAP(UString* pinput, UHashMap<UString>* ptable, const char*
 
 uint64_t UServices::getUniqUID()
 {
-   U_TRACE(0, "UServices::getUniqUID()")
+   U_TRACE_NO_PARAM(0, "UServices::getUniqUID()")
 
    static uint64_t unique_num;
 
@@ -248,7 +242,7 @@ uint64_t UServices::getUniqUID()
 
 UString UServices::getUUID()
 {
-   U_TRACE(1, "UServices::getUUID()")
+   U_TRACE_NO_PARAM(1, "UServices::getUUID()")
 
    UString buffer(36U);
    char* id = buffer.data();
@@ -272,8 +266,8 @@ UString UServices::getUUID()
             time_hi_and_version = htons((ossp_time >> 48) & 0x00000fff);
 
 #define U_APPEND_HEX(value, offset) \
-   *id++ = u_hex_upper[(((char*)&value)[offset] >> 4) & 0x0F]; \
-   *id++ = u_hex_upper[(((char*)&value)[offset]     ) & 0x0F];
+   *id++ = "0123456789ABCDEF"[(((char*)&value)[offset] >> 4) & 0x0F]; \
+   *id++ = "0123456789ABCDEF"[(((char*)&value)[offset]     ) & 0x0F];
 
    U_APPEND_HEX(time_low, 0);
    U_APPEND_HEX(time_low, 1);
@@ -304,7 +298,7 @@ UString UServices::getUUID()
    U_APPEND_HEX(node, 4);
    U_APPEND_HEX(node, 5);
 
-#undef U_APPEND_HEX(value, offset)
+#undef U_APPEND_HEX
 #endif
 
    buffer.size_adjust(36U);
@@ -315,19 +309,15 @@ UString UServices::getUUID()
 #ifdef USE_LIBSSL
 #  include <openssl/err.h>
 #  include <openssl/engine.h>
-#  include <ulib/base/ssl/dgst.h>
 #  ifdef DEBUG
 #     include <ulib/ssl/certificate.h>
 #  endif
-
 #  if !defined(HAVE_OPENSSL_97) && !defined(HAVE_OPENSSL_98)
 #     warning "WARNING: I must to disable some function with this version of openssl... be aware"
-
 #     define ENGINE_load_dynamic()            getpid()
 #     define X509_STORE_set_flags(a,b)        getpid()
 #     define ENGINE_load_public_key(a,b,c,d)  getpid()
 #     define ENGINE_load_private_key(a,b,c,d) getpid()
-
 #     ifdef DEBUG
 #        define trace_sysreturn_type(a) trace_sysreturn_type(0)
 #     endif
@@ -339,26 +329,6 @@ X509*       UServices::verify_current_cert;
 UString*    UServices::CApath;
 X509_STORE* UServices::store;
 
-void UServices::setOpenSSLError()
-{
-   U_TRACE(0, "UServices::setOpenSSLError()")
-
-   long i;
-
-   while ((i = ERR_get_error()))
-      {
-      char buf[1024];
-
-      (void) ERR_error_string_n(i, buf, sizeof(buf));
-
-      uint32_t sz = u__strlen(buf, __PRETTY_FUNCTION__);
-
-      U_INTERNAL_DUMP("buf = %.*S", sz, buf)
-
-      u_buffer_len += u__snprintf(u_buffer + u_buffer_len, U_BUFFER_SIZE - u_buffer_len, " (%ld, %.*s)", i, sz, buf);
-      }
-}
-
 // setup OPENSSL standard certificate directory
 
 void UServices::setCApath(const char* _CApath)
@@ -367,7 +337,7 @@ void UServices::setCApath(const char* _CApath)
 
    U_INTERNAL_ASSERT(_CApath && *_CApath)
 
-   if (CApath == 0) U_NEW_ULIB_OBJECT(CApath, UString);
+   if (CApath == 0) U_NEW_ULIB_OBJECT(UString, CApath, UString);
 
    *CApath = UFile::getRealPath(_CApath);
 }
@@ -381,7 +351,7 @@ UString UServices::getFileName(long hash, bool crl)
       {
       UString buffer(U_CAPACITY);
 
-      buffer.snprintf("%v/%08x.%s", CApath->rep, hash, (crl ? "r0" : "0"));
+      buffer.snprintf(U_CONSTANT_TO_PARAM("%v/%08x.%s"), CApath->rep, hash, (crl ? "r0" : "0"));
 
       (void) buffer.shrink();
 
@@ -389,6 +359,25 @@ UString UServices::getFileName(long hash, bool crl)
       }
 
    return UString::getStringNull();
+}
+
+/* The passwd_cb() function must write the password into the provided buffer buf which is of length 'size' */
+
+int UServices::passwd_cb(char* buf, int size, int rwflag, void* password)
+{
+   U_TRACE(0, "UServices::passwd_cb(%p,%d,%d,%p)", buf, size, rwflag, password)
+
+   U_VAR_UNUSED(rwflag)
+
+   uint32_t written = u__strlen((const char*)password, __PRETTY_FUNCTION__);
+
+   U_MEMCPY(buf, (const char*)password, written+1);
+
+   U_INTERNAL_ASSERT_MINOR((int)written, size)
+
+   U_INTERNAL_DUMP("buf(%u) = %.*S", written, written, buf)
+
+   U_RETURN(written);
 }
 
 void UServices::setVerifyStatus(long result)
@@ -432,7 +421,7 @@ void UServices::setVerifyStatus(long result)
 
    U_INTERNAL_ASSERT_EQUALS(u_buffer_len, 0)
 
-   u_buffer_len = u__snprintf(u_buffer, U_BUFFER_SIZE, "(%ld, %s) - %s", result, descr, X509_verify_cert_error_string(result));
+   u_buffer_len = u__snprintf(u_buffer, U_BUFFER_SIZE, U_CONSTANT_TO_PARAM("(%ld, %s) - %s"), result, descr, X509_verify_cert_error_string(result));
 }
 
 int UServices::X509Callback(int ok, X509_STORE_CTX* ctx)
@@ -546,7 +535,9 @@ ENGINE* UServices::loadEngine(const char* id, unsigned int flags)
 {
    U_TRACE(1, "UServices::loadEngine(%S,%u)", id, flags)
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
    U_SYSCALL_VOID_NO_PARAM(ENGINE_load_dynamic);
+#endif
 
    ENGINE* e = (ENGINE*) U_SYSCALL(ENGINE_by_id, "%S", id);
 
@@ -559,7 +550,7 @@ ENGINE* UServices::loadEngine(const char* id, unsigned int flags)
       e = 0;
       }
 
-   U_RETURN_POINTER(e,ENGINE);
+   U_RETURN_POINTER(e, ENGINE);
 }
 
 void UServices::releaseEngine(ENGINE* e, bool bkey)
@@ -621,8 +612,8 @@ EVP_PKEY* UServices::loadKey(const UString& x, const char* format, bool _private
    in = (BIO*) U_SYSCALL(BIO_new_mem_buf, "%p,%d", U_STRING_TO_PARAM(tmp));
 
    pkey = (EVP_PKEY*) (strncmp(format, U_CONSTANT_TO_PARAM("PEM")) == 0
-                        ? (_private ? U_SYSCALL(PEM_read_bio_PrivateKey, "%p,%p,%p,%p", in, 0, (password ? u_passwd_cb : 0), (void*)password)
-                                    : U_SYSCALL(PEM_read_bio_PUBKEY,     "%p,%p,%p,%p", in, 0, (password ? u_passwd_cb : 0), (void*)password))
+                        ? (_private ? U_SYSCALL(PEM_read_bio_PrivateKey, "%p,%p,%p,%p", in, 0, (password ? passwd_cb : 0), (void*)password)
+                                    : U_SYSCALL(PEM_read_bio_PUBKEY,     "%p,%p,%p,%p", in, 0, (password ? passwd_cb : 0), (void*)password))
                         : (_private ? U_SYSCALL(d2i_PrivateKey_bio,      "%p,%p",       in, 0)
                                     : U_SYSCALL(d2i_PUBKEY_bio,          "%p,%p",       in, 0)));
 
@@ -707,35 +698,24 @@ bool UServices::verifySignature(int alg, const UString& data, const UString& sig
    U_RETURN(false);
 }
 
-void UServices::generateDigest(int alg, unsigned char* data, uint32_t size)
+UString UServices::createToken(int alg)
 {
-   U_TRACE(0, "UServices::generateDigest(%d,%.*S,%u)", alg, size, data, size)
+   U_TRACE(0, "UServices::createToken(%d)", alg)
+
+   UString output(80U);
+   uint32_t u = u_get_num_random(0);
 
    u_dgst_init(alg, 0, 0);
 
-   u_dgst_hash(data, size);
+   u_dgst_hash((unsigned char*)&u, sizeof(uint32_t));
 
-   (void) u_dgst_finish(0, 0);
+   uint32_t bytes_written = u_dgst_finish((unsigned char*)output.data(), 0);
 
-   U_INTERNAL_DUMP("u_mdLen = %d", u_mdLen)
+   output.size_adjust(bytes_written);
+
+   U_RETURN_STRING(output);
 }
 #endif // USE_LIBSSL
-
-void UServices::generateKey(unsigned char* pkey, unsigned char* hexdump)
-{
-   U_TRACE(1, "UServices::generateKey(%p,%p)", pkey, hexdump)
-
-   if (pkey == 0) pkey = key;
-
-#ifdef USE_LIBUUID
-   U_SYSCALL_VOID(uuid_generate, "%p", pkey);
-#else
-   *(uint64_t*) pkey                     = getUniqUID();
-   *(uint64_t*)(pkey + sizeof(uint64_t)) = getUniqUID();
-#endif
-
-   if (hexdump) (void) u_hexdump_encode(pkey, 16, hexdump);
-}
 
 void UServices::generateDigest(int alg, uint32_t keylen, unsigned char* data, uint32_t size, UString& output, int base64)
 {
@@ -754,7 +734,7 @@ void UServices::generateDigest(int alg, uint32_t keylen, unsigned char* data, ui
       }
    else
       {
-      uint32_t bytes_written = u_dgst_finish((unsigned char*)output.end(), base64);
+      uint32_t bytes_written = u_dgst_finish((unsigned char*)output.pend(), base64);
 
       output.size_adjust(output.size() + bytes_written);
       }
@@ -772,7 +752,7 @@ UString UServices::generateToken(const UString& data, time_t expire)
 
    UString token(data.size() + U_TOKEN_SIZE);
 
-   token.snprintf("%v&%010ld&", data.rep, expire); // NB: expire time must be of size 10...
+   token.snprintf(U_CONSTANT_TO_PARAM("%v&%010ld&"), data.rep, expire); // NB: expire time must be of size 10...
 
    U_INTERNAL_DUMP("token = %V", token.rep)
 

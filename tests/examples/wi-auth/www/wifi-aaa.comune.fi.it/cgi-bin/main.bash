@@ -1674,7 +1674,7 @@ polling_password() {
 	SSI_HEAD="<meta http-equiv=\"refresh\" content=\"3\">"
 	CREDENTIALS_TAG="<p class=\"bigger\">&nbsp;</p><p class=\"bigger\">&nbsp;</p>"
 
-	# ldapsearch -LLL -b ou=cards,o=unwired-portal -x -D cn=admin,o=unwired-portal -w programmer -H ldap://10.30.1.131
+	# ldapsearch -LLL -b ou=cards,o=unwired-portal -x -D cn=admin,o=unwired-portal -w programmer -H ldap://127.0.0.1
 
 	ask_to_LDAP ldapsearch "-LLL -b $WIAUTH_CARD_BASEDN $LDAP_CARD_PARAM" "waUsedBy=$1" waPassword
 
@@ -2282,7 +2282,7 @@ polling_attivazione() {
 	SSI_HEAD="<meta http-equiv=\"refresh\" content=\"3\">"
 	CREDENTIALS_TAG="<p class=\"bigger\">&nbsp;</p><p class=\"bigger\">&nbsp;</p>"
 
-	# ldapsearch -LLL -b ou=cards,o=unwired-portal -x -D cn=admin,o=unwired-portal -w programmer -H ldap://10.30.1.131
+	# ldapsearch -LLL -b ou=cards,o=unwired-portal -x -D cn=admin,o=unwired-portal -w programmer -H ldap://127.0.0.1
 
 	if [ -z "$generate_PASSWORD" ]; then
 

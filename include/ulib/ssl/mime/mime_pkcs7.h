@@ -20,8 +20,6 @@
 class U_EXPORT UMimePKCS7 : public UMimeEntity {
 public:
 
-   // COSTRUTTORI
-
    UMimePKCS7(const UString& data);
 
    UMimePKCS7(UMimeEntity& item) : UMimeEntity(item), pkcs7(content, "DER")
@@ -40,13 +38,11 @@ public:
       U_TRACE_UNREGISTER_OBJECT(0, UMimePKCS7)
       }
 
-   // VARIE
-
    UPKCS7& getPKCS7() { return pkcs7; }
 
    bool isValid() const
       {
-      U_TRACE(0, "UMimePKCS7::isValid()")
+      U_TRACE_NO_PARAM(0, "UMimePKCS7::isValid()")
 
       bool result = (pkcs7.isValid() && valid_content);
 
@@ -60,9 +56,9 @@ public:
 
    // DEBUG
 
-#  ifdef DEBUG
+# ifdef DEBUG
    const char* dump(bool reset) const;
-#  endif
+# endif
 #endif
 
 protected:
@@ -70,13 +66,7 @@ protected:
    bool valid_content;
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UMimePKCS7(const UMimePKCS7&) = delete;
-   UMimePKCS7& operator=(const UMimePKCS7&) = delete;
-#else
-   UMimePKCS7(const UMimePKCS7&) : UMimeEntity() {}
-   UMimePKCS7& operator=(const UMimePKCS7&)      { return *this; }
-#endif      
+   U_DISALLOW_COPY_AND_ASSIGN(UMimePKCS7)
 };
 
 #endif

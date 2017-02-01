@@ -14,6 +14,16 @@
 #ifndef ULIB_REPLACE_H
 #define ULIB_REPLACE_H 1
 
+#ifndef HAVE_SCHED_GETCPU
+#  ifdef __cplusplus
+extern "C" {
+#  endif
+int sched_getcpu(void);
+#  ifdef __cplusplus
+}
+#  endif
+#endif
+
 #ifndef HAVE_NANOSLEEP
 #  ifdef __cplusplus
 extern "C" {
@@ -34,7 +44,7 @@ ssize_t sendfile(int out_fd, int in_fd, off_t* poffset, size_t count);
 #  endif
 #endif
 
-#ifndef HAVE_MREMAP
+#if !defined(HAVE_MREMAP) && !defined(__UNIKERNEL__)
 #  ifdef __cplusplus
 extern "C" {
 #  endif
@@ -69,6 +79,16 @@ char* strptime(const char* buf, const char* fmt, struct tm* tm);
 extern "C" {
 #  endif
 char* mkdtemp(char* template_name);
+#  ifdef __cplusplus
+}
+#  endif
+#endif
+
+#ifndef HAVE_MEMMEM
+#  ifdef __cplusplus
+extern "C" {
+#  endif
+void* memmem(const void* haystack, size_t haystacklen, const void* needle, size_t needlelen);
 #  ifdef __cplusplus
 }
 #  endif
@@ -130,6 +150,17 @@ ssize_t pread(int fd, void *buf, size_t count, off_t offset);
 extern "C" {
 #  endif
 ssize_t pwrite(int fd, const void* buf, size_t count, off_t offset);
+#  ifdef __cplusplus
+}
+#  endif
+#endif
+
+#if defined(HAVE_SEM_INIT) && !defined(HAVE_SEM_TIMEDWAIT)
+#  include <semaphore.h>
+#  ifdef __cplusplus
+extern "C" {
+#  endif
+int sem_timedwait(sem_t *sem, const struct timespec *abs_timeout);
 #  ifdef __cplusplus
 }
 #  endif

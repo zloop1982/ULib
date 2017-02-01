@@ -24,18 +24,21 @@
 #include <ulib/net/server/client_image.h>
 #include <ulib/net/server/server_plugin.h>
 
+#ifndef SIGWINCH
+#define SIGWINCH 28
+#endif
+
 /**
  * @class UServer
  *
  * @brief Handles incoming connections.
  *
- * The UServer class contains the methods needed to write a portable server.
- * In general, a server listens for incoming network requests on a well-known
- * IP address and port number. When a connection request is received,
- * the UServer makes this connection available to the server program as a socket.
+ * The UServer class contains the methods needed to write a portable server. In general, a server listens for incoming network requests on a well-known
+ * IP address and port number. When a connection request is received, the UServer makes this connection available to the server program as a socket.
  * The socket represents a two-way (full-duplex) connection with the client.
  *
  * In common with normal socket programming, the life-cycle of a UServer follows this basic course:
+ *
  * 1) bind() to an IP-address/port number and listen for incoming connections
  * 2) accept() a connection request
  * 3) deal with the request, or pass the created socket to another thread or process to be dealt with
@@ -53,13 +56,13 @@ public: \
 ~server_class()                                               { U_TRACE_UNREGISTER_OBJECT(5, server_class) } \
 const char* dump(bool reset) const { return UServer<socket_type>::dump(reset); } \
 protected: \
-virtual void preallocate() U_DECL_OVERRIDE { \
-U_TRACE(5+256, #server_class "::preallocate()") \
+virtual void preallocate() U_DECL_FINAL { \
+U_TRACE_NO_PARAM(5+256, #server_class "::preallocate()") \
 vClientImage = new client_type[UNotifier::max_connection]; } \
-virtual void deallocate() U_DECL_OVERRIDE { \
-U_TRACE(5+256, #server_class "::deallocate()") \
+virtual void deallocate() U_DECL_FINAL { \
+U_TRACE_NO_PARAM(5+256, #server_class "::deallocate()") \
 delete[] (client_type*)vClientImage; }  \
-virtual bool check_memory() U_DECL_OVERRIDE { return u_check_memory_vector<client_type>((client_type*)vClientImage, UNotifier::max_connection); } }
+virtual bool check_memory() U_DECL_FINAL { return u_check_memory_vector<client_type>((client_type*)vClientImage, UNotifier::max_connection); } }
 #else
 #  define U_MACROSERVER(server_class,client_type,socket_type) \
 class server_class : public UServer<socket_type> { \
@@ -67,7 +70,7 @@ public: \
  server_class(UFileConfig* pcfg) : UServer<socket_type>(pcfg) {} \
 ~server_class()                                               {} \
 protected: \
-virtual void preallocate() U_DECL_OVERRIDE { \
+virtual void preallocate() U_DECL_FINAL { \
 vClientImage = new client_type[UNotifier::max_connection]; } }
 #endif
 // ---------------------------------------------------------------------------------------------
@@ -83,18 +86,20 @@ vClientImage = new client_type[UNotifier::max_connection]; } }
 #  define U_SRV_LOG(          fmt,args...) {}
 #  define U_SRV_LOG_WITH_ADDR(fmt,args...) {}
 #else
-#  define U_LOG_ENABLE
 #  define U_RESET_MODULE_NAME              { if (UServer_Base::isLog())   (void) strcpy(UServer_Base::mod_name[0], UServer_Base::mod_name[1]); }
 #  define   U_SET_MODULE_NAME(name)        { if (UServer_Base::isLog()) { (void) strcpy(UServer_Base::mod_name[1], UServer_Base::mod_name[0]); \
                                                                           (void) strcpy(UServer_Base::mod_name[0], "["#name"] "); } }
 
-#  define U_SRV_LOG(          fmt,args...) { if (UServer_Base::isLog()) ULog::log("%s" fmt,       UServer_Base::mod_name[0] , ##args); }
-#  define U_SRV_LOG_WITH_ADDR(fmt,args...) { if (UServer_Base::isLog()) ULog::log("%s" fmt " %v", UServer_Base::mod_name[0] , ##args, UServer_Base::pClientImage->logbuf->rep); }
+#  define U_SRV_LOG(          fmt,args...) { if (UServer_Base::isLog()) ULog::log(U_CONSTANT_TO_PARAM("%s" fmt),       UServer_Base::mod_name[0] , ##args); }
+#  define U_SRV_LOG_WITH_ADDR(fmt,args...) { if (UServer_Base::isLog()) ULog::log(U_CONSTANT_TO_PARAM("%s" fmt " %v"), UServer_Base::mod_name[0] , ##args, \
+                                                                                  UServer_Base::pClientImage->logbuf->rep); }
 #endif
 
 class UHTTP;
 class UHTTP2;
 class UCommand;
+class UDayLight;
+class UTimeStat;
 class USSLSocket;
 class USSIPlugIn;
 class UWebSocket;
@@ -105,17 +110,21 @@ class UFileConfig;
 class UHttpPlugIn;
 class UFCGIPlugIn;
 class USCGIPlugIn;
+class UThrottling;
 class UNoCatPlugIn;
 class UGeoIPPlugIn;
 class UClient_Base;
 class UProxyPlugIn;
+class UDataStorage;
 class UStreamPlugIn;
 class UModNoCatPeer;
 class UClientThread;
-class UOCSPStapling;
 class UHttpClient_Base;
 class UWebSocketPlugIn;
 class UModProxyService;
+class UTimeoutConnection;
+
+template <class T> class URDBObjectHandler;
 
 class U_EXPORT UServer_Base : public UEventFd {
 public:
@@ -181,28 +190,26 @@ public:
 
    static void run(); // loop waiting for connection
 
-   // tipologia server...
-
-   static bool bssl, bipc;
    static UFileConfig* cfg;
+   static bool bssl, bipc, flag_loop;
    static unsigned int port; // the port number to bind to
 
-   static int          getReqTimeout() { return (ptime ? ptime->UTimeVal::tv_sec : 0); }
-   static bool         isIPv6()        { return UClientImage_Base::bIPv6; }
-   static UString      getHost()       { return *host; }
-   static unsigned int getPort()       { return port; }
+   static int          getReqTimeout()  { return (ptime ? ptime->UTimeVal::tv_sec : 0); }
+   static bool         isIPv6()         { return UClientImage_Base::bIPv6; }
+   static UString      getHost()        { return *host; }
+   static unsigned int getPort()        { return port; }
 
    static UCommand* loadConfigCommand() { return UCommand::loadConfigCommand(cfg); }
 
    // The directory out of which you will serve your documents...
 
-   static UString* document_root;
-   static uint32_t document_root_size;
+   static UString*    document_root;
+   static uint32_t    document_root_size;
    static const char* document_root_ptr;
 
    static UString getDocumentRoot()
       {
-      U_TRACE(0, "UServer_Base::getDocumentRoot()")
+      U_TRACE_NO_PARAM(0, "UServer_Base::getDocumentRoot()")
 
       U_INTERNAL_ASSERT_POINTER(document_root)
 
@@ -215,15 +222,18 @@ public:
    static void setMsgWelcome(const UString& msg);
 #endif
 
+#if defined(U_LINUX) && defined(ENABLE_THREAD)
+#endif
+
    // -------------------------------------------------------------------
    // MANAGE PLUGIN MODULES
    // -------------------------------------------------------------------
 
    static char mod_name[2][16];
+   static UEventFd* handler_other;
    static UEventFd* handler_inotify;
 
-   // load plugin modules and call server-wide hooks handlerConfig()...
-   static int loadPlugins(UString& plugin_dir, const UString& plugin_list);
+   static int loadPlugins(UString& plugin_dir, const UString& plugin_list); // load plugin modules and call server-wide hooks handlerConfig()...
 
    // ---------------------------------
    // Server-wide hooks
@@ -237,15 +247,11 @@ public:
    // ---------------------------------
    static int pluginsHandlerREAD();
    static int pluginsHandlerRequest();
-   static int pluginsHandlerReset();
    // ---------------------------------
    // SigHUP hook
    // ---------------------------------
    static int pluginsHandlerSigHUP();
    // ---------------------------------
-
-   static void   setCallerHandlerReset() { UClientImage_Base::callerHandlerReset = pluginsHandlerReset; }
-   static void resetCallerHandlerReset() { UClientImage_Base::callerHandlerReset = 0;                   }
 
    // ----------------------------------------------------------------------------------------------------------------------------
    // Manage process server
@@ -258,33 +264,49 @@ public:
 
    typedef struct shared_data {
    // ---------------------------------
-      uint32_t     cnt_user1;
-      uint32_t     cnt_user2;
-      uint64_t     cnt_user3;
-      uint64_t     cnt_user4;
+      uint32_t cnt_usr1;
+      uint32_t cnt_usr2;
+      uint32_t cnt_usr3;
+      uint32_t cnt_usr4;
+      uint32_t cnt_usr5;
+      uint32_t cnt_usr6;
+      uint32_t cnt_usr7;
+      uint32_t cnt_usr8;
+      uint32_t cnt_usr9;
+   // ---------------------------------
+      char buffer1[512];
+      char buffer2[512];
+      char buffer3[512];
+      char buffer4[512];
+      char buffer5[512];
+      char buffer6[512];
+      char buffer7[512];
+   // ---------------------------------
       sig_atomic_t cnt_connection;
       sig_atomic_t cnt_parallelization;
    // ---------------------------------
       sem_t lock_user1;
       sem_t lock_user2;
+      sem_t lock_throttling;
       sem_t lock_rdb_server;
       sem_t lock_data_session;
       sem_t lock_db_not_found;
       char spinlock_user1[1];
       char spinlock_user2[1];
+      char spinlock_throttling[1];
       char spinlock_rdb_server[1];
       char spinlock_data_session[1];
       char spinlock_db_not_found[1];
 #  ifdef USE_LIBSSL
       sem_t    lock_ssl_session;
       char spinlock_ssl_session[1];
-#    if defined(ENABLE_THREAD) && !defined(OPENSSL_NO_OCSP) && defined(SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB)
+#    if defined(ENABLE_THREAD) && !defined(OPENSSL_NO_OCSP) && defined(SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB) && !defined(_MSWINDOWS_)
       sem_t    lock_ocsp_staple;
       char spinlock_ocsp_staple[1];
 #    endif
 #  endif
    // ------------------------------------------------------------------------------
-#  ifdef ENABLE_THREAD
+#  if defined(ENABLE_THREAD) && !defined(_MSWINDOWS_)
       pthread_rwlock_t rwlock;
       struct timeval now_shared; // => u_now
       ULog::log_date log_date_shared;
@@ -294,26 +316,39 @@ public:
    // --------------------------------------------------------------------------------
    } shared_data;
 
-#define U_CNT_USER1                 UServer_Base::ptr_shared_data->cnt_user1
-#define U_CNT_USER2                 UServer_Base::ptr_shared_data->cnt_user2
-#define U_CNT_USER3                 UServer_Base::ptr_shared_data->cnt_user3
-#define U_CNT_USER4                 UServer_Base::ptr_shared_data->cnt_user4
-#define U_TOT_CONNECTION            UServer_Base::ptr_shared_data->cnt_connection
-#define U_CNT_PARALLELIZATION       UServer_Base::ptr_shared_data->cnt_parallelization
-#define U_LOCK_USER1              &(UServer_Base::ptr_shared_data->lock_user1)
-#define U_LOCK_USER2              &(UServer_Base::ptr_shared_data->lock_user2)
-#define U_LOCK_RDB_SERVER         &(UServer_Base::ptr_shared_data->lock_rdb_server)
-#define U_LOCK_SSL_SESSION        &(UServer_Base::ptr_shared_data->lock_ssl_session)
-#define U_LOCK_DATA_SESSION       &(UServer_Base::ptr_shared_data->lock_data_session)
-#define U_LOCK_DB_NOT_FOUND       &(UServer_Base::ptr_shared_data->lock_db_not_found)
-#define U_SPINLOCK_USER1            UServer_Base::ptr_shared_data->spinlock_user1
-#define U_SPINLOCK_USER2            UServer_Base::ptr_shared_data->spinlock_user2
-#define U_SPINLOCK_RDB_SERVER       UServer_Base::ptr_shared_data->spinlock_rdb_server
-#define U_SPINLOCK_SSL_SESSION      UServer_Base::ptr_shared_data->spinlock_ssl_session
-#define U_SPINLOCK_DATA_SESSION     UServer_Base::ptr_shared_data->spinlock_data_session
-#define U_SPINLOCK_DB_NOT_FOUND     UServer_Base::ptr_shared_data->spinlock_db_not_found
+#define U_SRV_BUF1                  UServer_Base::ptr_shared_data->buffer1
+#define U_SRV_BUF2                  UServer_Base::ptr_shared_data->buffer2
+#define U_SRV_BUF3                  UServer_Base::ptr_shared_data->buffer3
+#define U_SRV_BUF4                  UServer_Base::ptr_shared_data->buffer4
+#define U_SRV_BUF5                  UServer_Base::ptr_shared_data->buffer5
+#define U_SRV_BUF6                  UServer_Base::ptr_shared_data->buffer6
+#define U_SRV_BUF7                  UServer_Base::ptr_shared_data->buffer7
+#define U_SRV_CNT_USR1              UServer_Base::ptr_shared_data->cnt_usr1
+#define U_SRV_CNT_USR2              UServer_Base::ptr_shared_data->cnt_usr2
+#define U_SRV_CNT_USR3              UServer_Base::ptr_shared_data->cnt_usr3
+#define U_SRV_CNT_USR4              UServer_Base::ptr_shared_data->cnt_usr4
+#define U_SRV_CNT_USR5              UServer_Base::ptr_shared_data->cnt_usr5
+#define U_SRV_CNT_USR6              UServer_Base::ptr_shared_data->cnt_usr6
+#define U_SRV_CNT_USR7              UServer_Base::ptr_shared_data->cnt_usr7
+#define U_SRV_CNT_USR8              UServer_Base::ptr_shared_data->cnt_usr8
+#define U_SRV_CNT_USR9              UServer_Base::ptr_shared_data->cnt_usr9
+#define U_SRV_TOT_CONNECTION        UServer_Base::ptr_shared_data->cnt_connection
+#define U_SRV_CNT_PARALLELIZATION   UServer_Base::ptr_shared_data->cnt_parallelization
+#define U_SRV_LOCK_USER1          &(UServer_Base::ptr_shared_data->lock_user1)
+#define U_SRV_LOCK_USER2          &(UServer_Base::ptr_shared_data->lock_user2)
+#define U_SRV_LOCK_THROTTLING     &(UServer_Base::ptr_shared_data->lock_throttling)
+#define U_SRV_LOCK_RDB_SERVER     &(UServer_Base::ptr_shared_data->lock_rdb_server)
+#define U_SRV_LOCK_SSL_SESSION    &(UServer_Base::ptr_shared_data->lock_ssl_session)
+#define U_SRV_LOCK_DATA_SESSION   &(UServer_Base::ptr_shared_data->lock_data_session)
+#define U_SRV_LOCK_DB_NOT_FOUND   &(UServer_Base::ptr_shared_data->lock_db_not_found)
+#define U_SRV_SPINLOCK_USER1        UServer_Base::ptr_shared_data->spinlock_user1
+#define U_SRV_SPINLOCK_USER2        UServer_Base::ptr_shared_data->spinlock_user2
+#define U_SRV_SPINLOCK_THROTTLING   UServer_Base::ptr_shared_data->spinlock_throttling
+#define U_SRV_SPINLOCK_RDB_SERVER   UServer_Base::ptr_shared_data->spinlock_rdb_server
+#define U_SRV_SPINLOCK_SSL_SESSION  UServer_Base::ptr_shared_data->spinlock_ssl_session
+#define U_SRV_SPINLOCK_DATA_SESSION UServer_Base::ptr_shared_data->spinlock_data_session
+#define U_SRV_SPINLOCK_DB_NOT_FOUND UServer_Base::ptr_shared_data->spinlock_db_not_found
 
-   static pid_t pid;
    static ULock* lock_user1;
    static ULock* lock_user2;
    static int preforked_num_kids; // keeping a pool of children and that they accept connections themselves
@@ -323,27 +358,27 @@ public:
 
    static void setLockUser1()
       {
-      U_TRACE(0, "UServer_Base::setLockUser1()")
+      U_TRACE_NO_PARAM(0, "UServer_Base::setLockUser1()")
 
       U_INTERNAL_ASSERT_EQUALS(lock_user1, 0)
 
-      lock_user1 = U_NEW(ULock);
+      U_NEW(ULock, lock_user1, ULock);
 
       lock_user1->init(&(ptr_shared_data->lock_user1), ptr_shared_data->spinlock_user1);
       }
 
    static void setLockUser2()
       {
-      U_TRACE(0, "UServer_Base::setLockUser2()")
+      U_TRACE_NO_PARAM(0, "UServer_Base::setLockUser2()")
 
       U_INTERNAL_ASSERT_EQUALS(lock_user2, 0)
 
-      lock_user2 = U_NEW(ULock);
+      U_NEW(ULock, lock_user2, ULock);
 
       lock_user2->init(&(ptr_shared_data->lock_user2), ptr_shared_data->spinlock_user2);
       }
 
-   // NB: two step acquisition - first we get the offset, after the pointer...
+   // NB: two step shared memory acquisition - first we get the offset, after the pointer...
 
    static void* getOffsetToDataShare(uint32_t shared_data_size)
       {
@@ -367,13 +402,13 @@ public:
       }
 
    static uint32_t           nClientIndex;
-   static UClientImage_Base* pClientImage;
    static UClientImage_Base* vClientImage;
+   static UClientImage_Base* pClientImage;
    static UClientImage_Base* eClientImage;
 
    static bool isPreForked()
       {
-      U_TRACE(0, "UServer_Base::isPreForked()")
+      U_TRACE_NO_PARAM(0, "UServer_Base::isPreForked()")
 
       U_INTERNAL_DUMP("preforked_num_kids = %d", preforked_num_kids)
 
@@ -384,7 +419,7 @@ public:
 
    static bool isClassic()
       {
-      U_TRACE(0, "UServer_Base::isClassic()")
+      U_TRACE_NO_PARAM(0, "UServer_Base::isClassic()")
 
       U_INTERNAL_DUMP("preforked_num_kids = %d", preforked_num_kids)
 
@@ -395,7 +430,7 @@ public:
 
    static bool isChild()
       {
-      U_TRACE(0, "UServer_Base::isChild()")
+      U_TRACE_NO_PARAM(0, "UServer_Base::isChild()")
 
       U_INTERNAL_DUMP("preforked_num_kids = %d", preforked_num_kids)
 
@@ -416,34 +451,32 @@ public:
 
    static bool isParallelizationChild()
       {
-      U_TRACE(0, "UServer_Base::isParallelizationChild()")
+      U_TRACE_NO_PARAM(0, "UServer_Base::isParallelizationChild()")
 
       U_INTERNAL_DUMP("U_ClientImage_parallelization = %d proc->child() = %b",
                        U_ClientImage_parallelization,     proc->child())
 
-      if (U_ClientImage_parallelization == 1) U_RETURN(true); // 1 => child of parallelization
+      if (U_ClientImage_parallelization == U_PARALLELIZATION_CHILD) U_RETURN(true);
 
       U_RETURN(false);
       }
 
    static bool isParallelizationParent()
       {
-      U_TRACE(0, "UServer_Base::isParallelizationParent()")
+      U_TRACE_NO_PARAM(0, "UServer_Base::isParallelizationParent()")
 
       U_INTERNAL_DUMP("U_ClientImage_parallelization = %d proc->parent() = %b",
                        U_ClientImage_parallelization,     proc->parent())
 
-      if (U_ClientImage_parallelization == 2) U_RETURN(true); // 2 => parent of parallelization
+      if (U_ClientImage_parallelization == U_PARALLELIZATION_PARENT) U_RETURN(true);
 
       U_RETURN(false);
       }
 
-   // it creates a copy of itself, return true if parent...
-
    static void    endNewChild() __noreturn;
    static pid_t startNewChild();
 
-   static bool startParallelization(            uint32_t nclient = 1);
+   static bool startParallelization(            uint32_t nclient = 1); // it can creates a copy of itself, return true if parent...
    static bool    isParallelizationGoingToStart(uint32_t nclient = 1) __pure;
 
    // manage log server...
@@ -480,6 +513,22 @@ public:
    static UString getNetworkDevice( const char* exclude) { return USocketExt::getNetworkDevice(exclude); }
    static UString getNetworkAddress(const char* device)  { return USocketExt::getNetworkAddress(socket->getFd(), device); }
 
+#if defined(USE_LIBSSL) && defined(ENABLE_THREAD) && !defined(OPENSSL_NO_OCSP) && defined(SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB) && !defined(_MSWINDOWS_)
+   static UThread* pthread_ocsp;
+   static ULock* lock_ocsp_staple;
+
+   static void setLockOCSPStaple()
+      {
+      U_TRACE_NO_PARAM(0, "UServer_Base::setLockOCSPStaple()")
+
+      U_INTERNAL_ASSERT_EQUALS(lock_ocsp_staple, 0)
+
+      U_NEW(ULock, lock_ocsp_staple, ULock);
+
+      lock_ocsp_staple->init(&(ptr_shared_data->lock_ocsp_staple), ptr_shared_data->spinlock_ocsp_staple);
+      }
+#endif
+
    // DEBUG
 
 #if defined(DEBUG) && defined(U_STDCPP_ENABLE)
@@ -503,23 +552,21 @@ protected:
    static UString* name_sock;  // name file for the listening socket
    static UString* IP_address; // IP address of this server
 
+   static int rkids;
    static UString* host;
    static sigset_t mask;
    static UProcess* proc;
    static UEventTime* ptime;
-   static time_t last_event;
-   static int rkids, old_pid;
    static UServer_Base* pthis;
    static UString* cenvironment;
    static UString* senvironment;
-   static UString* str_preforked_num_kids;
-   static uint32_t max_depth, wakeup_for_nothing, read_again;
-   static bool flag_loop, flag_sigterm, monitoring_process, set_realtime_priority, public_address, binsert, set_tcp_keep_alive;
+   static bool monitoring_process, set_realtime_priority, public_address, binsert, set_tcp_keep_alive, called_from_handlerTime;
 
    static uint32_t                 vplugin_size;
    static UVector<UString>*        vplugin_name;
    static UVector<UString>*        vplugin_name_static;
    static UVector<UServerPlugIn*>* vplugin;
+   static UVector<UServerPlugIn*>* vplugin_static;
 
    static void init();
    static void loadConfigParam();
@@ -541,69 +588,43 @@ protected:
    static UVector<UIPAllow*>* vallow_IP_prv;
 #endif
 
-#if defined(USE_LIBSSL) && defined(ENABLE_THREAD) && !defined(OPENSSL_NO_OCSP) && defined(SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB)
-   static ULock* lock_ocsp_staple;
-   static UOCSPStapling* pthread_ocsp;
+#ifdef DEBUG
+# ifndef U_LOG_DISABLE
+   static long last_event;
+# endif
+   static uint64_t stats_bytes;
+   static uint32_t max_depth, wakeup_for_nothing, nread, nread_again, stats_connections, stats_simultaneous;
 
-   static void setLockOCSPStaple()
-      {
-      U_TRACE(0, "UServer_Base::setLockOCSPStaple()")
-
-      U_INTERNAL_ASSERT_EQUALS(lock_ocsp_staple, 0)
-
-      lock_ocsp_staple = U_NEW(ULock);
-
-      lock_ocsp_staple->init(&(ptr_shared_data->lock_ocsp_staple), ptr_shared_data->spinlock_ocsp_staple);
-      }
+   static UString getStats();
 #endif
 
-   // COSTRUTTORI
+#if defined(U_THROTTLING_SUPPORT) && defined(U_HTTP2_DISABLE)
+   static bool         throttling_chk;
+   static UString*     throttling_mask;
+   static UThrottling* throttling_rec;
+   static URDBObjectHandler<UDataStorage*>* db_throttling;
 
-            UServer_Base(UFileConfig* pcfg);
+   static void clearThrottling();
+   static bool checkThrottling();
+   static bool checkThrottlingBeforeSend(bool bwrite);
+
+   static void initThrottlingClient();
+   static void initThrottlingServer();
+#endif
+
+            UServer_Base(UFileConfig* pcfg = 0);
    virtual ~UServer_Base();
 
-   // VARIE
-
-   class U_NO_EXPORT UTimeoutConnection : public UEventTime {
-   public:
-
-   // COSTRUTTORI
-
-   UTimeoutConnection() : UEventTime(timeoutMS / 1000L, 0L)
-      {
-      U_TRACE_REGISTER_OBJECT(0, UTimeoutConnection, "", 0)
-      }
-
-   virtual ~UTimeoutConnection()
-      {
-      U_TRACE_UNREGISTER_OBJECT(0, UTimeoutConnection)
-      }
-
-   // define method VIRTUAL of class UEventTime
-
-   virtual int handlerTime() U_DECL_OVERRIDE;
-
-#if defined(DEBUG) && defined(U_STDCPP_ENABLE)
-   const char* dump(bool _reset) const { return UEventTime::dump(_reset); }
-#endif
-
-   private:
-   UTimeoutConnection(const UTimeoutConnection&) : UEventTime() {}
-   UTimeoutConnection& operator=(const UTimeoutConnection&)     { return *this; }
-   };
-
-#ifdef U_LOG_ENABLE
-   static bool called_from_handlerTime;
-
-   static uint32_t getNumConnection(char* buffer);
+#ifndef U_LOG_DISABLE
+   static uint32_t setNumConnection(char* buffer);
 #endif
 
    // define method VIRTUAL of class UEventFd
 
-   virtual int  handlerRead()   U_DECL_OVERRIDE; // This method is called to accept a new connection on the server socket
-   virtual void handlerDelete() U_DECL_OVERRIDE
+   virtual int  handlerRead()   U_DECL_FINAL; // This method is called to accept a new connection on the server socket
+   virtual void handlerDelete() U_DECL_FINAL
       {
-      U_TRACE(0, "UServer_Base::handlerDelete()")
+      U_TRACE_NO_PARAM(0, "UServer_Base::handlerDelete()")
 
       U_INTERNAL_DUMP("UEventFd::fd = %d", UEventFd::fd)
 
@@ -612,9 +633,9 @@ protected:
 
    // method VIRTUAL to redefine
 
-   virtual void handlerSignal()
+   virtual void handlerSignal(int signo)
       {
-      U_TRACE(0, "UServer_Base::handlerSignal()")
+      U_TRACE(0, "UServer_Base::handlerSignal(%d)", signo)
       }
 
    virtual void preallocate()  = 0;
@@ -627,20 +648,33 @@ protected:
 
    static void _preallocate()
       {
-      U_TRACE(0, "UServer_Base::_preallocate()")
+      U_TRACE_NO_PARAM(0, "UServer_Base::_preallocate()")
 
       U_INTERNAL_ASSERT_POINTER(pthis)
 
       pthis->preallocate();
       }
 
-   static RETSIGTYPE handlerForSigHUP( int signo);
-   static RETSIGTYPE handlerForSigTERM(int signo);
-   static RETSIGTYPE handlerForSigCHLD(int signo);
+   static RETSIGTYPE handlerForSigHUP(  int signo);
+   static RETSIGTYPE handlerForSigTERM( int signo);
+   static RETSIGTYPE handlerForSigCHLD( int signo);
+   static RETSIGTYPE handlerForSigWINCH(int signo);
+
+   static void manageChangeOfSystemTime();
+   static void sendSignalToAllChildren(int signo, sighandler_t handler);
 
 private:
+   static void manageSigHUP() U_NO_EXPORT;
+   static bool clientImageHandlerRead() U_NO_EXPORT;
+   static void logMemUsage(const char* signame) U_NO_EXPORT;
+   static void loadStaticLinkedModules(const char* name) U_NO_EXPORT;
+
+   U_DISALLOW_COPY_AND_ASSIGN(UServer_Base)
+
    friend class UHTTP;
    friend class UHTTP2;
+   friend class UDayLight;
+   friend class UTimeStat;
    friend class USSLSocket;
    friend class USSIPlugIn;
    friend class UWebSocket;
@@ -650,11 +684,12 @@ private:
    friend class UHttpPlugIn;
    friend class USCGIPlugIn;
    friend class UFCGIPlugIn;
+   friend class UThrottling;
+   friend class UApplication;
    friend class UProxyPlugIn;
    friend class UNoCatPlugIn;
    friend class UGeoIPPlugIn;
    friend class UClient_Base;
-   friend class UOCSPStapling;
    friend class UStreamPlugIn;
    friend class UClientThread;
    friend class UModNoCatPeer;
@@ -662,19 +697,8 @@ private:
    friend class UWebSocketPlugIn;
    friend class UModProxyService;
    friend class UClientImage_Base;
-
-   static void manageSigHUP() U_NO_EXPORT;
-   static bool clientImageHandlerRead() U_NO_EXPORT;
-   static void logMemUsage(const char* signame) U_NO_EXPORT;
-   static void loadStaticLinkedModules(const char* name) U_NO_EXPORT;
-
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UServer_Base(const UServer_Base&) = delete;
-   UServer_Base& operator=(const UServer_Base&) = delete;
-#else
-   UServer_Base(const UServer_Base&) : UEventFd() {}
-   UServer_Base& operator=(const UServer_Base&)   { return *this; }
-#endif
+   friend class UTimeoutConnection;
+   friend class UBandWidthThrottling;
 };
 
 template <class Socket> class U_EXPORT UServer : public UServer_Base {
@@ -682,11 +706,11 @@ public:
 
    typedef UClientImage<Socket> client_type;
 
-   UServer(UFileConfig* pcfg) : UServer_Base(pcfg)
+   UServer(UFileConfig* pcfg = 0) : UServer_Base(pcfg)
       {
       U_TRACE_REGISTER_OBJECT(0, UServer, "%p", pcfg)
 
-      socket = U_NEW(Socket(UClientImage_Base::bIPv6));
+      U_NEW(Socket, socket, Socket(UClientImage_Base::bIPv6));
       }
 
    virtual ~UServer()
@@ -711,7 +735,7 @@ protected:
 
    virtual void preallocate() U_DECL_OVERRIDE
       {
-      U_TRACE(0+256, "UServer<Socket>::preallocate()")
+      U_TRACE_NO_PARAM(0+256, "UServer<Socket>::preallocate()")
 
       // NB: array are not pointers (virtual table can shift the address of this)...
 
@@ -736,17 +760,10 @@ protected:
 #endif
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UServer(const UServer&) = delete;
-   UServer& operator=(const UServer&) = delete;
-#else
-   UServer(const UServer&) : UServer_Base(0) {}
-   UServer& operator=(const UServer&)        { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UServer)
 };
 
-#ifdef USE_LIBSSL // specializzazione con USSLSocket
-
+#ifdef USE_LIBSSL
 template <> class U_EXPORT UServer<USSLSocket> : public UServer_Base {
 public:
 
@@ -760,11 +777,11 @@ public:
       if (pcfg &&
           bssl == false)
          {
-         U_ERROR("you need to set bssl before loading the configuration");
+         U_ERROR("You need to set bssl var before loading the configuration");
          }
 #  endif
 
-      socket = U_NEW(USSLSocket(UClientImage_Base::bIPv6, 0, true));
+      U_NEW(USSLSocket, socket, USSLSocket(UClientImage_Base::bIPv6, 0, true));
       }
 
    virtual ~UServer()
@@ -789,7 +806,7 @@ protected:
 
    virtual void preallocate() U_DECL_OVERRIDE
       {
-      U_TRACE(0+256, "UServer<USSLSocket>::preallocate()")
+      U_TRACE_NO_PARAM(0+256, "UServer<USSLSocket>::preallocate()")
 
       // NB: array are not pointers (virtual table can shift the address of this)...
 
@@ -799,7 +816,7 @@ protected:
 #ifdef DEBUG
    virtual void deallocate() U_DECL_OVERRIDE
       {
-      U_TRACE(0+256, "UServer<USSLSocket>::deallocate()")
+      U_TRACE_NO_PARAM(0+256, "UServer<USSLSocket>::deallocate()")
 
       // NB: array are not pointers (virtual table can shift the address of this)...
 
@@ -810,14 +827,7 @@ protected:
 #endif
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UServer<USSLSocket>(const UServer<USSLSocket>&) = delete;
-   UServer<USSLSocket>& operator=(const UServer<USSLSocket>&) = delete;
-#else
-   UServer<USSLSocket>(const UServer<USSLSocket>&) : UServer_Base(0) {}
-   UServer<USSLSocket>& operator=(const UServer<USSLSocket>&)        { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UServer<USSLSocket>)
 };
-
 #endif
 #endif

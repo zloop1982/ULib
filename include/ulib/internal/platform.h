@@ -16,6 +16,47 @@
 #  endif
 #endif
 
+/* see if targeting legacy Microsoft windows platform */
+
+#if defined(LINUX) || defined(__LINUX__) || defined(__linux__) || defined(__linux)
+#  define U_LINUX
+#elif defined(_MSC_VER) || defined(WIN32) || defined(_WIN32)
+#  define _MSWINDOWS_
+#  if defined(_MSC_VER)
+#     define NOMINMAX
+#  endif
+#  if defined(_M_X64) || defined(_M_ARM)
+#     define _MSCONDITIONALS_
+#     ifndef _WIN32_WINNT
+#     define _WIN32_WINNT 0x0600
+#     endif
+#  endif
+#  ifdef  _MSC_VER
+#     pragma warning(disable: 4251)
+#     pragma warning(disable: 4996)
+#     pragma warning(disable: 4355)
+#     pragma warning(disable: 4290)
+#     pragma warning(disable: 4291)
+#  endif
+#  if defined(__BORLANDC__) && !defined(__MT__)
+#     error Please enable multithreading
+#  endif
+#  if defined(_MSC_VER) && !defined(_MT)
+#     error Please enable multithreading (Project -> Settings -> C/C++ -> Code Generation -> Use Runtime Library)
+#  endif
+/* Require for compiling with critical sections */
+#  ifndef _WIN32_WINNT
+#  define _WIN32_WINNT 0x0600
+#  endif
+/* Make sure we're consistent with _WIN32_WINNT */
+#  ifndef WINVER
+#  define WINVER _WIN32_WINNT
+#  endif
+#  ifndef WIN32_LEAN_AND_MEAN
+#  define WIN32_LEAN_AND_MEAN
+#  endif
+#endif
+
 #ifdef __GNUC__
 #  if    __GNUC__ > 1
 #     if __GNUC__ < 3
@@ -44,7 +85,9 @@
                            __GNUC_MINOR__ *   100 + \
                            __GNUC_PATCHLEVEL__)
 #  if GCC_VERSION_NUM > 29600 && GCC_VERSION_NUM != 30303 /* Test for GCC == 3.3.3 (SuSE Linux) */
+#    if defined(U_LINUX) || defined(_MSWINDOWS_)
 #     define __pure                       __attribute__((pure))
+#    endif
 #     define LIKELY(x)                    __builtin_expect(!!(x), 1)
 #     define UNLIKELY(x)                  __builtin_expect(!!(x), 0)
 #     define __noreturn                   __attribute__((noreturn))
@@ -69,28 +112,27 @@
 #        define __cold __attribute__((cold))
 #     endif
 #  endif
-   /**
-    * ---------------------------------------------------------
-    * C++0x features supported in GCC:
-    * ---------------------------------------------------------
-    * g++ -E -dM -std=c++98 -x c++ /dev/null > std1 &&
-    * g++ -E -dM -std=c++0x -x c++ /dev/null > std2 &&
-    * diff -u std1 std2 | grep '[+|-]^*#define' && rm std1 std2
-    * ---------------------------------------------------------
-    * Output with 4.8.0:
-    * ---------------------------------------------------------
-    * +#define __GXX_EXPERIMENTAL_CXX0X__ 1
-    * -#define __cplusplus 199711L
-    * +#define __cplusplus 201103L
-    * +#define __GNUC_STDC_INLINE__ 1
-    * -#define __GNUC_GNU_INLINE__ 1
-    * ---------------------------------------------------------
-    */
+/**
+ * ---------------------------------------------------------
+ * C++0x features supported in GCC:
+ * ---------------------------------------------------------
+ * g++ -E -dM -std=c++98 -x c++ /dev/null > std1 &&
+ * g++ -E -dM -std=c++0x -x c++ /dev/null > std2 &&
+ * diff -u std1 std2 | grep '[+|-]^*#define' && rm std1 std2
+ * ---------------------------------------------------------
+ * Output with 4.8.0:
+ * ---------------------------------------------------------
+ * +#define __GXX_EXPERIMENTAL_CXX0X__ 1
+ * -#define __cplusplus 199711L
+ * +#define __cplusplus 201103L
+ * +#define __GNUC_STDC_INLINE__ 1
+ * -#define __GNUC_GNU_INLINE__ 1
+ * ---------------------------------------------------------
+ */
 #  if defined(__GXX_EXPERIMENTAL_CXX0X__) || __cplusplus >= 201103L
 #    if (__GNUC__ * 100 + __GNUC_MINOR__) >= 405
        /* C++11 features supported in GCC 4.5: */
 #      define U_COMPILER_DECLTYPE
-#      define U_COMPILER_RVALUE_REFS
 #      define U_COMPILER_STATIC_ASSERT
 #      define U_COMPILER_VARIADIC_MACROS
 #      define U_COMPILER_ATOMICS
@@ -110,6 +152,7 @@
        /* C++11 features supported in GCC 4.6: */
 #      define U_COMPILER_CONSTEXPR
 #      define U_COMPILER_NULLPTR
+#      define U_COMPILER_RVALUE_REFS
 #      define U_COMPILER_UNRESTRICTED_UNIONS
 #      define U_COMPILER_RANGE_FOR
 #    endif
@@ -182,45 +225,6 @@
 #  endif
 #endif
 
-/* see if targeting legacy Microsoft windows platform */
-
-#if defined(_MSC_VER) || defined(WIN32) || defined(_WIN32)
-#  define _MSWINDOWS_
-#  if defined(_MSC_VER)
-#     define NOMINMAX
-#  endif
-#  if defined(_M_X64) || defined(_M_ARM)
-#     define _MSCONDITIONALS_
-#     ifndef _WIN32_WINNT
-#     define _WIN32_WINNT 0x0600
-#     endif
-#  endif
-#  ifdef  _MSC_VER
-#     pragma warning(disable: 4251)
-#     pragma warning(disable: 4996)
-#     pragma warning(disable: 4355)
-#     pragma warning(disable: 4290)
-#     pragma warning(disable: 4291)
-#  endif
-#  if defined(__BORLANDC__) && !defined(__MT__)
-#     error Please enable multithreading
-#  endif
-#  if defined(_MSC_VER) && !defined(_MT)
-#     error Please enable multithreading (Project -> Settings -> C/C++ -> Code Generation -> Use Runtime Library)
-#  endif
-/* Require for compiling with critical sections */
-#  ifndef _WIN32_WINNT
-#  define _WIN32_WINNT 0x0501
-#  endif
-/* Make sure we're consistent with _WIN32_WINNT */
-#  ifndef WINVER
-#  define WINVER _WIN32_WINNT
-#  endif
-#  ifndef WIN32_LEAN_AND_MEAN
-#  define WIN32_LEAN_AND_MEAN
-#  endif
-#endif
-
 /**
  * Shared library support
  *
@@ -263,6 +267,9 @@
 #else
 #  define PATH_SEPARATOR '/'
 #  ifdef __clang__
+#     define U_COMPILER_RANGE_FOR
+#     define U_COMPILER_RVALUE_REFS
+#     define U_COMPILER_DELETE_MEMBERS
 #     define IS_DIR_SEPARATOR(c)  (c) == '/' /* to avoid warning: equality comparison with extraneous parentheses... */
 #  else
 #     define IS_DIR_SEPARATOR(c) ((c) == '/')
@@ -341,19 +348,36 @@ typedef int socket_t;
 #undef getchar
 #undef putchar
 
-#ifndef _GNU_SOURCE
-typedef void (*sighandler_t)(int);  /* Convenient typedef for signal handlers */
+#if !defined(_GNU_SOURCE) || defined(__OSX__) || defined(__NetBSD__) || defined(__UNIKERNEL__)
+typedef void (*sighandler_t)(int); /* Convenient typedef for signal handlers */
 #endif
-typedef unsigned long timeout_t;    /* Typedef for millisecond timer values */
+typedef unsigned long timeout_t; /* Typedef for millisecond timer values */
 
 #include <stdlib.h>
 #include <ctype.h>
 #include <time.h>
 
-#ifdef MAP_UNINITIALIZED // (since Linux 2.6.33)
-#define U_MAP_ANON (MAP_PRIVATE | MAP_ANONYMOUS | MAP_UNINITIALIZED)
+#ifndef U_LINUX
+#  define U_MAP_ANON           MAP_ANONYMOUS
+#  define MAP_HUGETLB          0
+#  define U_MAP_ANON_HUGE      0
+#  define U_MAP_ANON_HUGE_ADDR (void*)(0x0UL)
 #else
-#define U_MAP_ANON (MAP_PRIVATE | MAP_ANONYMOUS)
+#  ifdef MAP_UNINITIALIZED /* (since Linux 2.6.33) */
+#     define U_MAP_ANON (MAP_ANONYMOUS | MAP_UNINITIALIZED)
+#  else
+#     define U_MAP_ANON  MAP_ANONYMOUS
+#  endif
+#  ifndef MAP_HUGETLB /* (since Linux 2.6.32) */
+#  define MAP_HUGETLB 0x40000 /* arch specific */
+#  endif
+#  ifdef __ia64__ /* Only ia64 requires this */
+#     define U_MAP_ANON_HUGE      (MAP_HUGETLB | MAP_FIXED)
+#     define U_MAP_ANON_HUGE_ADDR (void*)(0x8000000000000000UL)
+#  else
+#     define U_MAP_ANON_HUGE      MAP_HUGETLB 
+#     define U_MAP_ANON_HUGE_ADDR (void*)(0x0UL)
+#  endif
 #endif
 
 #endif

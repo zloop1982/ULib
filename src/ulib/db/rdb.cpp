@@ -20,7 +20,7 @@ uint32_t URDB::nerror;
                                                                \
    U_cdb_result_call(pcdb) = 1;                                \
                                                                \
-   /* 1) prima si leggono le entry nella cache... */           \
+   /* 1) first we read the entry in the cache... */            \
                                                                \
    for (uint32_t _offset, i = 0; i < CACHE_HASHTAB_LEN; ++i)   \
       {                                                        \
@@ -37,7 +37,7 @@ uint32_t URDB::nerror;
 
 #define U_FOR_EACH_ENTRY2(pcdb,function2)                                                              \
                                                                                                        \
-   /* 2) ...poi si scansiona il constant database e si cercano le entry NON presenti nella cache... */ \
+   /* 2) ...after we scan the constant database and we search the entry NOT present in the cache... */ \
                                                                                                        \
    if (UFile::st_size) callForEntryNotInCache(pcdb, (vPFpvpc)function2)
 
@@ -49,13 +49,13 @@ uint32_t URDB::nerror;
 
 U_NO_EXPORT inline void URDB::setNodeLeft()
 {
-   U_TRACE(0, "URDB::setNodeLeft()")
+   U_TRACE_NO_PARAM(0, "URDB::setNodeLeft()")
 
    U_CHECK_MEMORY
 
    pnode = &(RDB_node(this)->left);
 
-   // NB: i riferimenti in memoria alla cache dati devono puntare sulla memoria mappata...
+   // NB: the reference at memory in the cache data must point to memory mapped...
 
    U_INTERNAL_DUMP("pnode = %p node = %u", pnode, node)
 
@@ -64,13 +64,13 @@ U_NO_EXPORT inline void URDB::setNodeLeft()
 
 U_NO_EXPORT inline void URDB::setNodeRight()
 {
-   U_TRACE(0, "URDB::setNodeRight()")
+   U_TRACE_NO_PARAM(0, "URDB::setNodeRight()")
 
    U_CHECK_MEMORY
 
    pnode = &(RDB_node(this)->right);
 
-   // NB: i riferimenti in memoria alla cache dati devono puntare sulla memoria mappata...
+   // NB: the reference at memory in the cache data must point to memory mapped...
 
    U_INTERNAL_DUMP("pnode = %p node = %u", pnode, node)
 
@@ -82,10 +82,7 @@ U_NO_EXPORT bool URDB::htLookup(URDB* prdb)
    U_TRACE(0, "URDB::htLookup(%p)", prdb)
 
 #ifdef DEBUG
-   if (prdb->UCDB::key.dsize == 0)
-      {
-      U_ERROR("URDB::htLookup(%p) - key search have size null", prdb);
-      }
+   if (prdb->UCDB::key.dsize == 0) U_ERROR("URDB::htLookup(%p) - key search have size null - db(%.*S,%u recs)", prdb, U_FILE_TO_TRACE(*prdb), RDB_nrecord(prdb));
 #endif
 
    U_INTERNAL_ASSERT_POINTER(prdb->UCDB::key.dptr)
@@ -185,7 +182,7 @@ U_NO_EXPORT void URDB::htAlloc(URDB* prdb)
 #ifdef DEBUG
    if (RDB_capacity(prdb) < sizeof(URDB::cache_node))
       {
-      U_ERROR("URDB::htAlloc() - capacity(%u) < size node(%u)", RDB_capacity(prdb), sizeof(URDB::cache_node));
+      U_ERROR("URDB::htAlloc() - capacity(%u) < size node(%u) - db(%.*S,%u recs)", RDB_capacity(prdb), sizeof(URDB::cache_node), U_FILE_TO_TRACE(*prdb), RDB_nrecord(prdb));
       }
 #endif
 
@@ -210,7 +207,7 @@ U_NO_EXPORT void URDB::htRemoveAlloc(URDB* prdb)
 #ifdef DEBUG
    if (RDB_capacity(prdb) < sizeof(URDB::cache_node))
       {
-      U_ERROR("URDB::htRemoveAlloc() - capacity(%u) < size node(%u)", RDB_capacity(prdb), sizeof(URDB::cache_node));
+      U_ERROR("URDB::htRemoveAlloc() - capacity(%u) < size node(%u) - db(%.*S,%u recs)", RDB_capacity(prdb), sizeof(URDB::cache_node), U_FILE_TO_TRACE(*prdb), RDB_nrecord(prdb));
       }
 #endif
 
@@ -229,7 +226,7 @@ U_NO_EXPORT void URDB::htInsert(URDB* prdb)
 {
    U_TRACE(0, "URDB::htInsert(%p)", prdb)
 
-   // NB: i riferimenti in memoria ai dati e alle chiavi devono puntare sul journal mappato in memoria...
+   // NB: the reference at memory in the cache data must point to memory mapped...
 
    U_INTERNAL_DUMP("key  = { %p, %u }", prdb->UCDB::key.dptr,  prdb->UCDB::key.dsize)
    U_INTERNAL_DUMP("data = { %p, %u }", prdb->UCDB::data.dptr, prdb->UCDB::data.dsize)
@@ -239,7 +236,7 @@ U_NO_EXPORT void URDB::htInsert(URDB* prdb)
    if (prdb->UCDB::data.dptr) { U_INTERNAL_ASSERT_RANGE(RDB_ptr(prdb), prdb->UCDB::data.dptr, RDB_allocate(prdb)) }
 #endif
 
-   // NB: i riferimenti in memoria alla cache dati devono puntare sulla memoria mappata...
+   // NB: the reference at memory in the cache data must point to memory mapped...
 
    U_INTERNAL_DUMP("pnode = %p node = %u", prdb->pnode, prdb->node)
 
@@ -339,8 +336,8 @@ U_NO_EXPORT bool URDB::writev(const struct iovec* _iov, int n, uint32_t _size)
       {
       U_MEMCPY(journal_ptr, _iov[i].iov_base, _iov[i].iov_len);
 
-      // NB: Una volta scritti i dati sul journal si cambiano i riferimenti in memoria
-      //     ai dati e alle chiavi in modo che puntino appunto sul journal mappato in memoria...
+      // NB: one time writed the data on journal we change the reference at memory
+      //     at data end keys so they pointing to journal memory mapped...
 
       if (n < 5) // remove(), store()
          {
@@ -421,7 +418,7 @@ bool URDB::logJournal(int op)
    U_RETURN(true);
 }
 
-U_NO_EXPORT void URDB::copy1(URDB* prdb, uint32_t _offset) // entry presenti nella cache...
+U_NO_EXPORT void URDB::copy1(URDB* prdb, uint32_t _offset) // entry present on cache...
 {
    U_TRACE(0, "URDB::copy1(%p,%u)", prdb, _offset)
 
@@ -511,7 +508,7 @@ U_NO_EXPORT void URDB::copy1(URDB* prdb, uint32_t _offset) // entry presenti nel
 
       RDB_off(prdb) = (journal_ptr - prdb->journal.map);
 
-      // NB: i riferimenti in memoria ai dati e alle chiavi devono puntare sul journal mappato in memoria...
+      // NB: the reference at memory in the cache data must point to memory mapped...
 
       htInsert(prdb); // Insertion of new entry in the cache
 
@@ -542,11 +539,11 @@ void URDB::setShared(sem_t* psem, char* spinlock)
 
       // For portable use, a shared memory object should be identified by a name of the form /somename; that is,
       // a null-terminated string of up to NAME_MAX (i.e., 255) characters consisting of an initial slash,
-      // followed by one or more characters, none of which are slashes.
+      // followed by one or more characters, none of which are slashes
 
       UString basename = UFile::getName();
 
-      (void) u__snprintf(somename, sizeof(somename), "/%v", basename.rep);
+      (void) u__snprintf(somename, sizeof(somename), U_CONSTANT_TO_PARAM("/%v"), basename.rep);
 
       psem     = (sem_t*) UFile::shm_open(somename, sizeof(sem_t) + 1);
       spinlock = (char*)psem + sizeof(sem_t) + 1;
@@ -559,7 +556,7 @@ void URDB::setShared(sem_t* psem, char* spinlock)
 
 bool URDB::compactionJournal()
 {
-   U_TRACE(0, "URDB::compactionJournal()")
+   U_TRACE_NO_PARAM(0, "URDB::compactionJournal()")
 
    U_CHECK_MEMORY
 
@@ -596,17 +593,17 @@ bool URDB::compactionJournal()
 
 #  if defined(_MSWINDOWS_) || defined(__CYGWIN__)
       journal.UFile::munmap(); // for rename()...
-#     ifdef   _MSWINDOWS_
+#    ifdef   _MSWINDOWS_
       rdb.journal.UFile::close();
-#     endif
+#    endif
 #  endif
 
       if (rdb.journal._rename(journal.UFile::path_relativ) == false) U_RETURN(false);
 
 #  if defined(_MSWINDOWS_) || defined(__CYGWIN__)
-#     ifdef   _MSWINDOWS_
+#    ifdef   _MSWINDOWS_
       result = rdb.journal.UFile::open(journal.UFile::path_relativ);
-#     endif
+#    endif
       result = rdb.journal.memmap(PROT_READ | PROT_WRITE);
 #  endif
 
@@ -614,10 +611,10 @@ bool URDB::compactionJournal()
       uint32_t sz1 =     getCapacity(),
                sz2 = rdb.getCapacity();
 
-      U_MESSAGE("URDB::compactionJournal() - nrecords (%u => %u) capacity (%.2fM (%u bytes) => %.2fM (%u bytes)) nerror=%u",
+      U_DEBUG("URDB::compactionJournal() - nrecords (%u => %u) capacity (%.2fM (%u bytes) => %.2fM (%u bytes)) nerror=%u",
                         size(), rdb.size(),
                         (double)sz1 / (1024.0 * 1024.0), sz1,
-                        (double)sz2 / (1024.0 * 1024.0), sz2, nerror);
+                        (double)sz2 / (1024.0 * 1024.0), sz2, nerror)
 
       nerror = 0;
 #  endif
@@ -739,7 +736,7 @@ void URDB::close(bool breference)
 
 void URDB::reset()
 {
-   U_TRACE(1, "URDB::reset()")
+   U_TRACE_NO_PARAM(1, "URDB::reset()")
 
    U_CHECK_MEMORY
 
@@ -758,7 +755,7 @@ void URDB::reset()
 
 bool URDB::beginTransaction()
 {
-   U_TRACE(0, "URDB::beginTransaction()")
+   U_TRACE_NO_PARAM(0, "URDB::beginTransaction()")
 
    lock();
 
@@ -767,7 +764,7 @@ bool URDB::beginTransaction()
 
 void URDB::commitTransaction()
 {
-   U_TRACE(0, "URDB::commitTransaction()")
+   U_TRACE_NO_PARAM(0, "URDB::commitTransaction()")
 
    msync();
    fsync();
@@ -777,7 +774,7 @@ void URDB::commitTransaction()
 
 void URDB::abortTransaction()
 {
-   U_TRACE(0, "URDB::abortTransaction()")
+   U_TRACE_NO_PARAM(0, "URDB::abortTransaction()")
 
    U_INTERNAL_DUMP("RDB_reference = %u", RDB_reference(this))
 
@@ -790,7 +787,7 @@ void URDB::abortTransaction()
 
 void URDB::msync()
 {
-   U_TRACE(0, "URDB::msync()")
+   U_TRACE_NO_PARAM(0, "URDB::msync()")
 
    U_CHECK_MEMORY
 
@@ -811,7 +808,7 @@ void URDB::msync()
 
 bool URDB::closeReorganize()
 {
-   U_TRACE(0, "URDB::closeReorganize()")
+   U_TRACE_NO_PARAM(0, "URDB::closeReorganize()")
 
    resetReference();
 
@@ -861,7 +858,7 @@ U_NO_EXPORT void URDB::callForEntryNotInCache(UCDB* pcdb, vPFpvpc function2)
 
          U_INTERNAL_DUMP("key = %.*S khash = %u", UCDB::key.dsize, UCDB::key.dptr, khash)
 
-         if (htLookup(this) == false) // NB: entry NON presenti nella cache...
+         if (htLookup(this) == false) // NB: entry NOT present in the cache...
             {
             function2(pcdb, ptr);
 
@@ -873,7 +870,7 @@ U_NO_EXPORT void URDB::callForEntryNotInCache(UCDB* pcdb, vPFpvpc function2)
       }
 }
 
-// entry presenti nella cache...
+// entry present in the cache...
 
 U_NO_EXPORT void URDB::call1(UCDB* pcdb, uint32_t _offset)
 {
@@ -966,7 +963,7 @@ U_NO_EXPORT void URDB::makeAdd1(UCDB* pcdb, uint32_t _offset) // entry presenti 
       }
 }
 
-U_NO_EXPORT void URDB::print1(UCDB* pcdb, uint32_t _offset) // entry presenti nella cache...
+U_NO_EXPORT void URDB::print1(UCDB* pcdb, uint32_t _offset) // entry present in the cache...
 {
    U_TRACE(0, "URDB::print1(%p,%u)", pcdb, _offset)
 
@@ -1005,7 +1002,7 @@ U_NO_EXPORT void URDB::print1(UCDB* pcdb, uint32_t _offset) // entry presenti ne
       }
 }
 
-U_NO_EXPORT void URDB::getKeys1(UCDB* pcdb, uint32_t _offset) // entry presenti nella cache...
+U_NO_EXPORT void URDB::getKeys1(UCDB* pcdb, uint32_t _offset) // entry present in the cache...
 {
    U_TRACE(0, "URDB::getKeys1(%p,%u)", pcdb, _offset)
 
@@ -1020,11 +1017,12 @@ U_NO_EXPORT void URDB::getKeys1(UCDB* pcdb, uint32_t _offset) // entry presenti 
 
    if (offset_data)
       {
-      UStringRep* rep;
+      UStringRep* skey;
 
-      U_NEW_DBG(UStringRep, rep, UStringRep((const char*)((ptrdiff_t)journal.map+(ptrdiff_t)RDB_cache_node(n,key.dptr)), RDB_cache_node(n,key.dsize)));
+      U_NEW(UStringRep, skey, UStringRep((const char*)((ptrdiff_t)journal.map+(ptrdiff_t)RDB_cache_node(n,key.dptr)), RDB_cache_node(n,key.dsize)));
 
-      pcdb->UCDB::ptr_vector->UVector<void*>::push(rep);
+      if (UCDB::filter_function_to_call(skey, 0) == 0) skey->release();
+      else                                             pcdb->UCDB::ptr_vector->UVector<void*>::push(skey);
       }
    else if (RDB_cache_node(n,data.dsize) != U_NOT_FOUND)
       {
@@ -1043,7 +1041,7 @@ U_NO_EXPORT void URDB::getKeys1(UCDB* pcdb, uint32_t _offset) // entry presenti 
 
 bool URDB::reorganize()
 {
-   U_TRACE(0, "URDB::reorganize()")
+   U_TRACE_NO_PARAM(0, "URDB::reorganize()")
 
    U_CHECK_MEMORY
 
@@ -1087,9 +1085,9 @@ bool URDB::reorganize()
 
 #     if defined(_MSWINDOWS_) || defined(__CYGWIN__)
          UFile::munmap(); // for rename()...
-#        ifdef   _MSWINDOWS_
+#       ifdef   _MSWINDOWS_
          cdb.UFile::close();
-#        endif
+#       endif
 #     endif
 
          if (cdb._rename(UFile::path_relativ) == false) U_RETURN(false);
@@ -1097,10 +1095,10 @@ bool URDB::reorganize()
          reset();
 
 #     if defined(_MSWINDOWS_) || defined(__CYGWIN__)
-#        ifdef   _MSWINDOWS_
+#       ifdef   _MSWINDOWS_
          result = cdb.UFile::open(UFile::path_relativ);
                   cdb.st_size = pos;
-#        endif
+#       endif
          result = cdb.memmap(); // read only...
 #     endif
 
@@ -1126,7 +1124,7 @@ char* URDB::parseLine(const char* ptr, UCDB::datum* _key, UCDB::datum* _data)
 
    U_INTERNAL_DUMP("*ptr = %C", *ptr)
 
-   U_INTERNAL_ASSERT_EQUALS(*ptr,'+')
+   U_INTERNAL_ASSERT_EQUALS(*ptr, '+')
 
    _key->dsize = (*++ptr == '0' ? (++ptr, 0) : strtol(ptr, (char**)&ptr, 10));
 
@@ -1180,7 +1178,7 @@ char* URDB::parseLine(const char* ptr, UCDB::datum* _key, UCDB::datum* _data)
 
 UString URDB::print()
 {
-   U_TRACE(0, "URDB::print()")
+   U_TRACE_NO_PARAM(0, "URDB::print()")
 
    U_CHECK_MEMORY
 
@@ -1212,13 +1210,16 @@ void URDB::callForAllEntry(iPFprpr function, UVector<UString>* pvec)
 
    lock();
 
+   iPFprpr       function_prev = UCDB::getFunctionToCall();
+   UVector<UString>* pvec_prev = UCDB::getVector();
+
    UCDB::setVector(pvec);
    UCDB::setFunctionToCall(function);
 
    U_FOR_EACH_ENTRY(this, call1, UCDB::call2)
 
-   UCDB::setVector(0);
-   UCDB::setFunctionToCall(0);
+   UCDB::setVector(pvec_prev);
+   UCDB::setFunctionToCall(function_prev);
 
    unlock();
 }
@@ -1248,11 +1249,13 @@ void URDB::getKeys(UVector<UString>& vec)
 
    lock();
 
+   UVector<UString>* pvec_prev = UCDB::getVector();
+
    UCDB::setVector(&vec);
 
    U_FOR_EACH_ENTRY(this, getKeys1, UCDB::getKeys2)
 
-   UCDB::setVector(0);
+   UCDB::setVector(pvec_prev);
 
    unlock();
 }
@@ -1276,13 +1279,14 @@ void URDB::callForAllEntrySorted(iPFprpr function, qcompare compare_obj)
 
       if (n > 1)
          {
-         if (compare_obj) vkey.UVector<void*>::sort(compare_obj);
-         else             vkey.sort(UCDB::ignoreCase());
+         if (compare_obj == 0) vkey.sort(UCDB::ignoreCase());
+         else                  vkey.UVector<void*>::sort(compare_obj);
          }
 
       lock();
 
       UCDB::setFunctionToCall(function);
+      UCDB::resetFilterToFunctionToCall();
 
       for (i = 0; i < n; ++i)
          {
@@ -1308,7 +1312,7 @@ void URDB::callForAllEntrySorted(iPFprpr function, qcompare compare_obj)
 
 UString URDB::printSorted()
 {
-   U_TRACE(0, "URDB::printSorted()")
+   U_TRACE_NO_PARAM(0, "URDB::printSorted()")
 
    U_CHECK_MEMORY
 
@@ -1350,7 +1354,7 @@ UString URDB::printSorted()
 
 bool URDB::isDeleted()
 {
-   U_TRACE(0, "URDB::isDeleted()")
+   U_TRACE_NO_PARAM(0, "URDB::isDeleted()")
 
    U_CHECK_MEMORY
 
@@ -1375,7 +1379,7 @@ bool URDB::isDeleted()
 
 bool URDB::_fetch()
 {
-   U_TRACE(0, "URDB::_fetch()")
+   U_TRACE_NO_PARAM(0, "URDB::_fetch()")
 
    bool result;
 
@@ -1410,7 +1414,7 @@ bool URDB::_fetch()
 
 bool URDB::fetch()
 {
-   U_TRACE(0, "URDB::fetch()")
+   U_TRACE_NO_PARAM(0, "URDB::fetch()")
 
    bool result;
 
@@ -1429,7 +1433,7 @@ bool URDB::fetch()
 
 UString URDB::at()
 {
-   U_TRACE(0, "URDB::at()")
+   U_TRACE_NO_PARAM(0, "URDB::at()")
 
    UString result;
 
@@ -1491,7 +1495,7 @@ int URDB::_store(int _flag, bool exist)
          if (data_new.dptr == u_buffer &&
              data_new.dsize > U_BUFFER_SIZE)
             {
-            U_ERROR("URDB::store(%d) - overflow on data buffer (%u > %u)", _flag, data_new.dsize, U_BUFFER_SIZE);
+            U_ERROR("URDB::store(%d) - overflow on data buffer (%u > %u) - db(%.*S,%u recs)", _flag, data_new.dsize, U_BUFFER_SIZE, U_FILE_TO_TRACE(*this), RDB_nrecord(this));
             }
 #     endif
          }
@@ -1510,7 +1514,7 @@ int URDB::_store(int _flag, bool exist)
       U_RETURN(-3); // -3: there is not enough (virtual) memory available on writing journal
       }
 
-   // NB: i riferimenti in memoria ai dati e alle chiavi devono puntare sul journal mappato in memoria...
+   // NB: the reference at memory in the cache data must point to memory mapped...
 
    htInsert(this); // Insertion of new entry in the cache
 
@@ -1561,7 +1565,7 @@ int URDB::store(int _flag)
 
 int URDB::remove()
 {
-   U_TRACE(0, "URDB::remove()")
+   U_TRACE_NO_PARAM(0, "URDB::remove()")
 
    int result = 0;
    bool record_cache_deleted = false;
@@ -1607,7 +1611,7 @@ int URDB::remove()
       goto end;
       }
 
-   // NB: i riferimenti in memoria ai dati e alle chiavi devono puntare sul journal mappato in memoria...
+   // NB: the reference at memory in the cache data must point to memory mapped...
 
    UCDB::data.dptr  = 0;
    UCDB::data.dsize = U_NOT_FOUND;
@@ -1728,7 +1732,7 @@ int URDB::substitute(UCDB::datum* key2, int _flag)
             goto end;
             }
 
-         // NB: i riferimenti in memoria ai dati e alle chiavi devono puntare sul journal mappato in memoria...
+         // NB: the reference at memory in the cache data must point to memory mapped...
 
          htInsert(this); // Insertion of new entry in the cache
 
@@ -1828,7 +1832,10 @@ bool URDBObjectHandler<UDataStorage*>::getDataStorage()
    U_RETURN(false);
 }
 
-char* URDBObjectHandler<UDataStorage*>::data_buffer;
+bool     URDBObjectHandler<UDataStorage*>::bsetEntry;
+char*    URDBObjectHandler<UDataStorage*>::data_buffer;
+uint32_t URDBObjectHandler<UDataStorage*>::data_len;
+iPFpvpv  URDBObjectHandler<UDataStorage*>::ds_function_to_call;
 
 bool URDBObjectHandler<UDataStorage*>::_insertDataStorage(int op)
 {
@@ -1840,7 +1847,7 @@ bool URDBObjectHandler<UDataStorage*>::_insertDataStorage(int op)
    lock();
 
    UCDB::setKey(pDataStorage->keyid);
-   UCDB::setData(data_buffer, u_buffer_len);
+   UCDB::setData(data_buffer, data_len);
 
    UCDB::cdb_hash();
 
@@ -1854,14 +1861,14 @@ bool URDBObjectHandler<UDataStorage*>::_insertDataStorage(int op)
       char* ptr   = recval.data();
       uint32_t sz = recval.size();
 
-      if (sz > 40)           sz = 40;
-      if (sz > u_buffer_len) sz = u_buffer_len;
+      if (sz > 40)       sz = 40;
+      if (sz > data_len) sz = data_len;
 
       if (strncmp(ptr, data_buffer, sz))
          {
          ++nerror;
 
-         U_WARNING("RDB store: db(%.*S) op(%d) data(%u) - to: %.*S from: %.*S", U_FILE_TO_TRACE(*this), op, u_buffer_len, sz, ptr, sz, data_buffer);
+         U_WARNING("URDB store: db(%.*S) op(%d) data(%u) - to: %.*S from: %.*S", U_FILE_TO_TRACE(*this), op, data_len, sz, ptr, sz, data_buffer);
          }
 #  endif
       }
@@ -1872,7 +1879,7 @@ bool URDBObjectHandler<UDataStorage*>::_insertDataStorage(int op)
 
    if (result)
       {
-      U_WARNING("store data with op %d on db %.*S failed with error %d", op, U_FILE_TO_TRACE(*this), result);
+      U_WARNING("Store data with op %d on db %.*S failed with error %d", op, U_FILE_TO_TRACE(*this), result);
 
       U_RETURN(false);
       }
@@ -1882,7 +1889,7 @@ bool URDBObjectHandler<UDataStorage*>::_insertDataStorage(int op)
 
 bool URDBObjectHandler<UDataStorage*>::putDataStorage()
 {
-   U_TRACE(0, "URDBObjectHandler<UDataStorage*>::putDataStorage()")
+   U_TRACE_NO_PARAM(0, "URDBObjectHandler<UDataStorage*>::putDataStorage()")
 
    U_CHECK_MEMORY
 
@@ -1892,16 +1899,17 @@ bool URDBObjectHandler<UDataStorage*>::putDataStorage()
    uint32_t sz = recval.size();
 
    data_buffer = pDataStorage->toBuffer();
+   data_len    = UDataStorage::buffer_len;
 
-   U_INTERNAL_DUMP("new_rec_size(%u) = %.*S old_rec_size(%u) = %.*S", u_buffer_len, u_buffer_len, data_buffer, sz, sz, ptr)
+   U_INTERNAL_DUMP("new_rec_size(%u) = %.*S old_rec_size(%u) = %.*S", data_len, data_len, data_buffer, sz, sz, ptr)
 
-   if (u_buffer_len <= sz)
+   if (data_len <= sz)
       {
-      U_MEMCPY(ptr, data_buffer, u_buffer_len);
+      U_MEMCPY(ptr, data_buffer, data_len);
 
-      sz -= u_buffer_len;
+      sz -= data_len;
 
-      if (sz) (void) memset(ptr + u_buffer_len, ' ', sz);
+      if (sz) (void) memset(ptr + data_len, ' ', sz);
 
       u_buffer_len = 0;
 
@@ -1916,13 +1924,12 @@ void URDBObjectHandler<UDataStorage*>::setEntry(UStringRep* _key, UStringRep* _d
    U_TRACE(0, "URDBObjectHandler<UDataStorage*>::setEntry(%V,%V)", _key, _data)
 
    U_INTERNAL_ASSERT_POINTER(pDataStorage)
-   U_INTERNAL_ASSERT_POINTER(function_to_call)
 
    pDataStorage->clear();
 
    // NB: in this way now we have the direct reference to mmap memory for the data record and the key...
 
-   recval._assign(_data);
+                recval._assign(_data);
    pDataStorage->keyid._assign(_key);
 
    pDataStorage->fromData(U_STRING_TO_PARAM(recval));
@@ -1935,25 +1942,40 @@ int URDBObjectHandler<UDataStorage*>::callEntryCheck(UStringRep* _key, UStringRe
    U_TRACE(0, "URDBObjectHandler<UDataStorage*>::callEntryCheck(%V,%V)", _key, _data)
 
    U_INTERNAL_ASSERT_POINTER(pthis)
-   U_INTERNAL_ASSERT_POINTER(pthis->function_to_call)
+   U_INTERNAL_ASSERT_POINTER(ds_function_to_call)
+   U_INTERNAL_ASSERT_POINTER(pthis->UCDB::filter_function_to_call)
 
-   int result = pthis->function_to_call(_key, _data);
-
-   if (result == 4) // NB: call function later after set record value from db with setEntry()...
+   if (pthis->UCDB::filter_function_to_call(_key, _data))
       {
-      pthis->setEntry(_key, _data);
-
-      result = pthis->function_to_call(0, 0);
-
-      if (result == 3) // NB: call function later without lock on db...
+      if (bsetEntry)
          {
-         result = 1;
+         pthis->setEntry(_key, _data);
 
-         pthis->UCDB::addEntryToVector();
+         (void) ds_function_to_call(_key, _data);
+
+         U_RETURN(1);
          }
+
+      int result = ds_function_to_call(_key, _data);
+
+      if (result == 4) // NB: call function later after set record value from db with setEntry()...
+         {
+         pthis->setEntry(_key, _data);
+
+         result = ds_function_to_call(0, 0);
+
+         if (result == 3) // NB: call function later without lock on db...
+            {
+            pthis->UCDB::addEntryToVector();
+
+            U_RETURN(1);
+            }
+         }
+
+      U_RETURN(result);
       }
 
-   U_RETURN(result);
+   U_RETURN(1);
 }
 
 void URDBObjectHandler<UDataStorage*>::callForAllEntry(iPFprpr function, vPF function_no_lock, qcompare compare_obj)
@@ -1966,89 +1988,107 @@ void URDBObjectHandler<UDataStorage*>::callForAllEntry(iPFprpr function, vPF fun
 
    if (n == 0) return;
 
-   pthis            = this;
-   brecfound        = true;
-   function_to_call = function;
+   iPFpvpv             ds_function_to_call_prev = ds_function_to_call;
+   URDBObjectHandler<UDataStorage*>* pthis_prev = pthis;
+
+   pthis               = this;
+   brecfound           = true;
+   ds_function_to_call = (iPFpvpv)function;
 
    if (compare_obj      == 0 &&
        function_no_lock == 0)
       {
       URDB::callForAllEntry(callEntryCheck, 0);
-
-      return;
-      }
-
-   int i;
-   UVector<UString> vec(n);
-
-   if (compare_obj == 0)
-      {
-      U_INTERNAL_ASSERT_POINTER(function_no_lock)
-
-      URDB::callForAllEntry(callEntryCheck, &vec);
       }
    else
       {
-      UVector<UString> vkey(n);
+      int i;
+      UVector<UString> vec(n);
 
-      getKeys(vkey);
-
-      n = vkey.size();
-
-      if (n > 1)
+      if (compare_obj == 0)
          {
-         if (compare_obj != (qcompare)-1) vkey.UVector<void*>::sort(compare_obj);
-         else                             vkey.sort(UCDB::ignoreCase());
+         U_INTERNAL_ASSERT_POINTER(function_no_lock)
+
+         URDB::callForAllEntry(callEntryCheck, &vec);
+         }
+      else
+         {
+         UVector<UString> vkey(n);
+         UVector<UString>* pvec_prev = 0;
+         iPFprpr function_prev = UCDB::getFunctionToCall();
+
+         getKeys(vkey);
+
+         n = vkey.size();
+
+         if (n > 1)
+            {
+            if (compare_obj == (qcompare)-1) vkey.sort(UCDB::ignoreCase());
+            else                             vkey.UVector<void*>::sort(compare_obj);
+            }
+
+         lock();
+
+         UCDB::resetFilterToFunctionToCall();
+         UCDB::setFunctionToCall(callEntryCheck);
+
+         if (function_no_lock)
+            {
+            pvec_prev = UCDB::getVector();
+                        UCDB::setVector(&vec);
+            }
+
+         for (i = 0; i < (int)n; ++i)
+            {
+            UStringRep* r = vkey.UVector<UStringRep*>::at(i);
+
+            UCDB::setKey(r);
+
+            UCDB::cdb_hash();
+
+            if (_fetch())
+               {
+               UCDB::call1();
+
+               if (U_cdb_result_call(this) == 0) break;
+               }
+            }
+
+         UCDB::setFunctionToCall(function_prev);
+
+         if (function_no_lock) UCDB::setVector(pvec_prev);
+
+         unlock();
          }
 
-      lock();
-
-      if (function_no_lock) UCDB::setVector(&vec);
-                            UCDB::setFunctionToCall(callEntryCheck);
-
-      for (i = 0; i < (int)n; ++i)
+      if ((n = vec.size()))
          {
-         UStringRep* r = vkey.UVector<UStringRep*>::at(i);
-
-         UCDB::setKey(r);
-
-         UCDB::cdb_hash();
-
-         if (_fetch())
+         for (i = 0; i < (int)n; i += 2)
             {
-            UCDB::call1();
+            UStringRep*  _key = vec.UVector<UStringRep*>::at(i);
+            UStringRep* _data = vec.UVector<UStringRep*>::at(i+1);
 
-            if (U_cdb_result_call(this) == 0) break;
+            pthis->setEntry(_key, _data);
+
+            int result = ds_function_to_call((void*)-1, (void*)function_no_lock);
+
+            if (result == 2) // remove
+               {
+               UCDB::setKey(_key);
+
+               (void) URDB::remove();
+               }
             }
          }
-
-      if (function_no_lock) UCDB::setVector(0);
-                            UCDB::setFunctionToCall(0);
-
-      unlock();
       }
 
-   for (i = 0, n = vec.size(); i < (int)n; i += 2)
-      {
-      UStringRep* _key = vec.UVector<UStringRep*>::at(i);
-      UStringRep*_data = vec.UVector<UStringRep*>::at(i+1);
-
-      pthis->setEntry(_key, _data);
-
-      int result = ((iPFpvpv)(pthis->function_to_call))((void*)-1, (void*)function_no_lock);
-
-      if (result == 2) // remove
-         {
-         UCDB::setKey(_key);
-
-         (void) URDB::remove();
-         }
-      }
+   pthis               =               pthis_prev;
+   ds_function_to_call = ds_function_to_call_prev;
 }
 
 void URDBObjectHandler<UDataStorage*>::close()
 {
-   U_TRACE(0, "URDBObjectHandler<UDataStorage*>::close()")
+   U_TRACE_NO_PARAM(0, "URDBObjectHandler<UDataStorage*>::close()")
 
    U_CHECK_MEMORY
 
@@ -2068,17 +2108,14 @@ void URDBObjectHandler<UDataStorage*>::close()
          {
          /*
          UString x = URDB::print();
-
-         (void) UFile::writeToTmp(U_STRING_TO_PARAM(x), false, "%.*s.end", U_FILE_TO_TRACE(*this));
+         (void) UFile::writeToTmp(U_STRING_TO_PARAM(x), O_RDWR | O_TRUNC, U_CONSTANT_TO_PARAM("%.*s.end"), U_FILE_TO_TRACE(*this));
          */
 
          (void) URDB::closeReorganize();
 
          /*
          char buffer[1024];
-
-         (void) u__snprintf("/tmp/%.*s.init", U_FILE_TO_TRACE(*this))
-
+         (void) u__snprintf(U_CONSTANT_TO_PARAM("/tmp/%.*s.init"), U_FILE_TO_TRACE(*this))
          (void) UFile::_unlink(buffer);
          */
          }
@@ -2129,10 +2166,10 @@ const char* URDBObjectHandler<UDataStorage*>::dump(bool _reset) const
    URDB::dump(false);
 
    *UObjectIO::os << "\n"
-                  << "brecfound                 " << brecfound               << '\n'
-                  << "pDataStorage              " << (void*)pDataStorage     << '\n'
-                  << "function_to_call          " << (void*)function_to_call << '\n'
-                  << "recval (UString           " << (void*)&recval          << ')';
+                  << "brecfound                 " << brecfound                   << '\n'
+                  << "pDataStorage              " << (void*)pDataStorage         << '\n'
+                  << "ds_function_to_call       " << (void*)ds_function_to_call  << '\n'
+                  << "recval (UString           " << (void*)&recval              << ')';
 
    if (_reset)
       {

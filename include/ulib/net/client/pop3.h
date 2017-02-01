@@ -160,8 +160,6 @@ public:
 
    bool login(const char* user, const char* passwd);
 
-   // Varie
-
    int getSizeMessage(uint32_t n);
    int getUIDL(UVector<UString>& vec);
 
@@ -199,16 +197,10 @@ protected:
 private:
    void setStatus() U_NO_EXPORT;
 
-   bool syncCommand(int eod, const char* format, ...) U_NO_EXPORT;
+   bool syncCommand(int eod, const char* format, uint32_t fmt_size, ...) U_NO_EXPORT;
    bool syncCommandML(const UString& req, int* vpos, int* vend) U_NO_EXPORT;
 
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UPop3Client(const UPop3Client&) = delete;
-   UPop3Client& operator=(const UPop3Client&) = delete;
-#else
-   UPop3Client(const UPop3Client&) : Socket(false) {}
-   UPop3Client& operator=(const UPop3Client&)      { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UPop3Client)
 };
 
 #endif

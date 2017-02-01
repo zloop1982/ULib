@@ -13,21 +13,12 @@
 
 #include <ulib/tokenizer.h>
 #include <ulib/utility/services.h>
-#include <ulib/container/vector.h>
 
 bool        UTokenizer::group_skip;
 bool        UTokenizer::avoid_punctuation;
 uint32_t    UTokenizer::group_len;
 uint32_t    UTokenizer::group_len_div_2;
 const char* UTokenizer::group;
-
-void UTokenizer::setData(const UString& data)
-{
-   U_TRACE(0, "UTokenizer::setData(%V)", data.rep)
-
-   str = data;
-   end = (s = data.data()) + data.size();
-}
 
 bool UTokenizer::next(UString& token, bPFi func)
 {
@@ -37,9 +28,7 @@ bool UTokenizer::next(UString& token, bPFi func)
 
    while (s < end)
       {  
-      // skip char with function
-
-      if (func(*s))
+      if (func(*s)) // skip char with function
          {
          ++s;
 
@@ -54,7 +43,7 @@ bool UTokenizer::next(UString& token, bPFi func)
          ++s;
          }
 
-      token = str.substr(p, s - p);
+      token = substr(p);
 
       ++s;
 
@@ -72,9 +61,7 @@ bool UTokenizer::next(UString& token, char c)
 
    while (s < end)
       {  
-      // skip char delimiter
-
-      if (*s == c)
+      if (*s == c) // skip char delimiter
          {
          ++s;
 
@@ -88,7 +75,7 @@ bool UTokenizer::next(UString& token, char c)
 
       if (s == 0) s = end;
 
-      token = str.substr(p, s - p);
+      token = substr(p);
 
       ++s;
 
@@ -108,9 +95,7 @@ bool UTokenizer::extend(UString& token, char c)
 
    while (s < end)
       {  
-      // skip char delimiter
-
-      if (*s == c)
+      if (*s == c) // skip char delimiter
          {
          ++s;
 
@@ -124,7 +109,7 @@ bool UTokenizer::extend(UString& token, char c)
 
       if (s == 0) s = end;
 
-      token = str.substr(p, s - p);
+      token = substr(p);
 
       ++s;
 
@@ -145,8 +130,7 @@ bool UTokenizer::next(UString& token, bool* bgroup)
 
    while (s < end)
       {
-loop:
-      if (delim)
+loop: if (delim)
          {
          s = u_delimit_token(s, &p, end, delim, 0);
 
@@ -185,7 +169,8 @@ loop:
 
             goto tok;
             }
-         else if (group_skip)
+
+         if (group_skip)
             {
             // -------------------------------------------------------------------
             // examples:
@@ -213,17 +198,15 @@ loop:
 
       s = u_delimit_token(s, &p, end, 0, 0);
 
-tok:
-      n = s - p;
+tok:  n = s - p;
 
       if (avoid_punctuation)
          {
          while (u__ispunct(*p))
             {
             --n;
-            ++p;
 
-            if (p == s) goto loop;
+            if (++p == s) goto loop;
             }
 
          while (u__ispunct(p[n-1]))
@@ -235,6 +218,108 @@ tok:
          }
 
       token = str.substr(p, n);
+
+      s += shift;
+
+      U_RETURN(true);
+      }
+
+   U_RETURN(false);
+}
+
+bool UTokenizer::skipToken()
+{
+   U_TRACE_NO_PARAM(0, "UTokenizer::skipToken()")
+
+   const char* p  = s;
+   uint32_t shift = 1, n;
+
+   while (s < end)
+      {
+loop: if (delim)
+         {
+         s = u_delimit_token(s, &p, end, delim, 0);
+
+         if (p) goto tok;
+
+         U_RETURN(false);
+         }
+
+      s = u_skip(s, end, 0, 0);
+
+      if (s == end) break;
+
+      if (group)
+         {
+         if (memcmp(s, group, group_len_div_2) == 0)
+            {
+            p = s + group_len_div_2 - 1;
+            s = u_strpend(p, end - p, group, group_len, '\0');
+
+            ++p;
+
+            if (s == 0) s = end;
+
+            U_INTERNAL_DUMP("p = %.*S s = %.*S", s - p, p, end - s, s)
+
+            if (group_skip)
+               {
+               s += group_len_div_2;
+
+               continue;
+               }
+
+            shift = group_len_div_2;
+
+            goto tok;
+            }
+
+         if (group_skip)
+            {
+            // -------------------------------------------------------------------
+            // examples:
+            // -------------------------------------------------------------------
+            // <date>03/11/2005 10:17:46</date>
+            // <description>description_556adfbc-0107-5000-ede4-d208</description>
+            // -------------------------------------------------------------------
+
+            s = u_delimit_token(s, &p, end, 0, 0);
+
+            if (s < end)
+               {
+               const char* x = (char*) memchr(p, group[0], s - p);
+
+               if (x && (memcmp(x, group, group_len_div_2) == 0))
+                  {
+                  s     = x;
+                  shift = 0;
+                  }
+               }
+
+            goto tok;
+            }
+         }
+
+      s = u_delimit_token(s, &p, end, 0, 0);
+
+tok:  n = s - p;
+
+      if (avoid_punctuation)
+         {
+         while (u__ispunct(*p))
+            {
+            --n;
+
+            if (++p == s) goto loop;
+            }
+
+         while (u__ispunct(p[n-1]))
+            {
+            --n;
+
+            if (n == 0) goto loop;
+            }
+         }
 
       s += shift;
 
@@ -267,50 +352,9 @@ bool UTokenizer::tokenSeen(const UString* x)
    U_RETURN(false);
 }
 
-bool UTokenizer::skipToken(const char* token, uint32_t sz)
-{
-   U_TRACE(0, "UTokenizer::skipToken(%.*S,%u)", sz, token, sz)
-
-   if (str.distance(s) >= sz &&
-       memcmp(s, token, sz) == 0)
-      {
-      s += sz;
-
-      U_RETURN(true);
-      }
-
-   U_RETURN(false);
-}
-
-bool UTokenizer::skipNumber(bool& isReal)
-{
-   U_TRACE(0, "UTokenizer::skipNumber(%p)", &isReal)
-
-   isReal = false;
-
-   for (char c; s < end; ++s)
-      {
-      c = *s;
-
-      if (u__isnumber(c)) continue;
-
-      if (u__isreal(c) ||
-          u__toupper(c) == 'E')
-         {
-         isReal = true;
-
-         continue;
-         }
-
-      U_RETURN(true);
-      }
-
-   U_RETURN(false);
-}
-
 UString UTokenizer::getTokenQueryParser()
 {
-   U_TRACE(0, "UTokenizer::getTokenQueryParser()")
+   U_TRACE_NO_PARAM(0, "UTokenizer::getTokenQueryParser()")
 
    skipSpaces();
 
@@ -331,9 +375,7 @@ UString UTokenizer::getTokenQueryParser()
          }
       }
 
-   UString token = str.substr(p, s - p);
-
-   U_RETURN_STRING(token);
+   return substr(p);
 }
 
 /**
@@ -352,11 +394,40 @@ UString UTokenizer::getTokenQueryParser()
  * contains:    ^
  * ends_with:   =~
  * starts_with: ~=
+ *
+ * TOKEN ID:
+ *
+ * #define U_TK_ERROR       -1
+ * #define U_TK_AND          1
+ * #define U_TK_OR           2
+ * #define U_TK_EQ           3
+ * #define U_TK_NE           4
+ * #define U_TK_GT           5
+ * #define U_TK_GE           6
+ * #define U_TK_LT           7
+ * #define U_TK_LE           8
+ * #define U_TK_STARTS_WITH  9
+ * #define U_TK_ENDS_WITH   10
+ * #define U_TK_IS_PRESENT  11
+ * #define U_TK_CONTAINS    12
+ * #define U_TK_PLUS        13
+ * #define U_TK_MINUS       14
+ * #define U_TK_MULT        15
+ * #define U_TK_DIV         16
+ * #define U_TK_MOD         17
+ * #define U_TK_NOT         18
+ * #define U_TK_FN_CALL     19
+ * #define U_TK_LPAREN      20
+ * #define U_TK_RPAREN      21
+ * #define U_TK_VALUE       22
+ * #define U_TK_COMMA       23
+ * #define U_TK_NAME        24
+ * #define U_TK_PID         25
  */
 
-int UTokenizer::getTokenId(UString& token)
+int UTokenizer::getTokenId(UString* ptoken)
 {
-   U_TRACE(0, "UTokenizer::getTokenId(%p)", &token)
+   U_TRACE(0, "UTokenizer::getTokenId(%p)", ptoken)
 
    static const int dispatch_table[] = {
       (int)((char*)&&case_exclamation-(char*)&&cvalue),/* '!' */
@@ -428,7 +499,7 @@ int UTokenizer::getTokenId(UString& token)
       0,/* 'c' */
       0,/* 'd' */
       0,/* 'e' */
-      (int)((char*)&&case_bool-(char*)&&cvalue),/* 'f' */
+      (int)((char*)&&case_false-(char*)&&cvalue),/* 'f' */
       0,/* 'g' */
       0,/* 'h' */
       0,/* 'i' */
@@ -442,7 +513,7 @@ int UTokenizer::getTokenId(UString& token)
       0,/* 'q' */
       0,/* 'r' */
       0,/* 's' */
-      (int)((char*)&&case_bool-(char*)&&cvalue),/* 't' */
+      (int)((char*)&&case_true-(char*)&&cvalue),/* 't' */
       0,/* 'u' */
       0,/* 'v' */
       0,/* 'w' */
@@ -456,6 +527,7 @@ int UTokenizer::getTokenId(UString& token)
    };
 
    char c;
+   long sz;
    int tid = 0;
    const char* p1;
    const char* p2;
@@ -568,13 +640,18 @@ case_equal: tid = (*s == '=' ? (++s, U_TK_EQ)          : U_TK_EQ);    p2 = s; go
 case_major: tid = (*s == '=' ? (++s, U_TK_GE)          : U_TK_GT);    p2 = s; goto end; /* '>' */
 case_xor:   tid = (*s == '=' ? (++s, U_TK_STARTS_WITH) : U_TK_ERROR); p2 = s; goto end; /* '^' */
 
-case_bool: /* 'f' 't' */
-   if (c == 't' ? skipToken(U_CONSTANT_TO_PARAM("rue"))
-                : skipToken(U_CONSTANT_TO_PARAM("alse")))
+case_false:
+   if (skipToken(U_CONSTANT_TO_PARAM("alse"))) goto case_bool_ok;
+
+   goto cvalue;
+
+case_true:
+   if (skipToken(U_CONSTANT_TO_PARAM("rue")))
       {
+case_bool_ok:
       tid = U_TK_VALUE;
 
-      if (c == 't') p2 = s;
+      p2 = s;
 
       goto end;
       }
@@ -604,9 +681,14 @@ cvalue:
    tid = (c == '(' ? U_TK_FN_CALL : U_TK_VALUE);
 
 end:
-   token = str.substr(p1, p2 - p1);
+   if (ptoken)
+      {
+      sz = (p2 -p1);
 
-   U_INTERNAL_DUMP("token = %V", token.rep)
+      if (sz) *ptoken = str.substr(p1, sz);
+
+      U_INTERNAL_DUMP("token = %V", ptoken->rep)
+      }
 
    U_RETURN(tid);
 }
@@ -620,12 +702,12 @@ const char* UTokenizer::dump(bool reset) const
 
    char buffer[32];
 
-   UObjectIO::os->write(buffer, u__snprintf(buffer, sizeof(buffer), "%S", group));
+   UObjectIO::os->write(buffer, u__snprintf(buffer, sizeof(buffer), U_CONSTANT_TO_PARAM("%S"), group));
 
    *UObjectIO::os << '\n'
                   << "delim                       ";
 
-   UObjectIO::os->write(buffer, u__snprintf(buffer, sizeof(buffer), "%S", delim));
+   UObjectIO::os->write(buffer, u__snprintf(buffer, sizeof(buffer), U_CONSTANT_TO_PARAM("%S"), delim));
 
    *UObjectIO::os << '\n'
                   << "group_skip                  " << group_skip  << '\n'

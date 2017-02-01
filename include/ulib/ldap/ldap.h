@@ -58,8 +58,6 @@ public:
    U_MEMORY_ALLOCATOR
    U_MEMORY_DEALLOCATOR
 
-   // COSTRUTTORI
-
    char** dn;
    UString** attr_val;
    int n_entry, n_attr;
@@ -67,8 +65,6 @@ public:
 
     ULDAPEntry(int num_names, const char** names, int num_entry = 1);
    ~ULDAPEntry();
-
-   // VARIE
 
    char* operator[](int pos) const
       {
@@ -100,20 +96,21 @@ private:
 #  define LDAP_FILTER_ALL "(objectClass=*)"
 #endif
 
-/* types for ldap URL handling
-----------------------------------
-typedef struct ldap_url_desc {
-   char*    lud_scheme;
-   char*    lud_host;
-   int      lud_port;
-   char*    lud_dn;
-   char**   lud_attrs;
-   int      lud_scope;
-   char*    lud_filter;
-   char**   lud_exts;
-   int      lud_crit_exts;
-} LDAPURLDesc;
-*/
+/**
+ * types for ldap URL handling
+ * ----------------------------------
+ *  typedef struct ldap_url_desc {
+ *  char*    lud_scheme;
+ *  char*    lud_host;
+ *  int      lud_port;
+ *  char*    lud_dn;
+ *  char**   lud_attrs;
+ *  int      lud_scope;
+ *  char*    lud_filter;
+ *  char**   lud_exts;
+ *  int      lud_crit_exts;
+ *  } LDAPURLDesc;
+ */
 
 class U_EXPORT ULDAP {
 public:
@@ -124,8 +121,6 @@ public:
    // Allocator e Deallocator
    U_MEMORY_ALLOCATOR
    U_MEMORY_DEALLOCATOR
-
-   // COSTRUTTORI
 
    ULDAP()
       {
@@ -145,8 +140,6 @@ public:
 
       clear();
       }
-
-   // VARIE
 
    void clear();
    void setStatus();
@@ -308,7 +301,7 @@ public:
 
    int search()
       {
-      U_TRACE(1, "ULDAP::search()")
+      U_TRACE_NO_PARAM(1, "ULDAP::search()")
 
       U_CHECK_MEMORY
 
@@ -352,7 +345,8 @@ public:
       }
 #endif
 
-   /* Example (from NGSS):
+   /**
+    * Example (from NGSS):
     * ---------------------------------------------------------------------------------------------------------
     * #define HOST_STRING     "host"
     * #define RULE_STRING     "rule"
@@ -368,7 +362,7 @@ public:
 
    const char** getAttrs() const
       {
-      U_TRACE(0, "ULDAP::getAttrs()")
+      U_TRACE_NO_PARAM(0, "ULDAP::getAttrs()")
 
       U_INTERNAL_ASSERT_POINTER(ludpp)
 
@@ -398,13 +392,7 @@ private:
    static char** split_str(char* str) U_NO_EXPORT;
 #endif
 
-#ifdef U_COMPILER_DELETE_MEMBERS
-   ULDAP(const ULDAP&) = delete;
-   ULDAP& operator=(const ULDAP&) = delete;
-#else
-   ULDAP(const ULDAP&)            {}
-   ULDAP& operator=(const ULDAP&) { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(ULDAP)
 };
 
 #endif

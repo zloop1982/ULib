@@ -16,15 +16,20 @@
 
 #include <ulib/container/construct.h>
 
+#ifdef U_STDCPP_ENABLE
+#  include <algorithm>
+#endif
+
 /**
  * A vector is a sequence of elements that are stored contiguously in memory and can change in size.
  * As a result, it has support for random-access and provides methods to add and delete elements.
  * It is typically used when an array is required, but the exact number if elements is unknown at compile-time
  *
- * Simple vector template class. Supports pushing at end and random-access deletions. Dynamically sized.
+ * Simple vector template class. Supports pushing at end and random-access deletions. Dynamically sized
  */
 
 class UHTTP;
+class UThreadPool;
 class UHttpPlugIn;
 class UFileConfig;
 class UNoCatPlugIn;
@@ -61,7 +66,7 @@ public:
 
    void deallocate()
       {
-      U_TRACE(0, "UVector<void*>::deallocate()")
+      U_TRACE_NO_PARAM(0, "UVector<void*>::deallocate()")
 
       U_CHECK_MEMORY
 
@@ -70,13 +75,11 @@ public:
       UMemoryPool::_free(vec, _capacity, sizeof(void*));
       }
 
-   // Costruttori e distruttore
-
    UVector(uint32_t n = 64U) // create an empty vector with a size estimate
       {
       U_TRACE_REGISTER_OBJECT(0, UVector<void*>, "%u", n)
 
-#  ifdef U_RING_BUFFER
+#  if defined(U_RING_BUFFER) && !defined(U_STATIC_ONLY)
       head = tail = 0;
 #  endif
 
@@ -96,21 +99,21 @@ public:
 
    uint32_t size() const
       {
-      U_TRACE(0, "UVector<void*>::size()")
+      U_TRACE_NO_PARAM(0, "UVector<void*>::size()")
 
       U_RETURN(_length);
       }
 
    uint32_t capacity() const
       {
-      U_TRACE(0, "UVector<void*>::capacity()")
+      U_TRACE_NO_PARAM(0, "UVector<void*>::capacity()")
 
       U_RETURN(_capacity);
       }
 
    bool empty() const
       {
-      U_TRACE(0, "UVector<void*>::empty()")
+      U_TRACE_NO_PARAM(0, "UVector<void*>::empty()")
 
       U_RETURN(_length == 0);
       }
@@ -121,12 +124,8 @@ public:
 
    // ELEMENT ACCESS
 
-   const void* begin()  { return *vec; }
-   const void* end()    { return *(vec + _length); }
-   const void* rbegin() { return *(vec + _length - 1); }
-   const void* rend()   { return *(vec + 1); }
-   const void* front()  { return begin(); }
-   const void* back()   { return rbegin(); }
+   const void* front() { return *vec; }
+   const void*  back() { return *(vec + _length -1); }
 
    const void*& at(uint32_t pos) __pure
       {
@@ -170,7 +169,7 @@ public:
 
    const void* last() // return last element
       {
-      U_TRACE(0, "UVector<void*>::last()")
+      U_TRACE_NO_PARAM(0, "UVector<void*>::last()")
 
       U_CHECK_MEMORY
 
@@ -181,7 +180,7 @@ public:
 
    const void* pop() // remove last element
       {
-      U_TRACE(0, "UVector<void*>::pop()")
+      U_TRACE_NO_PARAM(0, "UVector<void*>::pop()")
 
       U_CHECK_MEMORY
 
@@ -197,7 +196,7 @@ public:
    void insert(uint32_t pos,             const void* elem); // add           elem before pos
    void insert(uint32_t pos, uint32_t n, const void* elem); // add n copy of elem before pos
 
-   void erase(uint32_t pos) // remove element at pos
+   void erase(uint32_t pos)
       {
       U_TRACE(1, "UVector<void*>::erase(%u)", pos)
 
@@ -206,7 +205,11 @@ public:
       U_INTERNAL_ASSERT_MINOR(pos, _length)
       U_INTERNAL_ASSERT_RANGE(1,_length,_capacity)
 
-      if (--_length) (void) U_SYSCALL(memmove, "%p,%p,%u", vec + pos, vec + pos + 1, (_length - pos) * sizeof(void*));
+#  ifdef U_APEX_ENABLE
+      if (--_length) (void) U_SYSCALL(apex_memmove, "%p,%p,%u", vec + pos, vec + pos +1, (_length - pos) * sizeof(void*));
+#  else
+      if (--_length) (void) U_SYSCALL(     memmove, "%p,%p,%u", vec + pos, vec + pos +1, (_length - pos) * sizeof(void*));
+#  endif
       }
 
    void erase(uint32_t first, uint32_t _last) // erase [first,last[
@@ -222,9 +225,24 @@ public:
 
       uint32_t new_length = (_length - (_last - first));
 
-      if (new_length) (void) U_SYSCALL(memmove, "%p,%p,%u", vec + first, vec + _last, (_length - _last) * sizeof(void*));
+#  ifdef U_APEX_ENABLE
+      if (new_length) (void) U_SYSCALL(apex_memmove, "%p,%p,%u", vec + first, vec + _last, (_length - _last) * sizeof(void*));
+#  else
+      if (new_length) (void) U_SYSCALL(     memmove, "%p,%p,%u", vec + first, vec + _last, (_length - _last) * sizeof(void*));
+#  endif
 
       _length = new_length;
+      }
+
+   const void* remove(uint32_t pos)
+      {
+      U_TRACE(0, "UVector<void*>::remove(%u)", pos)
+
+      const void* elem = vec[pos];
+
+      erase(pos);
+
+      return elem;
       }
 
    void swap(uint32_t from, uint32_t to)
@@ -246,14 +264,14 @@ public:
 
    const void* bh_min() const __pure
       {
-      U_TRACE(0, "UVector<void*>::bh_min()")
+      U_TRACE_NO_PARAM(0, "UVector<void*>::bh_min()")
 
       U_CHECK_MEMORY
 
       U_INTERNAL_ASSERT_MAJOR(_capacity, 0)
       U_INTERNAL_ASSERT_RANGE(1,_length,_capacity)
 
-      // The item at the top of the binary heap has the minimum key value.
+      // The item at the top of the binary heap has the minimum key value
 
       return vec[1];
       }
@@ -298,21 +316,47 @@ public:
 
    // EXTENSION
 
-   void sort(qcompare compare_obj)
+   static int qscomp(const void* p, const void* q)
+      {
+      U_TRACE(0, "UVector<void*>::qscomp(%p,%p)", p, q)
+
+#  ifdef U_STDCPP_ENABLE
+      /**
+       * The comparison function must follow a strict-weak-ordering
+       *
+       * 1) For all x, it is not the case that x < x (irreflexivity)
+       * 2) For all x, y, if x < y then it is not the case that y < x (asymmetry)
+       * 3) For all x, y, and z, if x < y and y < z then x < z (transitivity)
+       * 4) For all x, y, and z, if x is incomparable with y, and y is incomparable with z, then x is incomparable with z (transitivity of incomparability)
+       */
+
+      return (((UStringRep*)p)->comparenocase((UStringRep*)q) < 0);
+#  else
+      return (*(UStringRep**)p)->comparenocase(*(UStringRep**)q);
+#  endif
+      }
+
+   void sort(qcompare compare_obj = qscomp)
       {
       U_TRACE(0+256, "UVector<void*>::sort(%p)", compare_obj)
 
       U_INTERNAL_DUMP("_length = %u", _length)
 
-      U_INTERNAL_ASSERT_RANGE(2,_length,_capacity)
+   // U_INTERNAL_ASSERT_RANGE(2,_length,_capacity)
 
+#  ifdef U_STDCPP_ENABLE
+      std::sort(vec, vec+_length, compare_obj);
+#  else
       U_SYSCALL_VOID(qsort, "%p,%u,%d,%p", (void*)vec, _length, sizeof(void*), compare_obj);
+#  endif
       }
 
-#ifdef U_RING_BUFFER
+   void move(UVector<void*>& source); // add to end and reset source
+
+#if defined(U_RING_BUFFER) && !defined(U_STATIC_ONLY)
    bool isEmptyRingBuffer()
       {
-      U_TRACE(0, "UVector<void*>::isEmptyRingBuffer()")
+      U_TRACE_NO_PARAM(0, "UVector<void*>::isEmptyRingBuffer()")
 
       U_CHECK_MEMORY
 
@@ -328,7 +372,7 @@ public:
 
    uint32_t sizeRingBuffer()
       {
-      U_TRACE(0, "UVector<void*>::sizeRingBuffer()")
+      U_TRACE_NO_PARAM(0, "UVector<void*>::sizeRingBuffer()")
 
       U_CHECK_MEMORY
 
@@ -378,17 +422,15 @@ public:
 protected:
    const void** vec;
    uint32_t _length, _capacity;
-#ifdef U_RING_BUFFER
+#if defined(U_RING_BUFFER) && !defined(U_STATIC_ONLY)
    volatile uint32_t tail; //  input index
    volatile uint32_t head; // output index
 #endif
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UVector<void*>& operator=(const UVector<void*>&) = delete;
-#else
-   UVector<void*>& operator=(const UVector<void*>&) { return *this; }
-#endif
+   U_DISALLOW_ASSIGN(UVector<void*>)
+
+   friend class UThreadPool;
 
    template <class T> friend class UOrmTypeHandler;
    template <class T> friend class UJsonTypeHandler;
@@ -399,7 +441,7 @@ public:
 
    void clear() // erase all element
       {
-      U_TRACE(0+256, "UVector<T*>::clear()")
+      U_TRACE_NO_PARAM(0+256, "UVector<T*>::clear()")
 
       U_CHECK_MEMORY
 
@@ -409,16 +451,10 @@ public:
 
       if (_length)
          {
-         // coverity[RESOURCE_LEAK]
-#     ifndef U_COVERITY_FALSE_POSITIVE
          u_destroy<T>((const T**)vec, _length);
-#     endif
-
-         _length = 0;
+                                      _length = 0;
          }
       }
-
-   // Costruttori e distruttore
 
    UVector(uint32_t n = 64U) : UVector<void*>(n)
       {
@@ -434,12 +470,8 @@ public:
 
    // ELEMENT ACCESS
 
-   T* begin()  { return (T*) UVector<void*>::begin(); }
-   T* end()    { return (T*) UVector<void*>::end(); }
-   T* rbegin() { return (T*) UVector<void*>::rbegin(); }
-   T* rend()   { return (T*) UVector<void*>::rend(); }
-   T* front()  { return (T*) UVector<void*>::front(); }
-   T* back()   { return (T*) UVector<void*>::back(); }
+   T* back()  { return (T*) UVector<void*>::back(); }
+   T* front() { return (T*) UVector<void*>::front(); }
 
    T*& at(uint32_t pos)       __pure { return (T*&) UVector<void*>::at(pos); }
    T*  at(uint32_t pos) const __pure { return (T*)  UVector<void*>::at(pos); }
@@ -453,15 +485,9 @@ public:
       {
       U_TRACE(0, "UVector<T*>::replace(%u,%p)", pos, elem)
 
-      // coverity[RESOURCE_LEAK]
-#  ifndef U_COVERITY_FALSE_POSITIVE
       u_construct<T>(&elem, false);
-#  endif
 
-      // coverity[RESOURCE_LEAK]
-#  ifndef U_COVERITY_FALSE_POSITIVE
       u_destroy<T>((const T*)vec[pos]);
-#  endif
 
       UVector<void*>::replace(pos, elem);
       }
@@ -472,10 +498,7 @@ public:
       {
       U_TRACE(0, "UVector<T*>::push(%p)", elem)
 
-      // coverity[RESOURCE_LEAK]
-#  ifndef U_COVERITY_FALSE_POSITIVE
       u_construct<T>(&elem, istream_loading);
-#  endif
 
       UVector<void*>::push(elem);
       }
@@ -484,20 +507,20 @@ public:
 
    T* last() // return last element
       {
-      U_TRACE(0, "UVector<T*>::last()")
+      U_TRACE_NO_PARAM(0, "UVector<T*>::last()")
 
       T* elem = (T*) UVector<void*>::last();
 
-      U_RETURN_POINTER(elem,T);
+      U_RETURN_POINTER(elem, T);
       }
 
    T* pop() // remove last element
       {
-      U_TRACE(0, "UVector<T*>::pop()")
+      U_TRACE_NO_PARAM(0, "UVector<T*>::pop()")
 
       T* elem = (T*) UVector<void*>::pop();
 
-      U_RETURN_POINTER(elem,T);
+      U_RETURN_POINTER(elem, T);
       }
 
    T* pop_front() { return pop(); } // remove last element
@@ -508,10 +531,7 @@ public:
       {
       U_TRACE(0, "UVector<T*>::insert(%u,%p)", pos, elem)
 
-      // coverity[RESOURCE_LEAK]
-#  ifndef U_COVERITY_FALSE_POSITIVE
       u_construct<T>(&elem, false);
-#  endif
 
       UVector<void*>::insert(pos, elem);
       }
@@ -520,22 +540,16 @@ public:
       {
       U_TRACE(0, "UVector<T*>::insert(%u,%u,%p)", pos, n, elem)
 
-      // coverity[RESOURCE_LEAK]
-#  ifndef U_COVERITY_FALSE_POSITIVE
       u_construct<T>(elem, n);
-#  endif
 
       UVector<void*>::insert(pos, n, elem);
       }
 
-   void erase(uint32_t pos) // remove element at pos
+   void erase(uint32_t pos)
       {
       U_TRACE(0, "UVector<T*>::erase(%u)", pos)
 
-      // coverity[RESOURCE_LEAK]
-#  ifndef U_COVERITY_FALSE_POSITIVE
       u_destroy<T>((const T*)vec[pos]);
-#  endif
 
       UVector<void*>::erase(pos);
       }
@@ -544,12 +558,16 @@ public:
       {
       U_TRACE(0, "UVector<T*>::erase(%u,%u)",  first, _last)
 
-      // coverity[RESOURCE_LEAK]
-#  ifndef U_COVERITY_FALSE_POSITIVE
       u_destroy<T>((const T**)(vec+first), _last - first);
-#  endif
 
       UVector<void*>::erase(first, _last);
+      }
+
+   T* remove(uint32_t pos)
+      {
+      U_TRACE(0, "UVector<T*>::remove(%u)", pos)
+
+      return (T*) UVector<void*>::remove(pos);
       }
 
    // ASSIGNMENTS
@@ -563,15 +581,9 @@ public:
       U_INTERNAL_ASSERT_MAJOR(n, 0)
       U_INTERNAL_ASSERT(_length <= _capacity)
 
-      // coverity[RESOURCE_LEAK]
-#  ifndef U_COVERITY_FALSE_POSITIVE
       u_construct<T>(elem, n);
-#  endif
 
-      // coverity[RESOURCE_LEAK]
-#  ifndef U_COVERITY_FALSE_POSITIVE
       u_destroy<T>((const T**)vec, U_min(n, _length));
-#  endif
 
       if (n > _capacity)
          {
@@ -584,7 +596,7 @@ public:
       _length = n;
       }
 
-#ifdef U_RING_BUFFER
+#if defined(U_RING_BUFFER) && !defined(U_STATIC_ONLY)
    bool put(const T* elem) // queue an element at the end
       {
       U_TRACE(0, "UVector<T*>::put(%p)", elem)
@@ -606,10 +618,7 @@ public:
 
       if (nextTail != head)
          {
-         // coverity[RESOURCE_LEAK]
-#     ifndef U_COVERITY_FALSE_POSITIVE
          u_construct<T>(&elem, false);
-#     endif
 
          vec[tail] = elem;
 
@@ -680,35 +689,32 @@ public:
       U_INTERNAL_ASSERT_MAJOR(_capacity, 0)
       U_INTERNAL_ASSERT(_length <= _capacity)
 
-      // coverity[RESOURCE_LEAK]
-#  ifndef U_COVERITY_FALSE_POSITIVE
       u_construct<T>(&elem, false);
-#  endif
 
       if (++_length == _capacity) reserve(_capacity * 2);
 
       // i - insertion point
       // j - parent of i
-      // y - parent's entry in the heap.
+      // y - parent's entry in the heap
 
       T* y;
       uint32_t j;
 
-      // i initially indexes the new entry at the bottom of the heap.
+      // i initially indexes the new entry at the bottom of the heap
 
       uint32_t i = _length;
 
-      // Stop if the insertion point reaches the top of the heap.
+      // Stop if the insertion point reaches the top of the heap
 
       while (i >= 2)
          {
-         // j indexes the parent of i. y is the parent's entry.
+         // j indexes the parent of i. y is the parent's entry
 
          j = i / 2;
          y = (T*) vec[j];
 
          // We have the correct insertion point when the item is >= parent
-         // Otherwise we move the parent down and insertion point up.
+         // Otherwise we move the parent down and insertion point up
 
          if (*((T*)elem) >= *y) break;
 
@@ -717,14 +723,14 @@ public:
          i = j;
          }
 
-      // Insert the new item at the insertion point found.
+      // Insert the new item at the insertion point found
 
       vec[i] = elem;
       }
 
    T* bh_get()
       {
-      U_TRACE(0, "UVector<T*>::bh_get()")
+      U_TRACE_NO_PARAM(0, "UVector<T*>::bh_get()")
 
       U_CHECK_MEMORY
 
@@ -804,6 +810,8 @@ public:
       U_RETURN(U_NOT_FOUND);
       }
 
+   void move(UVector<T*>& source) { UVector<void*>::move(source); } // add to end and reset source
+
    // STREAMS
 
 #ifdef U_STDCPP_ENABLE
@@ -820,7 +828,9 @@ public:
          {
          istream_loading = true; // NB: we need this flag for distinguish this operation in type's ctor...
 
-         T* _elem = U_NEW(T);
+         T* _elem;
+
+         U_NEW(T, _elem, T);
 
          streambuf* sb = is.rdbuf();
 
@@ -856,10 +866,7 @@ public:
             else          v.push(_elem);
             }
 
-         // coverity[RESOURCE_LEAK]
-#     ifndef U_COVERITY_FALSE_POSITIVE
          u_destroy<T>((const T*)_elem);
-#     endif
 
          istream_loading = false;
          }
@@ -894,33 +901,62 @@ public:
       return _os;
       }
 
-#  ifdef DEBUG
+# ifdef DEBUG
    const char* dump(bool reset) const { return UVector<void*>::dump(reset); }
-#  endif
+# endif
 #endif
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UVector<T*>& operator=(const UVector<T*>&) = delete;
-#else
-   UVector<T*>& operator=(const UVector<T*>&) { return *this; }
-#endif
+   U_DISALLOW_ASSIGN(UVector<T*>)
+
+   friend class UThreadPool;
 };
 
-// specializzazione stringa
+#if defined(U_STDCPP_ENABLE) && defined(HAVE_CXX11)
+class UVectorStringIter { // this class is to make work Range-based for loop: for ( UString x : UVector<UString> ) loop_statement      
+public:
+   explicit UVectorStringIter(const UVector<UString>* p_vec, uint32_t pos) : _pos(pos), _p_vec(p_vec) {}
+
+   // these three methods form the basis of an iterator for use with a range-based for loop
+   bool operator!=(const UVectorStringIter& other) const { return (_pos != other._pos); }
+
+   // this method must be defined after the definition of UVector<UString> since it needs to use it
+   inline UString operator*() const;
+
+   const UVectorStringIter& operator++()
+      {
+      ++_pos;
+
+      // although not strictly necessary for a range-based for loop
+      // following the normal convention of returning a value from
+      // operator++ is a good idea
+
+      return *this;
+      }
+
+private:
+   uint32_t _pos;
+   const UVector<UString>* _p_vec;
+};
+#endif
 
 template <> class U_EXPORT UVector<UString> : public UVector<UStringRep*> {
 public:
 
-   // Costruttori e distruttore
-
-   UVector(uint32_t n = 64U) : UVector<UStringRep*>(n)
+   explicit UVector(uint32_t n = 64) : UVector<UStringRep*>(n)
       {
       U_TRACE_REGISTER_OBJECT(0, UVector<UString>, "%u", n)
       }
 
-   UVector(const UString& str,       char  delim);
-   UVector(const UString& str, const char* delim = 0);
+   explicit UVector(const UString& str,       char  delim);
+   explicit UVector(const UString& str, const char* delim = 0);
+
+   explicit UVector(UVector<UString>& source, uint32_t n) : UVector<UStringRep*>(n)
+      {
+      U_TRACE_REGISTER_OBJECT(0, UVector<UString>, "%p,%u", &source, n)
+
+      UVector<void*>::move(source); // add to end and reset source
+      }
 
    ~UVector()
       {
@@ -929,18 +965,48 @@ public:
       U_ASSERT(check_memory())
       }
 
+#if defined(U_STDCPP_ENABLE) && defined(HAVE_CXX11)
+    UVectorStringIter begin() const { return UVectorStringIter(this, 0); }
+    UVectorStringIter   end() const { return UVectorStringIter(this, _length); }
+
+# ifdef U_COMPILER_RANGE_FOR
+   explicit UVector(const std::initializer_list<UString>& l) : UVector<UStringRep*>(l.size())
+      {
+      U_TRACE(0, "UVector<UString>::UVector<UString>(%p)", &l)
+
+      for (UString item : l) push_back(item);
+      }
+# endif
+#endif
+
    // ELEMENT ACCESS
 
-   UString begin()  { return UString(UVector<UStringRep*>::begin()); }
-   UString end()    { return UString(UVector<UStringRep*>::end()); }
-   UString rbegin() { return UString(UVector<UStringRep*>::rbegin()); }
-   UString rend()   { return UString(UVector<UStringRep*>::rend()); }
-   UString front()  { return UString(UVector<UStringRep*>::front()); }
-   UString back()   { return UString(UVector<UStringRep*>::back()); }
+   UString front() { return UString(UVector<UStringRep*>::front()); }
+   UString  back() { return UString(UVector<UStringRep*>::back()); }
 
-   UString at(uint32_t pos) const __pure;
+   UString at(uint32_t pos) const __pure
+      {
+      U_TRACE(0, "UVector<UString>::at(%u)", pos)
 
-   UString operator[](uint32_t pos) const;
+      UString result(UVector<UStringRep*>::at(pos));
+
+      U_RETURN_STRING(result);
+      }
+
+   UString operator[](uint32_t pos) const
+      {
+      U_TRACE(0, "UVector<UString>::operator[](%u)", pos)
+
+#  ifdef DEBUG
+      if (pos >= _length)
+         {
+         U_ERROR("Array access out of bounds - UVector<UString>::at(pos:%u >= _length:%u) _capacity = %u elem(0) = %V elem(%u) = %V",
+                  pos, _length, _capacity, vec[0], _length-1, (_length ? vec[_length-1] : UStringRep::string_rep_null));
+         }
+#  endif
+
+      return at(pos);
+      }
 
    char* c_pointer(uint32_t pos)
       {
@@ -985,7 +1051,7 @@ public:
 
    UString last() // return last element
       {
-      U_TRACE(0, "UVector<UString>::last()")
+      U_TRACE_NO_PARAM(0, "UVector<UString>::last()")
 
       UStringRep* rep = UVector<UStringRep*>::last();
 
@@ -998,7 +1064,7 @@ public:
 
    UString pop() // remove last element
       {
-      U_TRACE(0, "UVector<UString>::pop()")
+      U_TRACE_NO_PARAM(0, "UVector<UString>::pop()")
 
       UStringRep* rep = UVector<UStringRep*>::pop();
 
@@ -1052,7 +1118,7 @@ public:
       UVector<UStringRep*>::assign(n, str.rep);
       }
 
-#ifdef U_RING_BUFFER
+#if defined(U_RING_BUFFER) && !defined(U_STATIC_ONLY)
    bool put(const UString& str) // queue an element at the end
       {
       U_TRACE(0, "UVector<UString>::put(%V)", str.rep)
@@ -1090,7 +1156,7 @@ public:
 
    UString bh_get()
       {
-      U_TRACE(0, "UVector<UString>::bh_get()")
+      U_TRACE_NO_PARAM(0, "UVector<UString>::bh_get()")
 
       UStringRep* rep = UVector<UStringRep*>::bh_get();
 
@@ -1108,7 +1174,8 @@ public:
 
    // EXTENSION
 
-   UString join(const char* delim = "\n", uint32_t delim_len = 1);
+   UString join(      char  delim);
+   UString join(const char* delim, uint32_t delim_len);
 
    uint32_t split(const    char* str, uint32_t len,       char  delim);
    uint32_t split(const UString& str,                     char  delim);     // NB: use substr(), so dependency from str...
@@ -1124,8 +1191,6 @@ public:
 
    uint32_t find(     const char* s, uint32_t n) __pure;
    uint32_t findRange(const char* s, uint32_t n, uint32_t start, uint32_t end) __pure;
-
-   uint32_t find(const char* s) { return find(s, u__strlen((char*)s, __PRETTY_FUNCTION__)); }
 
    // Check equality with string at pos
 
@@ -1146,14 +1211,19 @@ public:
       return _isEqual(_vec, ignore_case); 
       }
 
-   static int qscomp(const void* p, const void* q)
+   void sort(bool ignore_case = false)
       {
-      U_TRACE(0, "UVector<UString>::qscomp(%p,%p)", p, q)
+      U_TRACE(0, "UVector<UString>::sort(%b)", ignore_case)
 
-      return (*(UStringRep**)p)->comparenocase(*(UStringRep**)q);
+      U_INTERNAL_DUMP("_length = %u", _length)
+
+   // U_INTERNAL_ASSERT_RANGE(2,_length,_capacity)
+
+      if (ignore_case == false) mksort((UStringRep**)vec, _length, 0);
+      else                      UVector<void*>::sort();
       }
 
-   void sort(bool ignore_case = false);
+   void move(UVector<UString>& source) { UVector<void*>::move(source); } // add to end and reset source
 
    // AS SET
 
@@ -1171,6 +1241,21 @@ public:
    uint32_t contains(const UString& str,    bool ignore_case = false);
    bool     contains(UVector<UString>& vec, bool ignore_case = false);
    bool  isContained(const UString& str,    bool ignore_case = false) { return (contains(str, ignore_case) != U_NOT_FOUND); }
+
+   uint32_t getSpaceToDump() const
+      {
+      U_TRACE_NO_PARAM(0, "UVector<UString>::getSpaceToDump()")
+
+      U_CHECK_MEMORY
+
+      U_INTERNAL_DUMP("_length = %u", _length)
+
+      uint32_t space = U_CONSTANT_SIZE("( )");
+
+      for (uint32_t i = 0; i < _length; ++i) space += at(i).getSpaceToDump() + 1;
+
+      U_RETURN(space);
+      }
 
    // OPERATOR
 
@@ -1193,13 +1278,7 @@ private:
    static void mksort(UStringRep** a, int n, int depth);
           bool _isEqual(UVector<UString>& vec, bool ignore_case);
 
-// uint32_t findWithDataOffset(const char* s, uint32_t n, uint32_t offset = 0) __pure;
-
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UVector<UString>& operator=(const UVector<UString>&) = delete;
-#else
-   UVector<UString>& operator=(const UVector<UString>&) { return *this; }
-#endif
+   U_DISALLOW_ASSIGN(UVector<UString>)
 
    friend class UHTTP;
    friend class UHttpPlugIn;
@@ -1207,4 +1286,7 @@ private:
    friend class UNoCatPlugIn;
 };
 
+#if defined(U_STDCPP_ENABLE) && defined(HAVE_CXX11)
+inline UString UVectorStringIter::operator* () const { return _p_vec->at(_pos); }
+#endif
 #endif

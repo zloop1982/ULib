@@ -15,13 +15,13 @@
 
 const xmlChar* UXML2Node::getNameSpaceUri()
 {
-   U_TRACE(0, "UXML2Node::getNameSpaceUri()")
+   U_TRACE_NO_PARAM(0, "UXML2Node::getNameSpaceUri()")
 
    U_INTERNAL_ASSERT_POINTER(impl_)
 
    // check for impl_ if is actually of type xmlDoc, instead of just xmlNode.
    // This can be an issue when calling this method on a UXML2Node returned by find().
-   // Therefore, a call to impl_->ns would be invalid.
+   // Therefore, a call to impl_->ns would be invalid
 
    const xmlChar* result = (impl_->type != XML_DOCUMENT_NODE && impl_->ns && impl_->ns->href ? impl_->ns->href : 0);
 

@@ -74,7 +74,7 @@ void ULDAPEntry::set(char* attribute, char** values, int index_entry)
          {
          U_INTERNAL_DUMP("ULDAPEntry(%d): %S", k, attr_name[j])
 
-         attr_val[k] = U_NEW(UString((void*)values[0]));
+         U_NEW(UString, attr_val[k], UString((void*)values[0], u__strlen(values[0], __PRETTY_FUNCTION__)));
 
          for (j = 1; values[j]; ++j)
             {
@@ -101,7 +101,7 @@ void ULDAPEntry::set(char* attribute, char* value, uint32_t len, int index_entry
          {
          U_INTERNAL_DUMP("ULDAPEntry(%d): %S", k, attr_name[j])
 
-         attr_val[k] = U_NEW(UString((void*)value, len));
+         U_NEW(UString, attr_val[k], UString((void*)value, len));
 
          U_INTERNAL_DUMP("value = %V", attr_val[k]->rep)
 
@@ -150,7 +150,7 @@ const char* ULDAPEntry::getCStr(int index_names, int index_entry)
 
 void ULDAP::clear()
 {
-   U_TRACE(1, "ULDAP::clear()")
+   U_TRACE_NO_PARAM(1, "ULDAP::clear()")
 
    if (ludpp)
       {
@@ -202,7 +202,7 @@ void ULDAP::clear()
 
 void ULDAP::setStatus()
 {
-   U_TRACE(0, "ULDAP::setStatus()")
+   U_TRACE_NO_PARAM(0, "ULDAP::setStatus()")
 
    U_CHECK_MEMORY
 
@@ -309,9 +309,10 @@ void ULDAP::setStatus()
 
    char* descr = ldap_err2string(result);
 
-   /* get a meaningful error string back from the security library
+   /**
+    * get a meaningful error string back from the security library
     * this function should be called, if ldap_err2string doesn't
-    * identify the error code.
+    * identify the error code
     */
 #if defined(HAVE_LDAP_SSL_H) && !defined(_MSWINDOWS_) && !defined(HAVE_WINLDAP_H)
    if (descr == 0) descr = (char*)ldapssl_err2string(result);
@@ -319,14 +320,15 @@ void ULDAP::setStatus()
 
    U_INTERNAL_ASSERT_EQUALS(u_buffer_len, 0)
 
-   u_buffer_len = u__snprintf(u_buffer, U_BUFFER_SIZE, "%s (%d, %s)", (result >= 0 && result < 97 ? errlist[result] : ""), result, descr);
+   u_buffer_len = u__snprintf(u_buffer, U_BUFFER_SIZE, U_CONSTANT_TO_PARAM("%s (%d, %s)"), (result >= 0 && result < 97 ? errlist[result] : ""), result, descr);
 }
 
 #if defined(_MSWINDOWS_) && defined(HAVE_WINLDAP_H)
 
-/* Split 'str' into strings separated by commas.
+/**
+ * Split 'str' into strings separated by commas.
  *
- * Note: res[] points into 'str'.
+ * Note: res[] points into 'str'
  */
 
 U_NO_EXPORT char** ULDAP::split_str(char* str)
@@ -366,15 +368,16 @@ bool ULDAP::init(const char* url)
 #else
    result = LDAP_INVALID_SYNTAX;
 
-   /* Break apart the pieces of an LDAP URL.
+   /**
+    * Break apart the pieces of an LDAP URL
     *
     * Syntax:
     *   ldap://<hostname>:<port>/<base_dn>?<attributes>?<scope>?<filter>?<ext>
     *
-    * Defined in RFC4516 section 2.
+    * Defined in RFC4516 section 2
     */
 
-   Url _url(url, strlen(url));
+   Url _url(url, u__strlen(url, __PRETTY_FUNCTION__));
 
    ludpp = (LDAPURLDesc*) calloc(1, sizeof(LDAPURLDesc));
 
@@ -385,7 +388,7 @@ bool ULDAP::init(const char* url)
 
    U_INTERNAL_DUMP("host = %S dn = %S", ludpp->lud_host, ludpp->lud_dn)
 
-   // parse attributes, skip "??".
+   // parse attributes, skip "??"
 
    UString query = _url.getQuery();
 
@@ -448,75 +451,87 @@ next:
       {
 #  ifdef DEBUG
       char buffer[1024];
+      const char* descr  = "???";
+      const char* errstr = "";
 
       switch (result)
          {
 #  if !defined(_MSWINDOWS_) || !defined(HAVE_WINLDAP_H)
          case LDAP_INVALID_SYNTAX:
-            (void) sprintf(buffer, "LDAP_INVALID_SYNTAX (%d, %s)", result, "Invalid URL syntax");
+            descr  = "LDAP_INVALID_SYNTAX";
+            errstr = "Invalid URL syntax";
          break;
 
          case LDAP_URL_ERR_MEM:
-            (void) sprintf(buffer, "LDAP_URL_ERR_MEM (%d, %s)", result, "Cannot allocate memory space");
+            descr  = "LDAP_URL_ERR_MEM";
+            errstr = "Cannot allocate memory space";
          break;
 
          case LDAP_URL_ERR_PARAM:
-            (void) sprintf(buffer, "LDAP_URL_ERR_PARAM (%d, %s)", result, "Invalid parameter");
+            descr  = "LDAP_URL_ERR_PARAM";
+            errstr = "Invalid parameter";
          break;
 
          case LDAP_URL_ERR_BADSCOPE:
-            (void) sprintf(buffer, "LDAP_URL_ERR_BADSCOPE (%d, %s)", result, "Invalid or missing scope string");
+            descr  = "LDAP_URL_ERR_BADSCOPE";
+            errstr = "Invalid or missing scope string";
          break;
 
 #     if defined(HAVE_LDAP_SSL_H)
          case LDAP_URL_ERR_NOTLDAP:
-            (void) sprintf(buffer, "LDAP_URL_ERR_NOTLDAP (%d, %s)", result, "URL doesn't begin with \"ldap://\"");
+            descr  = "LDAP_URL_ERR_NOTLDAP";
+            errstr = "URL doesn't begin with \"ldap://\"";
          break;
 
          case LDAP_URL_ERR_NODN:
-            (void) sprintf(buffer, "LDAP_URL_ERR_NODN (%d, %s)", result, "URL has no DN (required)");
+            descr  = "LDAP_URL_ERR_NODN";
+            errstr = "URL has no DN (required)";
          break;
 
          case LDAP_URL_UNRECOGNIZED_CRITICAL_EXTENSION:
-            (void) sprintf(buffer, "LDAP_URL_UNRECOGNIZED_CRITICAL_EXTENSION (%d, %s)", result, "");
+            descr  = "LDAP_URL_UNRECOGNIZED_CRITICAL_EXTENSION";
+            errstr = "";
          break;
 #     else
          case LDAP_URL_ERR_BADSCHEME:
-            (void) sprintf(buffer, "LDAP_URL_ERR_BADSCHEME (%d, %s)", result, "URL doesnt begin with \"ldap[s]://\"");
+            descr  = "LDAP_URL_ERR_BADSCHEME";
+            errstr = "URL doesnt begin with \"ldap[s]://\"";
          break;
 
          case LDAP_URL_ERR_BADENCLOSURE:
-            (void) sprintf(buffer, "LDAP_URL_ERR_BADENCLOSURE (%d, %s)", result, "URL is missing trailing \">\"");
+            descr  = "LDAP_URL_ERR_BADENCLOSURE";
+            errstr = "URL is missing trailing \">\"";
          break;
 
          case LDAP_URL_ERR_BADURL:
-            (void) sprintf(buffer, "LDAP_URL_ERR_BADURL (%d, %s)", result, "Invalid URL");
+            descr  = "LDAP_URL_ERR_BADURL";
+            errstr = "Invalid URL";
          break;
 
          case LDAP_URL_ERR_BADHOST:
-            (void) sprintf(buffer, "LDAP_URL_ERR_BADHOST (%d, %s)", result, "Host port is invalid");
+            descr  = "LDAP_URL_ERR_BADHOST";
+            errstr = "Host port is invalid";
          break;
 
          case LDAP_URL_ERR_BADATTRS:
-            (void) sprintf(buffer, "LDAP_URL_ERR_BADATTRS (%d, %s)", result, "Invalid or missing attributes");
+            descr  = "LDAP_URL_ERR_BADATTRS";
+            errstr = "Invalid or missing attributes";
          break;
 
          case LDAP_URL_ERR_BADFILTER:
-            (void) sprintf(buffer, "LDAP_URL_ERR_BADFILTER (%d, %s)", result, "Invalid or missing filter");
+            descr  = "LDAP_URL_ERR_BADFILTER";
+            errstr = "Invalid or missing filter";
          break;
 
          case LDAP_URL_ERR_BADEXTS:
-            (void) sprintf(buffer, "LDAP_URL_ERR_BADEXTS (%d, %s)", result, "Invalid or missing extensions");
+            descr  = "LDAP_URL_ERR_BADEXTS";
+            errstr = "Invalid or missing extensions";
          break;
 #     endif
 #  endif
-
-         default:
-            (void) sprintf(buffer, "??? (%d, %s)", result, "");
-         break;
          }
 
-      U_INTERNAL_DUMP("ldap_url_parse() failed - %s", buffer)
+      U_INTERNAL_DUMP("ldap_url_parse() failed - %.*s", u__snprintf(buffer, sizeof(buffer), U_CONSTANT_TO_PARAM("(%d, %s) - %s"), result, descr, errstr), buffer)
 #  endif
 
       U_RETURN(false);
@@ -532,14 +547,11 @@ next:
       isSecure = true;
 
 #  ifdef HAS_NOVELL_LDAPSDK
-      /*
-       * Initialize the ssl library. The first parameter of
-       * ldapssl_client_init is a certificate file. However, when used
-       * the file must be a DER encoded file. 0 is passed in for the
-       * certificate file because ldapssl_set_verify_mode will be used
-       * to specify no server certificate verification.
-       * ldapssl_client_init is an application level initialization not a
-       * thread level initilization and should be done once.
+      /**
+       * Initialize the ssl library. The first parameter of ldapssl_client_init is a certificate file. However, when used
+       * the file must be a DER encoded file. 0 is passed in for the certificate file because ldapssl_set_verify_mode will be used
+       * to specify no server certificate verification. ldapssl_client_init is an application level initialization not a
+       * thread level initilization and should be done once
        */
 
       result = U_SYSCALL(ldapssl_client_init, "%p,%p", 0,  /* DER encoded cert file */
@@ -547,17 +559,13 @@ next:
 
       if (result != LDAP_SUCCESS) U_RETURN(false);
 
-      /*
-       * Configure the LDAP SSL library to not verify the server certificate.
-       * The default is LDAPSSL_VERIFY_SERVER which validates all servers
-       * against the trusted certificates normally passed in
-       * during ldapssl_client_init or ldapssl_add_trusted_cert.
+      /**
+       * Configure the LDAP SSL library to not verify the server certificate. The default is LDAPSSL_VERIFY_SERVER which validates all servers
+       * against the trusted certificates normally passed in during ldapssl_client_init or ldapssl_add_trusted_cert.
        *
-       * WARNING:  Setting the verify mode to LDAPSSL_VERIFY_NONE turns off
-       * server certificate verification.  This means all servers are
-       * considered trusted.  This should be used only in controlled
-       * environments where encrypted communication between servers and
-       * clients is desired but server verification is not necessary.
+       * WARNING:  Setting the verify mode to LDAPSSL_VERIFY_NONE turns off server certificate verification. This means all servers are
+       * considered trusted.  This should be used only in controlled environments where encrypted communication between servers and
+       * clients is desired but server verification is not necessary
        */
 
       result = U_SYSCALL(ldapssl_set_verify_mode, "%d", LDAPSSL_VERIFY_NONE);

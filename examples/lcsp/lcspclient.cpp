@@ -19,7 +19,7 @@ public:
 
    // COSTRUTTORE
 
-            UClientLCSP(UFileConfig* cfg) : USOAPClient<T>(cfg) {}
+   explicit UClientLCSP(UFileConfig* cfg) : USOAPClient<T>(cfg) {}
    virtual ~UClientLCSP()                                       {}
 
    // OBJECT FOR METHOD REQUEST
@@ -569,6 +569,8 @@ public:
       U_TRACE(5, "Application::run(%d,%p,%p)", argc, argv, env)
 
       UApplication::run(argc, argv, env);
+
+      UString::str_allocate(STR_ALLOCATE_SOAP);
 
       // manage options
 

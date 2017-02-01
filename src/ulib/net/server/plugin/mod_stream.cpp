@@ -44,8 +44,8 @@ UStreamPlugIn::UStreamPlugIn()
 {
    U_TRACE_REGISTER_OBJECT(0, UStreamPlugIn, "")
 
-   uri_path     = U_NEW(UString);
-   content_type = U_NEW(UString);
+   U_NEW(UString, uri_path,     UString);
+   U_NEW(UString, content_type, UString);
 }
 
 UStreamPlugIn::~UStreamPlugIn()
@@ -72,7 +72,6 @@ int UStreamPlugIn::handlerConfig(UFileConfig& cfg)
 {
    U_TRACE(0, "UStreamPlugIn::handlerConfig(%p)", &cfg)
 
-   // ------------------------------------------------------------------------------------------------------------------------
    // stream - plugin parameters
    // ------------------------------------------------------------------------------------------------------------------------
    // URI_PATH     specifies the local part of the URL path at which you would like the content to appear (Ex. /my/video.mjpeg)
@@ -87,7 +86,7 @@ int UStreamPlugIn::handlerConfig(UFileConfig& cfg)
       {
       UString x = cfg.at(U_CONSTANT_TO_PARAM("METADATA"));
 
-      if (x) metadata = U_NEW(UString(x));
+      if (x) U_NEW(UString, metadata, UString(x));
 
       *uri_path     = cfg.at(U_CONSTANT_TO_PARAM("URI_PATH"));
       *content_type = cfg.at(U_CONSTANT_TO_PARAM("CONTENT_TYPE"));
@@ -102,7 +101,7 @@ int UStreamPlugIn::handlerConfig(UFileConfig& cfg)
 
 int UStreamPlugIn::handlerInit()
 {
-   U_TRACE(0, "UStreamPlugIn::handlerInit()")
+   U_TRACE_NO_PARAM(0, "UStreamPlugIn::handlerInit()")
 
    static int fd_stderr;
 
@@ -112,7 +111,7 @@ int UStreamPlugIn::handlerInit()
 
    bool result = command->execute(0, (UString*)-1, -1, fd_stderr);
 
-#ifdef U_LOG_ENABLE
+#ifndef U_LOG_DISABLE
    UServer_Base::logCommandMsgError(command->getCommand(), true);
 #endif
 
@@ -133,13 +132,13 @@ int UStreamPlugIn::handlerInit()
 
 int UStreamPlugIn::handlerRun()
 {
-   U_TRACE(0, "UStreamPlugIn::handlerRun()")
+   U_TRACE_NO_PARAM(0, "UStreamPlugIn::handlerRun()")
 
    U_INTERNAL_ASSERT_EQUALS(pid,-1)
 
-   rbuf = U_NEW(URingBuffer((URingBuffer::rbuf_data*) UServer_Base::getPointerToDataShare(ptr), U_RING_BUFFER_SIZE));
+   U_NEW(URingBuffer, rbuf, URingBuffer((URingBuffer::rbuf_data*) UServer_Base::getPointerToDataShare(ptr), U_RING_BUFFER_SIZE));
 
-   // NB: feeding by a child of this...
+   // NB: we are feeding by a child of us...
 
    UProcess proc;
 
@@ -183,13 +182,13 @@ int UStreamPlugIn::handlerRun()
 
 int UStreamPlugIn::handlerRequest()
 {
-   U_TRACE(0, "UStreamPlugIn::handlerRequest()")
+   U_TRACE_NO_PARAM(0, "UStreamPlugIn::handlerRequest()")
 
    if (U_HTTP_URI_EQUAL(*uri_path) == false) U_RETURN(U_PLUGIN_HANDLER_GO_ON);
 
    U_http_info.nResponseCode = HTTP_OK;
 
-   UHTTP::setResponse(content_type, 0);
+   UHTTP::setResponse(*content_type, 0);
 
    UClientImage_Base::setCloseConnection();
 

@@ -13,7 +13,7 @@ It include as application example a powerful search engine with relative [web in
 
 The current version offers the following features :
 
-   * HTTP/1.0 and 1.1 protocols supported and initial implementations of HTTP/2.
+   * HTTP/1.0 and 1.1 protocols supported and experimental implementations of HTTP/2 ([h2spec compliant](https://github.com/summerwind/h2spec)).
    * Persistent connections for HTTP/1.1 and Keep-Alive support for HTTP/1.0.
    * Browser cache management (headers: If-Modified-Since/Last-modified).
    * Chunk-encoding transfers support.
@@ -22,11 +22,12 @@ The current version offers the following features :
    * Support for automatic update of caching document root with inotify (on Linux).
    * Support for pipelining.
    * Support for virtual hosts (also with SSL).
-   * Support for basic/digest authentication.
+   * Support for basic/digest authentication optionally based on url mask.
    * Support for directory listings via basic/digest authentication.
    * Support for uri protection.
    * Support for aliases/redirection.
    * Support for switch the site to a maintenance page only.
+   * Support for URL traffic based throttling (experimental).
    * Support for overriden of error messages by local document (ErrorDocument/40x|500.html).
    * Support for RewriteRule (lighttpd-like) that check for file existence as they do on Apache, some CMS (SilverStripe) require it.
    * Support for (apache-like) log [NCSA extended/combined format](http://httpd.apache.org/docs/2.0/mod/mod_log_config.html)
@@ -67,15 +68,15 @@ The current version offers the following features :
        * [DNS rebinding](http://en.wikipedia.org/wiki/DNS_rebinding) prevention by RFC1918 filtering and Host header validation.
        * selective uri support (DOS regex) for [HTTP Strict Transport Security](https://developer.mozilla.org/en/Security/HTTP_Strict_Transport_Security).
    * Immune to [Slow Read DoS attack](http://code.google.com/p/slowhttptest/)
-   * [High SSL server quality score](https://www.ssllabs.com/ssltest/analyze.html?d=wifi-aaa.comune.fi.it)
+   * [High SSL server quality score](https://www.ssllabs.com/ssltest/analyze.html?d=wifi-aaa2.comune.fi.it)
 
 ## Who is Using ULib
 
-It is the main software component of [city of Florence wireless network](http://wifi-aaa.comune.fi.it/login?mac=00%3A00%3A00%3A00%3A00%3A00&ip=172.22.11.124&redirect=http%3A//pasta.dianxinos.com/api/data&gateway=159.213.248.230%3A5280&timeout=0&token=1810300063&ap=05@159.213.248.230)
+It is the main software component of [city of Florence wireless network](http://wifi-aaa2.comune.fi.it/login?mac=00%3A00%3A00%3A00%3A00%3A00&ip=172.22.11.124&redirect=http%3A//pasta.dianxinos.com/api/data&gateway=159.213.248.230%3A5280&timeout=0&token=1810300063&ap=05@159.213.248.230&ts=ts=21467819142)
 
 ## Benchmark
 
-userver application server is in the [10th round of TechEmpower's web framework benchmarks](http://www.techempower.com/benchmarks). This independent work tests a large number of frameworks and platforms against a set of tests common to web applications, such as JSON serialization, database queries and templating.
+userver application server is since 10th round in the [TechEmpower's web framework benchmarks](http://www.techempower.com/benchmarks). This independent work tests a large number of frameworks and platforms against a set of tests common to web applications, such as JSON serialization, database queries and templating.
 
 ## Contributing
 

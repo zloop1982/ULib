@@ -22,20 +22,42 @@
 #define U_MINIZ_COMPRESS "\x89MNZ" // "\211MNZ" "\x89\x4d\x4e\x5a"
 
 #define U_PATH_MAX (1024U - (1 + sizeof(ustringrep)))
-// -------------------------------------------------------------------------------------------------------------------
+// ---------------------------------------------------------------------------------
 // NB: the value must be a stack type boundary, see UStringRep::checkIfMReserve()...
-// -------------------------------------------------------------------------------------------------------------------
-#define U_CAPACITY (U_MAX_SIZE_PREALLOCATE - (1 + sizeof(ustringrep))) // UStringRep::max_size(U_MAX_SIZE_PREALLOCATE)
-// -------------------------------------------------------------------------------------------------------------------
+// ---------------------------------------------------------------------------------
+#define U_CAPACITY (U_MAX_SIZE_PREALLOCATE - (1 + sizeof(ustringrep)))
+// ---------------------------------------------------------------------------------
 #define U_STRING_MAX_SIZE (((U_NOT_FOUND-sizeof(ustringrep))/sizeof(char))-4096)
 
-// NB: Optimization if it is enough a resolution of one second
-#undef U_gettimeofday
-
-#ifdef ENABLE_THREAD
-#  define U_gettimeofday { if (u_pthread_time == 0) (void) U_SYSCALL(gettimeofday, "%p,%p", u_now, 0); }
+// default move assignment operator
+#if defined(U_COMPILER_RVALUE_REFS) && \
+  (defined(U_COVERITY_FALSE_POSITIVE) || !defined(__GNUC__) || GCC_VERSION_NUM > 50300) // GCC has problems dealing with move constructor, so turn the feature on for 5.3.1 and above, only
+#  define U_MOVE_ASSIGNMENT(TypeName) \
+      TypeName(TypeName &&) = default; \
+      TypeName& operator=(TypeName &&) = default;
 #else
-#  define U_gettimeofday                            (void) U_SYSCALL(gettimeofday, "%p,%p", u_now, 0);
+#  define U_MOVE_ASSIGNMENT(TypeName)
+#endif
+
+// Put this in the declarations for a class to be unassignable
+#ifdef U_COMPILER_DELETE_MEMBERS
+#  define U_DISALLOW_ASSIGN(TypeName) \
+      void operator=(const TypeName&) = delete;
+#else
+#  define U_DISALLOW_ASSIGN(TypeName) \
+      void operator=(const TypeName&) {}
+#endif
+
+// A macro to disallow the copy constructor and operator= functions.
+// This should be used in the private: declarations for a class
+#ifdef U_COMPILER_DELETE_MEMBERS
+#  define U_DISALLOW_COPY_AND_ASSIGN(TypeName) \
+      TypeName(const TypeName&) = delete; \
+      void operator=(const TypeName&) = delete;
+#else
+#  define U_DISALLOW_COPY_AND_ASSIGN(TypeName) \
+      TypeName(const TypeName&) {} \
+      void operator=(const TypeName&) {}
 #endif
 
 #endif

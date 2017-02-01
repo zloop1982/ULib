@@ -166,8 +166,6 @@ typedef struct shib_dir_config {
 
 #include <ulib/string.h>
 
-template <class T> class UVector;
-
 class UShibTarget : public ShibTarget {
 public:
    shib_dir_config* m_dc;
@@ -241,8 +239,6 @@ public:
 class U_EXPORT UShibPlugIn : public UServerPlugIn {
 public:
 
-   // COSTRUTTORI
-
             UShibPlugIn();
    virtual ~UShibPlugIn();
 
@@ -256,7 +252,6 @@ public:
    // Connection-wide hooks
 
    virtual int handlerRequest();
-   virtual int handlerReset();
 
    // DEBUG
 
@@ -269,13 +264,7 @@ protected:
    ShibTargetConfig* conf;
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UShibPlugIn(const UShibPlugIn&) = delete;
-   UShibPlugIn& operator=(const UShibPlugIn&) = delete;
-#else
-   UShibPlugIn(const UShibPlugIn&) : UServerPlugIn() {}
-   UShibPlugIn& operator=(const UShibPlugIn&)        { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UShibPlugIn)
 };
 
 #endif

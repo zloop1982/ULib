@@ -37,8 +37,6 @@ public:
       int pread[FD_SETSIZE];
    } rbuf_data;
 
-   // Costruttori
-
     URingBuffer(rbuf_data* _ptr, uint32_t map_size);
    ~URingBuffer();
 
@@ -112,7 +110,7 @@ public:
 
    int free()
       {
-      U_TRACE(0, "URingBuffer::free()")
+      U_TRACE_NO_PARAM(0, "URingBuffer::free()")
 
       U_CHECK_MEMORY
 
@@ -175,13 +173,7 @@ private:
 
    void checkLocking() U_NO_EXPORT;
 
-#ifdef U_COMPILER_DELETE_MEMBERS
-   URingBuffer(const URingBuffer&) = delete;
-   URingBuffer& operator=(const URingBuffer&) = delete;
-#else
-   URingBuffer(const URingBuffer&)            {}
-   URingBuffer& operator=(const URingBuffer&) { return *this; }
-#endif      
+   U_DISALLOW_COPY_AND_ASSIGN(URingBuffer)
 
    friend class UStreamPlugIn;
 };

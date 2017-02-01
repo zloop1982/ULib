@@ -21,7 +21,7 @@
  * Plugins allow you to enhance the functionality of UServer without changing the core of the server. They can be loaded at
  * startup time and can change virtually some aspect of the behaviour of the server.
  *
- * UServer has 8 hooks which are used in different states of the execution of the request:
+ * UServer has 7 hooks which are used in different states of the execution of the request:
  * --------------------------------------------------------------------------------------------
  * Server-wide hooks (5):
  *
@@ -31,11 +31,10 @@
  * 4) handlerFork:   called when the server have forked a child
  * 5) handlerStop:   called when the server shut down
  *
- * Connection-wide hooks (3):
+ * Connection-wide hooks (2):
  *
  * 6) handlerREAD:    called in UClientImage_Base::handlerRead()
  * 7) handlerRequest: called in UClientImage_Base::handlerRead()
- * 8) handlerReset:   called in UClientImage_Base::handlerRead()
  * --------------------------------------------------------------------------------------------
  *
  * RETURNS VALUE:
@@ -64,8 +63,6 @@ public:
    U_MEMORY_ALLOCATOR
    U_MEMORY_DEALLOCATOR
 
-   // COSTRUTTORE
-
             UServerPlugIn()        {}
    virtual ~UServerPlugIn() __pure {}
 
@@ -80,28 +77,28 @@ public:
 
    virtual int handlerInit()
       {
-      U_TRACE(0, "UServerPlugIn::handlerInit()")
+      U_TRACE_NO_PARAM(0, "UServerPlugIn::handlerInit()")
 
       U_RETURN(U_PLUGIN_HANDLER_GO_ON);
       }
 
    virtual int handlerRun()
       {
-      U_TRACE(0, "UServerPlugIn::handlerRun()")
+      U_TRACE_NO_PARAM(0, "UServerPlugIn::handlerRun()")
 
       U_RETURN(U_PLUGIN_HANDLER_GO_ON);
       }
 
    virtual int handlerFork()
       {
-      U_TRACE(0, "UServerPlugIn::handlerFork()")
+      U_TRACE_NO_PARAM(0, "UServerPlugIn::handlerFork()")
 
       U_RETURN(U_PLUGIN_HANDLER_GO_ON);
       }
 
    virtual int handlerStop()
       {
-      U_TRACE(0, "UServerPlugIn::handlerStop()")
+      U_TRACE_NO_PARAM(0, "UServerPlugIn::handlerStop()")
 
       U_RETURN(U_PLUGIN_HANDLER_GO_ON);
       }
@@ -110,21 +107,14 @@ public:
 
    virtual int handlerREAD()
       {
-      U_TRACE(0, "UServerPlugIn::handlerREAD()")
+      U_TRACE_NO_PARAM(0, "UServerPlugIn::handlerREAD()")
 
       U_RETURN(U_PLUGIN_HANDLER_GO_ON);
       }
 
    virtual int handlerRequest()
       {
-      U_TRACE(0, "UServerPlugIn::handlerRequest()")
-
-      U_RETURN(U_PLUGIN_HANDLER_GO_ON);
-      }
-
-   virtual int handlerReset()
-      {
-      U_TRACE(0, "UServerPlugIn::handlerReset()")
+      U_TRACE_NO_PARAM(0, "UServerPlugIn::handlerRequest()")
 
       U_RETURN(U_PLUGIN_HANDLER_GO_ON);
       }
@@ -133,17 +123,13 @@ public:
 
    virtual int handlerSigHUP()
       {
-      U_TRACE(0, "UServerPlugIn::handlerSigHUP()")
+      U_TRACE_NO_PARAM(0, "UServerPlugIn::handlerSigHUP()")
 
       U_RETURN(U_PLUGIN_HANDLER_GO_ON);
       }
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UServerPlugIn& operator=(const UServerPlugIn&) = delete;
-#else
-   UServerPlugIn& operator=(const UServerPlugIn&) { return *this; }
-#endif
+   U_DISALLOW_ASSIGN(UServerPlugIn)
 };
 
 #endif

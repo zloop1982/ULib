@@ -245,7 +245,6 @@ bool UIPAddress::setHostName(const UString& pcNewHostName, bool bIPv6)
    struct addrinfo hints;
    struct addrinfo* result = 0;
 
-   // -----------------------------------------------------------------
    // setup hints structure
    // -----------------------------------------------------------------
    // struct addrinfo {
@@ -295,7 +294,6 @@ bool UIPAddress::setHostName(const UString& pcNewHostName, bool bIPv6)
    int iError;
    struct hostent* pheDetails;
 
-   // -----------------------------------------------------------------
    // struct hostent {
    //    char*  h_name;      // official name of host
    //    char** h_aliases;   // alias list
@@ -303,7 +301,6 @@ bool UIPAddress::setHostName(const UString& pcNewHostName, bool bIPv6)
    //    int    h_length;    // length of address
    //    char** h_addr_list; // list of addresses
    // };
-   // -----------------------------------------------------------------
 
    IPNAME_TO_HOST(pheDetails, name, (bIPv6 ? AF_INET6 : AF_INET), iError);
 
@@ -382,7 +379,7 @@ bool UIPAddress::setHostName(const UString& pcNewHostName, bool bIPv6)
 /* address stored by the class, this need be performed only if the lazy       */
 /* evaluation flag is set. The flag is reset at completion of the method to   */
 /* indicate that the address string has been resolved - the string is         */
-/* generated via a call to inet_ntop().                                       */
+/* generated via a call to inet_ntop()                                        */
 /******************************************************************************/
 
 char* UIPAddress::resolveStrAddress(int iAddressType, const void* src, char* ip)
@@ -392,7 +389,7 @@ char* UIPAddress::resolveStrAddress(int iAddressType, const void* src, char* ip)
    char* result = 0;
 
 #ifdef HAVE_INET_NTOP
-   result = (char*) U_SYSCALL(inet_ntop, "%d,%p,%p,%u", iAddressType, src, ip, U_INET_ADDRSTRLEN);
+   result = (char*) U_SYSCALL(inet_ntop, "%d,%p,%p,%u", iAddressType, (void*)src, ip, U_INET_ADDRSTRLEN);
 #else
    result = U_SYSCALL(inet_ntoa, "%u", *((struct in_addr*)src));
 
@@ -404,7 +401,7 @@ char* UIPAddress::resolveStrAddress(int iAddressType, const void* src, char* ip)
 
 void UIPAddress::resolveStrAddress()
 {
-   U_TRACE(0, "UIPAddress::resolveStrAddress()")
+   U_TRACE_NO_PARAM(0, "UIPAddress::resolveStrAddress()")
 
    U_CHECK_MEMORY
 
@@ -425,12 +422,12 @@ void UIPAddress::resolveStrAddress()
 /* instead use the string representation of the ip address as a hostname -  */
 /* calling resolveStrAddress() first to force the evaluation of this        */
 /* string.  Otherwise we set the hostname from the values returned by the   */
-/* function call.                                                           */
+/* function call                                                            */
 /****************************************************************************/
 
 void UIPAddress::resolveHostName()
 {
-   U_TRACE(1, "UIPAddress::resolveHostName()")
+   U_TRACE_NO_PARAM(1, "UIPAddress::resolveHostName()")
 
    U_CHECK_MEMORY
 
@@ -558,12 +555,12 @@ void UIPAddress::convertToAddressFamily(int iNewAddressFamily)
  * These addresses are characterized as private because they are not globally delegated, meaning they are not allocated
  * to any specific organization, and IP packets addressed by them cannot be transmitted onto the public Internet.
  * Anyone may use these addresses without approval from a regional Internet registry (RIR). If such a private network
- * needs to connect to the Internet, it must use either a network address translator (NAT) gateway, or a proxy server.
+ * needs to connect to the Internet, it must use either a network address translator (NAT) gateway, or a proxy server
  */
 
 __pure bool UIPAddress::isPrivate()
 {
-   U_TRACE(0, "UIPAddress::isPrivate()")
+   U_TRACE_NO_PARAM(0, "UIPAddress::isPrivate()")
 
    U_CHECK_MEMORY
 
@@ -588,7 +585,7 @@ __pure bool UIPAddress::isPrivate()
 
 __pure bool UIPAddress::isWildCard()
 {
-   U_TRACE(0, "UIPAddress::isWildCard()")
+   U_TRACE_NO_PARAM(0, "UIPAddress::isWildCard()")
 
    U_CHECK_MEMORY
 
@@ -629,12 +626,12 @@ UString UIPAddress::toString(uint8_t* addr)
    union uuaddr u = { addr };
 
    /* The inet_ntoa() function converts the Internet host address in, given in network byte order, to a string in IPv4 dotted-decimal notation.
-    * The string is returned in a statically allocated buffer, which subsequent calls will overwrite.
+    * The string is returned in a statically allocated buffer, which subsequent calls will overwrite
     */
 
    char* result = inet_ntoa(*(u.paddr));
 
-   UString x((void*)result);
+   UString x((void*)result, u__strlen(result, __PRETTY_FUNCTION__));
 
    U_RETURN_STRING(x);
 }
@@ -764,7 +761,7 @@ uint32_t UIPAllow::parseMask(const UString& vspec, UVector<UIPAllow*>& vipallow)
 
    for (uint32_t i = 0, vlen = vec.size(); i < vlen; ++i)
       {
-      elem = U_NEW(UIPAllow);
+      U_NEW(UIPAllow, elem, UIPAllow);
 
       if (elem->parseMask(vec[i])) vipallow.push_back(elem);
       else                         delete elem;
@@ -904,13 +901,15 @@ bool UIPAllow::getNetworkInterface(UVector<UIPAllow*>& vipallow)
 
          family = ifa->ifa_addr->sa_family;
 
+#     ifdef U_LINUX
          U_INTERNAL_DUMP("%s => family: %d%s", ifa->ifa_name, family,
                                  (family == AF_PACKET) ? " (AF_PACKET)" :
                                  (family == AF_INET)   ? " (AF_INET)"   :
                                  (family == AF_INET6)  ? " (AF_INET6)"  : "")
+#     endif
 
          if (family == AF_INET &&
-             strncmp(ifa->ifa_name, U_CONSTANT_TO_PARAM("lo")) != 0) // Name of interface
+             u_get_unalignedp16(ifa->ifa_name) != U_MULTICHAR_CONSTANT16('l','o')) // Name of interface
             {
             gai_err = U_SYSCALL(getnameinfo, "%p,%d,%p,%d,%p,%d,%d", ifa->ifa_addr, sizeof(struct sockaddr_in), host, NI_MAXHOST, 0, 0, NI_NUMERICHOST);
 
@@ -987,7 +986,7 @@ const char* UIPAddress::dump(bool reset) const
 
    char buffer[128];
 
-   UObjectIO::os->write(buffer, u__snprintf(buffer, sizeof(buffer), "%S", pcStrAddress));
+   UObjectIO::os->write(buffer, u__snprintf(buffer, sizeof(buffer), U_CONSTANT_TO_PARAM("%S"), pcStrAddress));
 
    *UObjectIO::os << '\n'
                   << "iAddressType         " << iAddressType

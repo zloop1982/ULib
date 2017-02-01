@@ -92,9 +92,9 @@ public:
             result = template_file[result_key];
 
             buffer_len = u__snprintf(buffer, sizeof(buffer),
-                               "\nStart TestID <%W%s%W>\n"
+                               U_CONSTANT_TO_PARAM("\nStart TestID <%W%s%W>\n"
                                "----------------------------------"
-                               "----------------------------------\n",
+                               "----------------------------------\n"),
                                YELLOW, id.c_str(), RESET);
 
             print(1);
@@ -141,7 +141,8 @@ public:
                if (ulog ||
                    n == -1)
                   {
-                  buffer_len = u__snprintf(buffer, sizeof(buffer), "command '%s' didn't start %R\n", argv_exec[(n == -1 ? 1 : 0)], 0); // NB: the last argument (0) is necessary...
+                  buffer_len = u__snprintf(buffer, sizeof(buffer), U_CONSTANT_TO_PARAM("command '%s' didn't start %R\n"),
+                                             argv_exec[(n == -1 ? 1 : 0)], 0); // NB: the last argument (0) is necessary...
 
                   print(0);
                   }
@@ -184,18 +185,18 @@ public:
             if (pass)
                {
                buffer_len = u__snprintf(buffer, sizeof(buffer),
-                                        "----------------------------------"
+                                        U_CONSTANT_TO_PARAM("----------------------------------"
                                         "----------------------------------\n"
-                                        "End   TestID <%W%s%W> - %WPASS%W\n\n",
+                                        "End   TestID <%W%s%W> - %WPASS%W\n\n"),
                                         YELLOW, id.data(), RESET, GREEN, RESET);
                }
             else
                {
                buffer_len = u__snprintf(buffer, sizeof(buffer),
-                                        "----------------------------------"
+                                        U_CONSTANT_TO_PARAM("----------------------------------"
                                         "----------------------------------\n"
                                         "End   TestID <%W%s%W> - %WFAIL%W\n"
-                                        "Expected exit code <%s>, returned <%d>\n\n",
+                                        "Expected exit code <%s>, returned <%d>\n\n"),
                                         YELLOW, id.data(), RESET, RED, RESET,
                                         result.c_str(), _exit_value);
                }
@@ -218,13 +219,15 @@ public:
 
       if (argv[optind] == 0) U_ERROR("arg <file_template_test> not specified");
 
-      template_file.load(UString(argv[optind]));
+      template_file.load(UString(argv[optind], strlen(argv[optind])));
 
       // maybe manage logging...
 
       UString log_file = opt['l'];
 
-      ulog = (log_file ? U_NEW(ULog(log_file, 1024 * 1024)) : 0);
+      ulog = 0;
+
+      if (log_file) U_NEW(ULog, ulog, ULog(log_file, 1024 * 1024));
 
       if (ulog)
          {

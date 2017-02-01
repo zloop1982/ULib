@@ -18,20 +18,19 @@
 #include <ulib/base/utility.h>
 #include <ulib/debug/error_simulation.h>
 
-#include <errno.h>
-
 bool           USimulationError::flag_init;
 char*          USimulationError::file_mem;
 uint32_t       USimulationError::file_size;
 union uuvararg USimulationError::var_arg;
 
-#if defined(HAVE_STRTOF) && !defined(strtof)
-// extern "C" { float strtof(const char* nptr, char** endptr); }
-#endif
-
-#if defined(HAVE_STRTOLD) && !defined(strtold)
-// extern "C" { long double strtold(const char* nptr, char** endptr); }
-#endif
+/**
+ * #if defined(HAVE_STRTOF) && !defined(strtof)
+ * extern "C" { float strtof(const char* nptr, char** endptr); }
+ * #endif
+ * #if defined(HAVE_STRTOLD) && !defined(strtold)
+ * extern "C" { long double strtold(const char* nptr, char** endptr); }
+ * #endif
+ */
 
 void USimulationError::init()
 {
@@ -74,10 +73,14 @@ void USimulationError::init()
          }
       }
 
-   // segnala caratteristiche esecuzione modalita' simulazione errori
-
-   if (fd > 0) U_MESSAGE("SIMERR<%Won%W>: File<%W%s%W>%W", GREEN, YELLOW, CYAN, file, YELLOW, RESET);
-   else        U_MESSAGE("SIMERR<%Woff%W>%W",                RED, YELLOW, RESET);
+   if (fd <= 0)
+      {
+      U_MESSAGE("SIMERR%W<%Woff%W>%W", YELLOW, RED, YELLOW, RESET);
+      }
+   else
+      {
+      U_MESSAGE("SIMERR%W<%Won%W>: File<%W%s%W>%W", YELLOW, GREEN, YELLOW, CYAN, file, YELLOW, RESET);
+      }
 }
 
 void* USimulationError::checkForMatch(const char* call_name)
@@ -121,7 +124,7 @@ void* USimulationError::checkForMatch(const char* call_name)
 
                   // manage random testing
 
-                  uint32_t range = (uint32_t) strtol(file_ptr, &file_ptr, 0);
+                  uint32_t range = (uint32_t) strtol(file_ptr, &file_ptr, 10);
 
                   if (range > 0) match = (u_get_num_random(range) == (range / 2));
 
@@ -148,14 +151,14 @@ void* USimulationError::checkForMatch(const char* call_name)
 
                case 'l': // long
                   {
-                  var_arg.l = strtol(file_ptr, &file_ptr, 0);
+                  var_arg.l = strtol(file_ptr, &file_ptr, 10);
                   }
                break;
 
                case 'L': // long long
                   {
 #              ifdef HAVE_STRTOULL
-                  var_arg.ll = (long long) strtoull(file_ptr, &file_ptr, 0);
+                  var_arg.ll = (long long) strtoull(file_ptr, &file_ptr, 10);
 #              endif
                   }
                break;
@@ -185,7 +188,7 @@ void* USimulationError::checkForMatch(const char* call_name)
                case 'i': // word-size (int)
                default:
                   {
-                  var_arg.i = (int) strtol(file_ptr, &file_ptr, 0);
+                  var_arg.i = (int) strtol(file_ptr, &file_ptr, 10);
                   }
                break;
                }

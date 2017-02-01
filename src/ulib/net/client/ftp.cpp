@@ -21,7 +21,7 @@ UFtpClient::~UFtpClient()
 
 void UFtpClient::setStatus()
 {
-   U_TRACE(0, "UFtpClient::setStatus()")
+   U_TRACE_NO_PARAM(0, "UFtpClient::setStatus()")
 
    const char* descr;
 
@@ -71,7 +71,7 @@ void UFtpClient::setStatus()
 
    U_INTERNAL_ASSERT_EQUALS(u_buffer_len, 0)
 
-   u_buffer_len = u__snprintf(u_buffer, U_BUFFER_SIZE, "(%d, %s)", response, descr);
+   u_buffer_len = u__snprintf(u_buffer, U_BUFFER_SIZE, U_CONSTANT_TO_PARAM("(%d, %s)"), response, descr);
 }
 
 bool UFtpClient::waitReady(uint32_t timeoutMS)
@@ -89,14 +89,14 @@ bool UFtpClient::waitReady(uint32_t timeoutMS)
 
 // Send a command to the FTP server and wait for a response
 
-bool UFtpClient::syncCommand(const char* format, ...)
+bool UFtpClient::syncCommand(const char* format, uint32_t fmt_size, ...)
 {
-   U_TRACE(0, "UFtpClient::syncCommand(%S)", format)
+   U_TRACE(0, "UFtpClient::syncCommand(%.*S,%u)", fmt_size, format, fmt_size)
 
    va_list argp;
-   va_start(argp, format);
+   va_start(argp, fmt_size);
 
-   response = USocketExt::vsyncCommandML(this, format, argp);
+   response = USocketExt::vsyncCommandML(this, format, fmt_size, argp);
 
    va_end(argp);
 
@@ -107,7 +107,7 @@ bool UFtpClient::syncCommand(const char* format, ...)
 
 void UFtpClient::readCommandResponse()
 {
-   U_TRACE(0, "UFtpClient::readCommandResponse()")
+   U_TRACE_NO_PARAM(0, "UFtpClient::readCommandResponse()")
 
    response = USocketExt::readMultilineReply(this);
 
@@ -122,12 +122,12 @@ void UFtpClient::readCommandResponse()
 
 bool UFtpClient::negotiateEncryption()
 {
-   U_TRACE(0, "UFtpClient::negotiateEncryption()")
+   U_TRACE_NO_PARAM(0, "UFtpClient::negotiateEncryption()")
 
 #ifdef USE_LIBSSL
    U_ASSERT(Socket::isSSL())
 
-   if (syncCommand("AUTH TLS") &&
+   if (syncCommand(U_CONSTANT_TO_PARAM("AUTH TLS")) &&
        response == 234         &&
        ((USSLSocket*)this)->secureConnection())
       {
@@ -145,8 +145,8 @@ bool UFtpClient::setDataEncryption(bool secure)
 #ifdef USE_LIBSSL
    U_ASSERT(Socket::isSSL())
 
-   if (syncCommand("PBSZ 0")                        && response == FTP_COMMAND_OK &&
-       syncCommand("PROT %c", (secure ? 'P' : 'C')) && response == FTP_COMMAND_OK)
+   if (syncCommand(U_CONSTANT_TO_PARAM("PBSZ 0"))                        && response == FTP_COMMAND_OK &&
+       syncCommand(U_CONSTANT_TO_PARAM("PROT %c"), (secure ? 'P' : 'C')) && response == FTP_COMMAND_OK)
       {
       pasv.setSSLActive(true);
 
@@ -161,8 +161,8 @@ bool UFtpClient::login(const char* user, const char* passwd)
 {
    U_TRACE(0, "UFtpClient::login(%S,%S)", user, passwd)
 
-                                      (void) syncCommand("USER %s", user);
-   if (response == FTP_NEED_PASSWORD) (void) syncCommand("PASS %s", passwd);
+                                      (void) syncCommand(U_CONSTANT_TO_PARAM("USER %s"), user);
+   if (response == FTP_NEED_PASSWORD) (void) syncCommand(U_CONSTANT_TO_PARAM("PASS %s"), passwd);
 
    if (response == FTP_USER_LOGGED_IN) U_RETURN(true);
 
@@ -173,7 +173,7 @@ bool UFtpClient::login(const char* user, const char* passwd)
 
 inline bool UFtpClient::readPortToConnect()
 {
-   U_TRACE(0, "UFtpClient::readPortToConnect()")
+   U_TRACE_NO_PARAM(0, "UFtpClient::readPortToConnect()")
 
    U_INTERNAL_ASSERT_EQUALS(response, FTP_ENTERING_PASSIVE_MODE)
 
@@ -215,7 +215,7 @@ inline bool UFtpClient::readPortToConnect()
 
 inline void UFtpClient::readNumberOfByte()
 {
-   U_TRACE(0, "UFtpClient::readNumberOfByte()")
+   U_TRACE_NO_PARAM(0, "UFtpClient::readNumberOfByte()")
 
    U_INTERNAL_ASSERT(response == FTP_OPENING_DATA_CONNECTION || response == FTP_DATA_CONNECTION_OPEN)
 
@@ -259,9 +259,9 @@ inline void UFtpClient::readNumberOfByte()
 
 bool UFtpClient::createPassiveDataConnection()
 {
-   U_TRACE(0, "UFtpClient::createPassiveDataConnection()")
+   U_TRACE_NO_PARAM(0, "UFtpClient::createPassiveDataConnection()")
 
-   (void) syncCommand("PASV"); // Enter Passive mode
+   (void) syncCommand(U_CONSTANT_TO_PARAM("PASV")); // Enter Passive mode
 
    if (response == FTP_ENTERING_PASSIVE_MODE &&
        readPortToConnect())
@@ -284,7 +284,7 @@ int UFtpClient::retrieveFile(const UString& path, off_t offset)
       {
       if (offset == 0 || restart(offset))
          {
-         (void) syncCommand("RETR %v", path.rep);
+         (void) syncCommand(U_CONSTANT_TO_PARAM("RETR %v"), path.rep);
 
          if (response == FTP_OPENING_DATA_CONNECTION ||
              response == FTP_DATA_CONNECTION_OPEN)
@@ -311,7 +311,7 @@ bool UFtpClient::setTransferType(TransferType type)
 {
    U_TRACE(0, "UFtpClient::setTransferType(%d)", type)
 
-   if (syncCommand("TYPE %c", (type == Binary ? 'I' : 'A')))
+   if (syncCommand(U_CONSTANT_TO_PARAM("TYPE %c"), (type == Binary ? 'I' : 'A')))
       {
       bool result = (response == FTP_COMMAND_OK);
 
@@ -325,7 +325,7 @@ bool UFtpClient::changeWorkingDirectory(const UString& path)
 {
    U_TRACE(0, "UFtpClient::changeWorkingDirectory(%V)", path.rep)
 
-   if (syncCommand("CWD %v", path.rep)) // Change working directory
+   if (syncCommand(U_CONSTANT_TO_PARAM("CWD %v"), path.rep)) // Change working directory
       {
       // RFC 959 states that the correct response to CDUP is 200 - command_ok
       // But also states that it should respond with the same codes as
@@ -344,12 +344,12 @@ size_t UFtpClient::getFileSize(const UString& path)
 {
    U_TRACE(0, "UFtpClient::getFileSize(%V)", path.rep)
 
-   if (syncCommand("SIZE %v", path.rep) &&
+   if (syncCommand(U_CONSTANT_TO_PARAM("SIZE %v"), path.rep) &&
        response == FTP_FILE_STATUS)
       {
       // skip over the response code
 
-      size_t size = strtoul(u_buffer + 4, 0, 0);
+      size_t size = strtoul(u_buffer + 4, 0, 10);
 
       U_RETURN(size);
       }
@@ -361,7 +361,7 @@ bool UFtpClient::restart(off_t offset)
 {
    U_TRACE(0, "UFtpClient::restart(%I)", offset)
 
-   if (syncCommand("REST %I", offset))
+   if (syncCommand(U_CONSTANT_TO_PARAM("REST %I"), offset))
       {
       bool result = (response == FTP_FILE_ACTION_PENDING);
 
@@ -375,22 +375,22 @@ bool UFtpClient::restart(off_t offset)
 
 bool UFtpClient::setConnection()
 {
-   U_TRACE(0, "UFtpClient::setConnection()")
+   U_TRACE_NO_PARAM(0, "UFtpClient::setConnection()")
 
-   // ------------------------------------------
    // 3. Execute login
-   // ------------------------------------------
+   // -------------------------------------------------------------------------------------------
    // send "USER name"     (expect 331 or 2xx code meaning no password required)
    // send "PASS password" (expect 230 or 2xx code - 332 means needs ACCOUNT - not yet supported)
+   // -------------------------------------------------------------------------------------------
 
    if (login() == false) U_RETURN(false); // login with ftp server failed...
 
-   // ------------------------------------------
    // 4. Set type to binary (or appropriate)
    // ------------------------------------------
    // send "TYPE I"  (expect 200 or 2xx code)
    // send "STRU F"  // note: default
    // send "MODE S"  // note: default
+   // ------------------------------------------
 
    if (setTransferType() == false) U_RETURN(false); // setTransferType() with ftp server failed...
 
@@ -416,9 +416,8 @@ int UFtpClient::download(const UString& path, off_t offset)
 
    if (setConnection() == false) U_RETURN(-1); // login with ftp server failed...
 
-   // ------------------------------------------
    // 5. get file
-   // ------------------------------------------
+   // ---------------------------------------------------------------------------------------------------------
    // send "PASV"           (expect 227 followed by host ip address and port number as 8 bit ASCII numbers)
    // connect to returned address
    // handling restart for file transfer: (size == bytes received previously)
@@ -426,6 +425,7 @@ int UFtpClient::download(const UString& path, off_t offset)
    // send "RETR name"      (expect 150 or 1xx codes - 5xx if doesn't exist)
    //                       (150 code will be followed by ".*( *[0-9]+ *byte" where number indicates file size)
    // close data connection (expect 2xx code - allow error on data connection if all bytes received)
+   // ---------------------------------------------------------------------------------------------------------
 
    int fd = retrieveFile(path, offset);
 

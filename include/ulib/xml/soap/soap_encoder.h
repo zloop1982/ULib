@@ -34,8 +34,6 @@
 class U_EXPORT USOAPEncoder : public URPCEncoder {
 public:
 
-   // COSTRUTTORI
-
    USOAPEncoder()
       {
       U_TRACE_REGISTER_OBJECT(0, USOAPEncoder, "", 0)
@@ -240,13 +238,7 @@ protected:
    virtual UString encodeMethod(URPCMethod& method, const UString& nsName) U_DECL_OVERRIDE; // namespace qualified element information
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   USOAPEncoder(const USOAPEncoder&) = delete;
-   USOAPEncoder& operator=(const USOAPEncoder&) = delete;
-#else
-   USOAPEncoder(const USOAPEncoder&) : URPCEncoder() {}
-   USOAPEncoder& operator=(const USOAPEncoder&)      { return *this; }
-#endif      
+   U_DISALLOW_COPY_AND_ASSIGN(USOAPEncoder)
 };
 
 #endif

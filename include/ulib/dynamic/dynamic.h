@@ -33,6 +33,14 @@ extern "C" {
 typedef void* HINSTANCE;
 #endif
 
+enum DynamicPageType {
+   U_DPAGE_INIT    = -1,
+   U_DPAGE_RESET   = -2,
+   U_DPAGE_DESTROY = -3,
+   U_DPAGE_SIGHUP  = -4,
+   U_DPAGE_FORK    = -5
+};
+
 /**
  * @class UDynamic
  * @short  Dynamic class file loader
@@ -54,11 +62,9 @@ public:
    U_MEMORY_ALLOCATOR
    U_MEMORY_DEALLOCATOR
 
-   // COSTRUTTORI
-
    UDynamic()
       {
-      U_TRACE(0, "UDynamic::UDynamic()")
+      U_TRACE_NO_PARAM(0, "UDynamic::UDynamic()")
 
       err    = "none";
       addr   = 0;
@@ -67,7 +73,7 @@ public:
 
    ~UDynamic()
       {
-      U_TRACE(0, "UDynamic::~UDynamic()")
+      U_TRACE_NO_PARAM(0, "UDynamic::~UDynamic()")
       }
 
    /**
@@ -118,13 +124,7 @@ protected:
    static UString* plugin_dir;
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UDynamic(const UDynamic&) = delete;
-   UDynamic& operator=(const UDynamic&) = delete;
-#else
-   UDynamic(const UDynamic&)            {}
-   UDynamic& operator=(const UDynamic&) { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UDynamic)
 
    friend class UOrmSession;
    friend class UServer_Base;

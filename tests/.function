@@ -14,10 +14,9 @@ UTRACE_SIGNAL="0 30M 0"
 #EXEC_ON_EXIT="/utility/stack_dump.sh"
 #WINELOADER=wine
 #MALLOC_CHECK_=3
-#VALGRIND=valgrind
+#VALGRIND="valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all --errors-for-leak-kinds=all --track-fds=yes --error-exitcode=99 --log-file=memcheck-%p.log"
 TZ='CET-1CEST,M3.5.0/2,M10.5.0/3'
 MUDFLAP_OPTIONS="-ignore-reads -backtrace=8"
-UMEMPOOL=802,1025,-30,1512,2052,-12,-10,-26,102:67108864,16384
 
 # core dump
 # ulimit -c unlimited
@@ -67,7 +66,7 @@ else
 fi
 
 export UTRACE UTRACE_SIGNAL UOBJDUMP USIMERR EXEC_ON_EXIT WINELOADER PID TZ \
-		 RESULT MALLOC_CHECK_ VALGRIND MUDFLAP_OPTIONS ECHO UMEMPOOL \
+		 RESULT MALLOC_CHECK_ VALGRIND MUDFLAP_OPTIONS ECHO \
 		 NC NC_ARG_LISTEN_PORT NCAT SYNC CURL OPENSSL SLEEP SUFFIX CHOWN TRUSS LTRUSS STRACE WINE_OPENSSL
 
 # function : CApath_rehash
@@ -116,6 +115,7 @@ prepare_usp() {
 		  ln -sf ../v8/.libs/server_plugin_v8.so; \
 		  ln -sf ../php/.libs/server_plugin_php.so; \
 		  ln -sf ../ruby/.libs/server_plugin_ruby.so; \
+		  ln -sf ../python/.libs/server_plugin_python.so; \
 		  ln -sf ../mod_shib/.libs/server_plugin_shib.so; \
 		  ln -sf ../mod_geoip/.libs/server_plugin_geoip.so; \
 		  ln -sf ../page_speed/.libs/server_plugin_pagespeed.so )
@@ -289,6 +289,7 @@ kill_cmd() {
 	# command2 is executed if and only if command1 returns a non-zero exit status.
 	# -------------------------------------------------------------------------------------------------
 	# The return status of AND and OR lists is the exit status of the last command executed in the list
+	# -------------------------------------------------------------------------------------------------
 
 	if [ -n "$PID" ]; then
 		kill -0 $PID 2>/dev/null && kill -s $1 $PID 2>/dev/null && return 0
@@ -312,11 +313,17 @@ check_for_netcat() {
 			NC=nc
 		fi
 		if [ "$NC_TEST" = "Ncat 6.47 " ] || \
-			[ "$NC_TEST" = "usage: nc [-46DdhklnrStUuvzC] [-i interval] [-p source_port]" ]; then
+			[ "$NC_TEST" = "Ncat 7.00 " ] || \
+			[ "$NC_TEST" = "Ncat 7.10 " ] || \
+			[ "$NC_TEST" = "Ncat 7.12 " ] || \
+			[ "$NC_TEST" = "usage: nc [-46DdhklnrStUuvzC] [-i interval] [-p source_port]" ] || \
+			[ "$NC_TEST" = "This is nc from the netcat-openbsd package. An alternative nc is available in the netcat-traditional package." ]; then
 			NC=nc
 			NC_ARG_LISTEN_PORT=""
 		fi
-	else
+	fi
+
+	if [ -z "$NC" ]; then
 		type netcat >/dev/null 2>&1
 
 		if [ $? -eq 0 ]; then
@@ -480,4 +487,4 @@ TIMEOUT() {
    fi
 }
 
-# grep -v 'Not a GIF file' err/* | grep --colour -i -E -e 'ERROR|ABORT|ASSERT|SIGSEGV|OVERLAP|genericRead|handler|epoll_ctl|aligned'
+# grep -v 'Not a GIF file' err/* | grep -v 'mongoc: Failed to initialize OpenSSL' | grep --colour -i -E -e 'ERROR|ABORT|ASSERT|SIGSEGV|OVERLAP|genericRead|handler|epoll_ctl|aligned'

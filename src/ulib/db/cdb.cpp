@@ -12,7 +12,7 @@
 // ============================================================================
 
 #include <ulib/db/cdb.h>
-#include <ulib/container/vector.h>
+#include <ulib/utility/services.h>
 
 void UCDB::init_internal(int ignore_case)
 {
@@ -25,10 +25,11 @@ void UCDB::init_internal(int ignore_case)
    slot = 0;
    hp   = 0;
 
-   pattern = 0;
-   pbuffer = 0;
-   function_to_call = 0;
-   ptr_vector = 0;
+   pattern                 = 0;
+   pbuffer                 = 0;
+   ptr_vector              = 0;
+   function_to_call        = 0;
+   filter_function_to_call = functionCall;
 
    // when mmap not available we use this storage...
 
@@ -101,9 +102,9 @@ bool UCDB::open(bool brdonly)
 
 bool UCDB::find()
 {
-   U_TRACE(0, "UCDB::find()")
+   U_TRACE_NO_PARAM(0, "UCDB::find()")
 
-   U_INTERNAL_ASSERT_MAJOR(UFile::st_size,0)
+   U_INTERNAL_ASSERT_MAJOR(UFile::st_size, 0)
 
    // A record is located as follows. Compute the hash value of the key in the record.
    // The hash value modulo CDB_NUM_HASH_TABLE_POINTER is the number of a hash table
@@ -195,7 +196,7 @@ U_NO_EXPORT inline bool UCDB::match(uint32_t pos)
 
 bool UCDB::findNext()
 {
-   U_TRACE(0, "UCDB::findNext()")
+   U_TRACE_NO_PARAM(0, "UCDB::findNext()")
 
    uint32_t pos;
 
@@ -257,7 +258,7 @@ bool UCDB::findNext()
 
 UString UCDB::at()
 {
-   U_TRACE(0, "UCDB::at()")
+   U_TRACE_NO_PARAM(0, "UCDB::at()")
 
    cdb_hash();
 
@@ -533,43 +534,43 @@ fine:
 
 void UCDB::call1()
 {
-   U_TRACE(0, "UCDB::call1()")
+   U_TRACE_NO_PARAM(0, "UCDB::call1()")
 
    U_INTERNAL_ASSERT_POINTER(function_to_call)
 
    UStringRep* skey;
    UStringRep* sdata;
 
-   U_NEW_DBG(UStringRep, skey,  UStringRep((const char*) key.dptr,  key.dsize));
-   U_NEW_DBG(UStringRep, sdata, UStringRep((const char*)data.dptr, data.dsize));
+   U_NEW(UStringRep, skey,  UStringRep((const char*) key.dptr,  key.dsize));
+   U_NEW(UStringRep, sdata, UStringRep((const char*)data.dptr, data.dsize));
 
    U_INTERNAL_DUMP("skey = %#V sdata = %#V)", skey, sdata)
 
-   U_cdb_result_call(this) = function_to_call(skey, sdata);
-
-   U_INTERNAL_DUMP("U_cdb_result_call = %d U_cdb_add_entry_to_vector = %b", U_cdb_result_call(this), U_cdb_add_entry_to_vector(this))
-
-   if (U_cdb_result_call(this) == 2 || // NB: for remove...
-       U_cdb_add_entry_to_vector(this))
+   if (filter_function_to_call(skey, sdata))
       {
-      U_INTERNAL_ASSERT_POINTER(ptr_vector)
+      U_cdb_result_call(this) = function_to_call(skey, sdata);
 
-      ptr_vector->UVector<void*>::push(skey);
+      U_INTERNAL_DUMP("U_cdb_result_call = %d U_cdb_add_entry_to_vector = %b", U_cdb_result_call(this), U_cdb_add_entry_to_vector(this))
 
-      if (U_cdb_add_entry_to_vector(this) == false) goto next;
+      if (U_cdb_result_call(this) == 2 || // NB: for remove...
+          U_cdb_add_entry_to_vector(this))
+         {
+         U_INTERNAL_ASSERT_POINTER(ptr_vector)
 
-      U_cdb_add_entry_to_vector(this) = false;
+         ptr_vector->UVector<void*>::push(skey);
 
-      ptr_vector->UVector<void*>::push(sdata);
+         if (U_cdb_add_entry_to_vector(this) == false) goto next;
+
+         U_cdb_add_entry_to_vector(this) = false;
+
+         ptr_vector->UVector<void*>::push(sdata);
+
+         return;
+         }
       }
-   else
-      {
-      // NB: we don't use delete (dtor) because it add a deallocation to the destroy process...
 
        skey->release();
-next:
-      sdata->release();
-      }
+next: sdata->release();
 }
 
 void UCDB::call1(const char*  key_ptr, uint32_t  key_size,
@@ -605,7 +606,7 @@ void UCDB::getKeys2(UCDB* pcdb, char* src)
 {
    U_TRACE(0, "UCDB::getKeys2(%p,%p)", pcdb, src)
 
-   UStringRep* rep;
+   UStringRep* skey;
    UCDB::cdb_record_header* ptr_hr = (UCDB::cdb_record_header*)src;
 
    uint32_t klen = u_get_unaligned32(ptr_hr->klen); // key length
@@ -617,9 +618,10 @@ void UCDB::getKeys2(UCDB* pcdb, char* src)
 
    src += sizeof(UCDB::cdb_record_header);
 
-   U_NEW_DBG(UStringRep, rep, UStringRep(src, klen));
+   U_NEW(UStringRep, skey, UStringRep(src, klen));
 
-   pcdb->ptr_vector->UVector<void*>::push(rep);
+   if (pcdb->filter_function_to_call(skey, 0) == 0) skey->release();
+   else                                             pcdb->ptr_vector->UVector<void*>::push(skey);
 }
 
 void UCDB::print2(UCDB* pcdb, char* src)
@@ -675,11 +677,8 @@ uint32_t UCDB::getValuesWithKeyNask(UVector<UString>& vec_values, const UString&
 
    char* tmp;
    UStringRep* rep;
-
-   char* mask_data    = mask_key.data();
-   uint32_t mask_size = mask_key.size(), n = vec_values.size();
-
-   if (ignoreCase()) u_pfn_flags |= FNM_CASEFOLD;
+   uint32_t n = vec_values.size();
+   int flags = (ignoreCase() ? FNM_CASEFOLD : 0);
 
    if (_size) *_size = 0;
 
@@ -692,11 +691,11 @@ uint32_t UCDB::getValuesWithKeyNask(UVector<UString>& vec_values, const UString&
 
       tmp = ptr + sizeof(UCDB::cdb_record_header) + klen + dlen;
 
-      if (u_pfn_match(ptr + sizeof(UCDB::cdb_record_header), klen, mask_data, mask_size, u_pfn_flags))
+      if (UServices::dosMatchWithOR(ptr + sizeof(UCDB::cdb_record_header), klen, U_STRING_TO_PARAM(mask_key), flags))
          {
          U_INTERNAL_DUMP("key = %#.*S data = %#.*S)", klen, ptr + sizeof(UCDB::cdb_record_header), dlen, tmp - dlen)
 
-         U_NEW_DBG(UStringRep, rep, UStringRep(tmp - dlen, dlen));
+         U_NEW(UStringRep, rep, UStringRep(tmp - dlen, dlen));
 
          vec_values.UVector<void*>::push(rep);
 
@@ -719,7 +718,7 @@ uint32_t UCDB::getValuesWithKeyNask(UVector<UString>& vec_values, const UString&
 
 UString UCDB::print()
 {
-   U_TRACE(0, "UCDB::print()")
+   U_TRACE_NO_PARAM(0, "UCDB::print()")
 
    if (UFile::st_size)
       {
@@ -788,7 +787,6 @@ bool UCDB::writeTo(UCDB& cdb, UHashMap<void*>* table, uint32_t tbl_space, pvPFpv
                      *pnode = node->next; // lo si toglie dalla lista collisioni...
 
                      /**
-                      * ---------------------------------
                       * NB: it must be do in the function
                       * ---------------------------------
                       * elem = (T*) node->elem;
@@ -871,7 +869,7 @@ bool UCDB::writeTo(UCDB& cdb, UHashMap<void*>* table, uint32_t tbl_space, pvPFpv
 #ifdef DEBUG
 U_NO_EXPORT void UCDB::checkForAllEntry()
 {
-   U_TRACE(0+256, "UCDB::checkForAllEntry()")
+   U_TRACE_NO_PARAM(0+256, "UCDB::checkForAllEntry()")
 
    U_INTERNAL_DUMP("nrecord = %u", nrecord)
 
@@ -899,10 +897,7 @@ U_NO_EXPORT void UCDB::checkForAllEntry()
 
          U_INTERNAL_DUMP("key = %.*S khash = %u", key.dsize, key.dptr, khash)
 
-         if (key.dsize == 0)
-            {
-            U_ERROR("UCDB::checkForAllEntry() - null key size - db(%.*S)", U_FILE_TO_TRACE(*this));
-            }
+         if (key.dsize == 0) U_ERROR("UCDB::checkForAllEntry() - null key size - db(%.*S)", U_FILE_TO_TRACE(*this));
          }
 
       slot++;
@@ -954,7 +949,9 @@ U_EXPORT istream& operator>>(istream& is, UCDB& cdb)
 
       ptr += sizeof(UCDB::cdb_record_header);
 
+#  ifndef U_COVERITY_FALSE_POSITIVE /* TAINTED_SCALAR */
       is.read(ptr, klen);
+#  endif
 
       U_INTERNAL_DUMP("key = %.*S", klen, ptr)
 
@@ -963,7 +960,9 @@ U_EXPORT istream& operator>>(istream& is, UCDB& cdb)
 
       ptr += klen;
 
+#  ifndef U_COVERITY_FALSE_POSITIVE /* TAINTED_SCALAR */
       is.read(ptr, dlen);
+#  endif
 
       U_INTERNAL_DUMP("data = %.*S", dlen, ptr)
 

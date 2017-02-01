@@ -31,82 +31,69 @@
  */
 
 #ifndef DT_DIR
-#define DT_DIR      4
+#define DT_DIR 4
 #endif
 #ifndef DT_REG
-#define DT_REG      8
+#define DT_REG 8
 #endif
 #ifndef DT_LNK
-#define DT_LNK     10
+#define DT_LNK 10
 #endif
 #ifndef DT_UNKNOWN
-#define DT_UNKNOWN  0
+#define DT_UNKNOWN 0
 #endif
 
-#ifdef _DIRENT_HAVE_D_TYPE
-#define U_DT_TYPE dp->d_type
+#ifdef DIRENT_HAVE_D_TYPE
+#  define U_DT_TYPE dp->d_type
 #else
-#define U_DT_TYPE DT_UNKNOWN
+#  define U_DT_TYPE DT_UNKNOWN
 #endif
 
 vPF               UDirWalk::call_if_up;
 vPF               UDirWalk::call_internal;
-UString*          UDirWalk::suffix_file_type;
-bool              UDirWalk::brecurse; // recurse subdirectories ?
+int               UDirWalk::filter_flags;
+bool              UDirWalk::brecurse;     // recurse subdirectories ?
 bool              UDirWalk::bfollowlinks; // recurse subdirectories when are symbolic link ?
 bool              UDirWalk::tree_root;
 bool              UDirWalk::call_if_directory;
-qcompare          UDirWalk::sort_by;
 uint32_t          UDirWalk::max;
 uint32_t          UDirWalk::filter_len;
+qcompare          UDirWalk::sort_by;
+UString*          UDirWalk::suffix_file_type;
 UDirWalk*         UDirWalk::pthis;
 const char*       UDirWalk::filter;
 UTree<UString>*   UDirWalk::ptree;
 UVector<UString>* UDirWalk::pvector;
 UHashMap<UFile*>* UDirWalk::cache_file_for_compare;
 
-void UDirWalk::ctor(const UString* dir, const char* _filter, uint32_t _filter_len)
+void UDirWalk::ctor(const UString* dir, const char* _filter, uint32_t _filter_len, int _filter_flags)
 {
-   U_TRACE(0, "UDirWalk::ctor(%p,%.*S,%u)", dir, _filter_len, _filter, _filter_len)
+   U_TRACE(0, "UDirWalk::ctor(%p,%.*S,%u,%d)", dir, _filter_len, _filter, _filter_len, _filter_flags)
 
-   max               = 128 * 1024;
+   max               = 128U * 1024U;
    depth             = -1; // starting recursion depth
    pthis             = this;
    sort_by           = 0;
    call_if_up        = 0;
    call_internal     = 0;
    suffix_file_type  = 0;
-   call_if_directory = brecurse = is_directory = false;
+   call_if_directory =
+   brecurse          =
+   is_directory      = false;
 
-   if (dir) (void) setDirectory(*dir, _filter, _filter_len);
+   if (dir) (void) setDirectory(*dir, _filter, _filter_len, _filter_flags);
    else
       {
       pathname[0]             = '.';
       pathname[(pathlen = 1)] = '\0';
 
-      setFilter(_filter, _filter_len);
+      setFilter(_filter, _filter_len, _filter_flags);
       }
 }
 
-void UDirWalk::setFilter(const char* _filter, uint32_t _filter_len)
+bool UDirWalk::setDirectory(const UString& dir, const char* _filter, uint32_t _filter_len, int _filter_flags)
 {
-   U_TRACE(0, "UDirWalk::setFilter(%.*S,%u)", _filter_len, _filter, _filter_len)
-
-   filter_len = _filter_len;
-
-   if (_filter_len == 0) bfollowlinks = false;
-   else
-      {
-      filter       = _filter;
-      u_pfn_flags  = 0;
-      u_pfn_match  = u_dosmatch_with_OR;
-      bfollowlinks = true;
-      }
-}
-
-bool UDirWalk::setDirectory(const UString& dir, const char* _filter, uint32_t _filter_len)
-{
-   U_TRACE(0, "UDirWalk::setDirectory(%V,%.*S,%u)", dir.rep, _filter_len, _filter, _filter_len)
+   U_TRACE(0, "UDirWalk::setDirectory(%V,%.*S,%u,%d)", dir.rep, _filter_len, _filter, _filter_len, _filter_flags)
 
    pthis->pathlen = dir.size();
 
@@ -125,25 +112,9 @@ bool UDirWalk::setDirectory(const UString& dir, const char* _filter, uint32_t _f
       U_RETURN(false);
       }
 
-   setFilter(_filter, _filter_len);
+   setFilter(_filter, _filter_len, _filter_flags);
 
    U_RETURN(true);
-}
-
-void UDirWalk::setSuffixFileType(const char* format, ...)
-{
-   U_TRACE(0, "UDirWalk::setSuffixFileType(%S)", format)
-
-   U_INTERNAL_ASSERT_EQUALS(suffix_file_type, 0)
-
-   suffix_file_type = U_NEW(UString(100U));
-
-   va_list argp;
-   va_start(argp, format);
-
-   suffix_file_type->vsnprintf(format, argp);
-
-   va_end(argp);
 }
 
 U_NO_EXPORT void UDirWalk::prepareForCallingRecurse(char* d_name, uint32_t d_namlen, unsigned char d_type)
@@ -157,7 +128,7 @@ U_NO_EXPORT void UDirWalk::prepareForCallingRecurse(char* d_name, uint32_t d_nam
        d_type == DT_LNK ||
        d_type == DT_UNKNOWN)
       {
-      u__memcpy(pathname + pathlen, d_name, d_namlen, __PRETTY_FUNCTION__);
+      U_MEMCPY(pathname + pathlen, d_name, d_namlen);
 
       pathlen += d_namlen;
 
@@ -185,7 +156,7 @@ U_NO_EXPORT void UDirWalk::prepareForCallingRecurse(char* d_name, uint32_t d_nam
 
 U_NO_EXPORT bool UDirWalk::isFile()
 {
-   U_TRACE(0, "UDirWalk::isFile()")
+   U_TRACE_NO_PARAM(0, "UDirWalk::isFile()")
 
    U_INTERNAL_ASSERT_POINTER(pthis)
 
@@ -201,7 +172,7 @@ U_NO_EXPORT bool UDirWalk::isFile()
           
          U_INTERNAL_DUMP("suffix(%u) = %.*S", len, len, ptr)
 
-         if (UServices::dosMatchWithOR(ptr, len, U_STRING_TO_PARAM(*suffix_file_type), 0)) U_RETURN(true);
+         if (UServices::dosMatchWithOR(ptr, len, U_STRING_TO_PARAM(*suffix_file_type))) U_RETURN(true);
          }
       }
 
@@ -210,7 +181,7 @@ U_NO_EXPORT bool UDirWalk::isFile()
 
 void UDirWalk::recurse()
 {
-   U_TRACE(1+256, "UDirWalk::recurse()")
+   U_TRACE_NO_PARAM(1+256, "UDirWalk::recurse()")
 
    U_INTERNAL_ASSERT_EQUALS(pthis, this)
 
@@ -290,24 +261,24 @@ found_file:
          qdir.pfree  = 0;
          }
 
-      // -----------------------------------------
-      // NB: NON sono sempre le prime due entry !!
-      // -----------------------------------------
+      // -----------------------------------------------
+      // NB: these are NOT always the first two entry !!
+      // -----------------------------------------------
       // (void) readdir(dirp); // skip '.'
       // (void) readdir(dirp); // skip '..'
-      // -----------------------------------------
+      // -----------------------------------------------
 
       while ((dp = readdir(dirp))) // NB: we don't use the macro U_SYSCALL to avoid warning on stderr...
          {
          uint32_t d_namlen = NAMLEN(dp);
 
-         U_INTERNAL_DUMP("d_namlen = %u d_name = %.*s filter(%u) = %.*S sort_by = %p",
-                          d_namlen,     d_namlen, dp->d_name, filter_len, filter_len, filter, sort_by)
+         U_INTERNAL_DUMP("d_namlen = %u d_name = %.*s filter(%u) = %.*S filter_flags = %d sort_by = %p",
+                          d_namlen,     d_namlen, dp->d_name, filter_len, filter_len, filter, filter_flags, sort_by)
 
          if (U_ISDOTS(dp->d_name)) continue;
 
          if (filter_len == 0 ||
-             u_pfn_match(dp->d_name, d_namlen, filter, filter_len, u_pfn_flags))
+             UServices::dosMatchWithOR(dp->d_name, d_namlen, filter, filter_len, filter_flags))
             {
             if (sort_by == 0) prepareForCallingRecurse(dp->d_name, d_namlen, U_DT_TYPE);
             else
@@ -351,7 +322,7 @@ found_file:
                ds->d_ino  = dp->d_ino;
                ds->d_type = U_DT_TYPE;
 
-               u__memcpy(qdir.free + (ds->d_name = qdir.pfree), dp->d_name, (ds->d_namlen = d_namlen), __PRETTY_FUNCTION__);
+               U_MEMCPY(qdir.free + (ds->d_name = qdir.pfree), dp->d_name, (ds->d_namlen = d_namlen));
 
                qdir.pfree += d_namlen;
                qdir.nfree -= d_namlen;
@@ -396,7 +367,7 @@ end:
 
 void UDirWalk::walk()
 {
-   U_TRACE(0, "UDirWalk::walk()")
+   U_TRACE_NO_PARAM(0, "UDirWalk::walk()")
 
    U_INTERNAL_DUMP("pathname = %S", pathname)
    U_INTERNAL_DUMP("u_cwd(%u) = %.*S", u_cwd_len, u_cwd_len, u_cwd)
@@ -417,7 +388,7 @@ void UDirWalk::walk()
 
       // NB: we need our own backup of current directory (see IR)...
 
-      u__memcpy(cwd_save, u_cwd, u_cwd_len, __PRETTY_FUNCTION__);
+      U_MEMCPY(cwd_save, u_cwd, u_cwd_len);
 
       cwd_save[u_cwd_len] = '\0';
 
@@ -426,13 +397,13 @@ void UDirWalk::walk()
          char pathname_save[U_PATH_MAX];
          uint32_t pathlen_save = pathlen;
 
-         u__memcpy(pathname_save, pathname, pathlen, __PRETTY_FUNCTION__);
+         U_MEMCPY(pathname_save, pathname, pathlen);
 
          recurse();
 
          (void) UFile::chdir(cwd_save, false);
 
-         u__memcpy(pathname, pathname_save, (pathlen = pathlen_save), __PRETTY_FUNCTION__);
+         U_MEMCPY(pathname, pathname_save, (pathlen = pathlen_save));
 
          pathname[pathlen] = '\0';
          }
@@ -444,7 +415,7 @@ void UDirWalk::walk()
 
 U_NO_EXPORT void UDirWalk::vectorPush()
 {
-   U_TRACE(0, "UDirWalk::vectorPush()")
+   U_TRACE_NO_PARAM(0, "UDirWalk::vectorPush()")
 
    U_INTERNAL_ASSERT_POINTER(pthis)
    U_INTERNAL_ASSERT_POINTER(pvector)
@@ -485,7 +456,7 @@ U_NO_EXPORT int UDirWalk::cmp_modify(const void* a, const void* b)
       {
       UString key(*(UStringRep**)a);
 
-      ra = U_NEW(UFile(key));
+      U_NEW(UFile, ra, UFile(key));
 
       (void) ra->stat();
 
@@ -498,7 +469,7 @@ U_NO_EXPORT int UDirWalk::cmp_modify(const void* a, const void* b)
       {
       UString key(*(UStringRep**)b);
 
-      rb = U_NEW(UFile(key));
+      U_NEW(UFile, rb, UFile(key));
 
       (void) rb->stat();
 
@@ -533,7 +504,7 @@ uint32_t UDirWalk::walk(UVector<UString>& vec, qcompare compare_obj)
       if (compare_obj == U_ALPHABETIC_SORT) vec.sort();
       else
          {
-         if (cache_file_for_compare == 0) cache_file_for_compare = U_NEW(UHashMap<UFile*>);
+         if (cache_file_for_compare == 0) U_NEW(UHashMap<UFile*>, cache_file_for_compare, UHashMap<UFile*>);
 
          uint32_t sz       = n + (15 * (n / 100)) + 32,
                   capacity = cache_file_for_compare->capacity();
@@ -556,7 +527,7 @@ uint32_t UDirWalk::walk(UVector<UString>& vec, qcompare compare_obj)
 
 U_NO_EXPORT void UDirWalk::treePush()
 {
-   U_TRACE(0, "UDirWalk::treePush()")
+   U_TRACE_NO_PARAM(0, "UDirWalk::treePush()")
 
    U_INTERNAL_DUMP("is_directory = %b", pthis->is_directory)
 
@@ -575,7 +546,7 @@ U_NO_EXPORT void UDirWalk::treePush()
 
 U_NO_EXPORT void UDirWalk::treeUp()
 {
-   U_TRACE(0, "UDirWalk::treeUp()")
+   U_TRACE_NO_PARAM(0, "UDirWalk::treeUp()")
 
    U_INTERNAL_ASSERT_POINTER(ptree)
 
@@ -591,7 +562,7 @@ uint32_t UDirWalk::walk(UTree<UString>& tree)
    ptree     = &tree;
    tree_root = true;
 
-   setRecurseSubDirs();
+   setRecurseSubDirs(true, true);
 
    call_if_up    = treeUp;
    call_internal = treePush;
@@ -617,6 +588,7 @@ const char* UDirWalk::dump(bool reset) const
                   << "call_if_up                " << (void*)call_if_up       << '\n'
                   << "filter_len                " << filter_len              << '\n'
                   << "bfollowlinks              " << bfollowlinks            << '\n'
+                  << "filter_flags              " << filter_flags            << '\n'
                   << "is_directory              " << is_directory            << '\n'
                   << "call_if_directory         " << call_if_directory       << '\n'
                   << "suffix_file_type (UString " << (void*)suffix_file_type << ')';

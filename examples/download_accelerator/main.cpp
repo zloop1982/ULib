@@ -30,7 +30,7 @@
 #  include <sys/uio.h>
 #endif
 
-#define U_APPEND_LITERAL(ptr,str) (void) memcpy(ptr, str, U_CONSTANT_SIZE(str)); ptr += U_CONSTANT_SIZE(str)
+#define U_APPEND_LITERAL(ptr,str) (void) apex_memcpy(ptr, str, U_CONSTANT_SIZE(str)); ptr += U_CONSTANT_SIZE(str)
 
 /* currently-known information about a host */
 
@@ -57,7 +57,6 @@ typedef struct {
 } HostData;
 
 static HostData* place;
-static struct timeval now;
 
 /* Download progress - "Thermometer" (bar) progress
    The progress bar should look like this:
@@ -107,7 +106,7 @@ public:
 
       total_length     = initial + to_download;
       initial_length   = initial;
-      size_legible_len = u__snprintf(size_legible, sizeof(size_legible), "%lu", total_length);
+      size_legible_len = u__snprintf(size_legible, sizeof(size_legible), U_CONSTANT_TO_PARAM("%lu"), total_length);
 
       screen_width = u_getScreenWidth();
 
@@ -130,7 +129,7 @@ public:
 
       U_INTERNAL_ASSERT(size <= total_length)
 
-      size_legible_len = u__snprintf(size_legible, sizeof(size_legible), "%lu", size);
+      size_legible_len = u__snprintf(size_legible, sizeof(size_legible), U_CONSTANT_TO_PARAM("%lu"), size);
 
       unsigned dlbytes_size  = 1 + U_max(size_legible_len, 13),
                progress_size = screen_width - (4 + 2 + dlbytes_size + 11 + 13);
@@ -149,7 +148,7 @@ public:
       U_INTERNAL_ASSERT(percentage <= 100)
 
       if (percentage < 100) sprintf(p, "%2u%% ", percentage);
-      else                  (void) memcpy(p, U_CONSTANT_TO_PARAM("100%"));
+      else                  U_MEMCPY(p, "100%", U_CONSTANT_SIZE("100%"));
 
       p += 4;
 
@@ -229,7 +228,7 @@ public:
 
             U_APPEND_LITERAL("   ");
 
-            (void) sprintf(p, " ETA %02d:%02d", eta_min, eta_sec);
+            (void) sprintf(p, " ETA %02u:%02u", eta_min, eta_sec);
             }
          else
             {
@@ -237,7 +236,7 @@ public:
 
             if (eta_hrs < 10) *p++ = ' ';
 
-            (void) sprintf(p, " ETA %d:%02d:%02d", eta_hrs, eta_min, eta_sec);
+            (void) sprintf(p, " ETA %u:%02u:%02u", eta_hrs, eta_min, eta_sec);
             }
 
          p += u__strlen(p, __PRETTY_FUNCTION__);
@@ -273,13 +272,13 @@ no_eta:
 
       (void) UFile::writev(STDOUT_FILENO, iov, 3); 
 
-      UTimer::init(false);
+      UTimer::init(UTimer::SYNC);
 
-      (void) UTimer::insert(this, true);
+      UTimer::insert(this);
 
-      (void) gettimeofday(&_start, 0);
+      UTimer::setTimer();
 
-      time = _start;
+      time = *u_now;
 
       display();
       }
@@ -288,12 +287,12 @@ no_eta:
       {
       U_TRACE(5, "ProgressBar::progress()")
 
-      (void) gettimeofday(&now, 0);
+      u_gettimenow();
 
-      dltime         = (now.tv_sec  -   time.tv_sec)  * 1000 +
-                       (now.tv_usec -   time.tv_usec) / 1000;
-      dl_total_time  = (now.tv_sec  - _start.tv_sec)  * 1000 +
-                       (now.tv_usec - _start.tv_usec) / 1000;
+      dltime         = (u_now->tv_sec  -   time.tv_sec)  * 1000 +
+                       (u_now->tv_usec -   time.tv_usec) / 1000;
+      dl_total_time  = (u_now->tv_sec  - _start.tv_sec)  * 1000 +
+                       (u_now->tv_usec - _start.tv_usec) / 1000;
 
       U_INTERNAL_DUMP("dltime = %ld dl_total_time = %ld", dltime, dl_total_time)
       }
@@ -301,6 +300,8 @@ no_eta:
    void end()
       {
       U_TRACE(5, "ProgressBar::end()")
+
+      UTimer::erase(this);
 
       howmuch = count = (total_length - initial_length);
 
@@ -311,6 +312,8 @@ no_eta:
       display();
 
       (void) UFile::write(STDOUT_FILENO, U_CONSTANT_TO_PARAM("\n")); 
+
+      delete this;
       }
 
    virtual int handlerTime()
@@ -325,7 +328,7 @@ no_eta:
 
       progress();
 
-      time = now;
+      time = *u_now;
 
       display(); /* Inform the progress gauge of newly received bytes */
 
@@ -457,8 +460,8 @@ public:
 
       delta_time = ((host->send_time.tv_sec  != 0 ||
                      host->send_time.tv_usec != 0)
-                        ? (now.tv_sec  - host->send_time.tv_sec)  * 1000 +
-                          (now.tv_usec - host->send_time.tv_usec) / 1000
+                        ? (u_now->tv_sec  - host->send_time.tv_sec)  * 1000 +
+                          (u_now->tv_usec - host->send_time.tv_usec) / 1000
                         : 0);
 
       U_INTERNAL_DUMP("delta_time = %ld", delta_time)
@@ -612,8 +615,8 @@ public:
       rcvsock.iSockDesc = rcvsock_fd;
       sndsock.iSockDesc = sndsock_fd;
 
+      int code, lag;
       unsigned must_continue = numhosts;
-      int code, startcount, hostcount, lag;
       int seq = 0, endcount = 0, min_lag = 100;
 
       if (rcvsock.setTimeoutRCV(50) == false) U_RETURN(false); /* transmit time must be <= min_lag / 2 */
@@ -634,7 +637,7 @@ public:
 
       /* keep going until most of the hosts have been finished */
 
-      (void) gettimeofday(&now, 0);
+      u_gettimenow();
 
       while (must_continue &&
              must_continue >= numhosts/2)
@@ -647,7 +650,8 @@ public:
          */
 
          bool sent_one = false;
-         startcount    = hostcount = endcount;
+         int startcount = endcount;
+         int hostcount = endcount;
          must_continue = 0;
 
          do {
@@ -684,7 +688,7 @@ public:
                   host->num_out++;
                   host->retries++;
 
-                  host->send_time = now;
+                  host->send_time = *u_now;
 
                   if (sendProbe() == false) U_RETURN(false);
 
@@ -711,7 +715,7 @@ public:
 
          code = waitForReply() - 1; /* ICMP error code returned */
 
-         (void) gettimeofday(&now, 0);
+         u_gettimenow();
 
          if (u_is_tty) (void) UFile::write(STDOUT_FILENO, U_CONSTANT_TO_PARAM(".")); 
 
@@ -1200,24 +1204,17 @@ public:
 
       host = from[i];
 
-      if (u_is_tty) pinfo->start();
+      if (pinfo) pinfo->start();
 
       download();
 
       (void) proc.waitAll();
 
-      if (u_is_tty)
-         {
-         UTimer::erase(pinfo, true);
-
-         pinfo->end();
-         }
+      if (pinfo) pinfo->end();
 
       file.munmap();
 
 #  ifdef DEBUG
-      if (u_is_tty) delete pinfo;
-
       file.close();
 
       UFile::munmap(place, map_size1);

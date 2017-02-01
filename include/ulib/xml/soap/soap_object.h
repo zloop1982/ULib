@@ -26,13 +26,11 @@
  * may just act as repository for a functional group. When the component handling client requests receives a message
  * that component tells the USOAPObject to process the request. USOAPObject assumes that all requests are wellformed
  * SOAP messages. On return, the external component gets the SOAP response. This string may contain the result of the
- * method/message or it may contain a Fault.
+ * method/message or it may contain a Fault
  */
 
 class U_EXPORT USOAPObject : public URPCObject {
 public:
-
-   // Costruttori
 
    USOAPObject()
       {
@@ -48,9 +46,9 @@ public:
 
    virtual void setFailed() U_DECL_OVERRIDE
       {
-      U_TRACE(0, "USOAPObject::setFailed()")
+      U_TRACE_NO_PARAM(0, "USOAPObject::setFailed()")
 
-      URPCMethod::pFault = U_NEW(USOAPFault);
+      U_NEW(USOAPFault, URPCMethod::pFault, USOAPFault);
       }
 
    // GLOBAL SERVICES
@@ -62,8 +60,8 @@ public:
       U_INTERNAL_ASSERT_EQUALS(dispatcher,0)
       U_INTERNAL_ASSERT_EQUALS(URPCMethod::encoder,0)
 
-      dispatcher          = U_NEW(USOAPObject);
-      URPCMethod::encoder = U_NEW(USOAPEncoder);
+      U_NEW(USOAPObject, dispatcher, USOAPObject);
+      U_NEW(USOAPEncoder, URPCMethod::encoder, USOAPEncoder);
 
       if (file_method) URPCObject::readGenericMethod(*file_method);
       }
@@ -80,17 +78,15 @@ protected:
       {
       U_TRACE(0, "USOAPObject::insertGenericMethod(%V,%V,%p,%d)", n.rep, ns.rep, cmd, rtype)
 
-      methodList.push_back(U_NEW(USOAPGenericMethod(n, ns, cmd, rtype)));
+      URPCMethod* pmethod;
+
+      U_NEW(USOAPGenericMethod, pmethod, USOAPGenericMethod(n, ns, cmd, rtype));
+
+      methodList.push_back(pmethod);
       }
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   USOAPObject(const USOAPObject&) = delete;
-   USOAPObject& operator=(const USOAPObject&) = delete;
-#else
-   USOAPObject(const USOAPObject&) : URPCObject() {}
-   USOAPObject& operator=(const USOAPObject&)     { return *this; }
-#endif      
+   U_DISALLOW_COPY_AND_ASSIGN(USOAPObject)
 };
 
 #endif

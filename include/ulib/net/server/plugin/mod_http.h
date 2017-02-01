@@ -23,8 +23,6 @@ public:
    // Check for memory error
    U_MEMORY_TEST
 
-   // COSTRUTTORI
-
    UHttpPlugIn()
       {
       U_TRACE_REGISTER_OBJECT(0, UHttpPlugIn, "", 0)
@@ -36,25 +34,25 @@ public:
 
    // Server-wide hooks
 
-   virtual int handlerConfig(UFileConfig& cfg) U_DECL_OVERRIDE;
-   virtual int handlerInit() U_DECL_OVERRIDE;
-   virtual int handlerRun() U_DECL_OVERRIDE;
-   virtual int handlerFork() U_DECL_OVERRIDE;
-   virtual int handlerStop() U_DECL_OVERRIDE;
+   virtual int handlerConfig(UFileConfig& cfg) U_DECL_FINAL;
+   virtual int handlerInit() U_DECL_FINAL;
+   virtual int handlerRun() U_DECL_FINAL;
+   virtual int handlerFork() U_DECL_FINAL;
+   virtual int handlerStop() U_DECL_FINAL;
 
    // Connection-wide hooks
 
-   virtual int handlerREAD() U_DECL_OVERRIDE;
-   virtual int handlerRequest() U_DECL_OVERRIDE;
+   virtual int handlerREAD() U_DECL_FINAL;
+   virtual int handlerRequest() U_DECL_FINAL;
 
    // SigHUP hook
 
-   virtual int handlerSigHUP() U_DECL_OVERRIDE;
+   virtual int handlerSigHUP() U_DECL_FINAL;
 
    // define method VIRTUAL of class UEventFd
 
-   virtual int  handlerRead() U_DECL_OVERRIDE;
-   virtual void handlerDelete() U_DECL_OVERRIDE;
+   virtual int  handlerRead() U_DECL_FINAL;
+   virtual void handlerDelete() U_DECL_FINAL;
 
    // DEBUG
 
@@ -63,13 +61,7 @@ public:
 #endif
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UHttpPlugIn(const UHttpPlugIn&) = delete;
-   UHttpPlugIn& operator=(const UHttpPlugIn&) = delete;
-#else
-   UHttpPlugIn(const UHttpPlugIn&) : UServerPlugIn(), UEventFd() {}
-   UHttpPlugIn& operator=(const UHttpPlugIn&)                    { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UHttpPlugIn)
 };
 
 #endif

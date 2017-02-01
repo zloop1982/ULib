@@ -23,6 +23,15 @@
 
 #define U_CREAT_FUNC(name, obj) extern "C" { void* u_creat_##name(); U_EXPORT void* u_creat_##name() { return new obj(); } }
 
+enum EnvironmentType {
+   U_CGI     = 0x001,
+   U_PHP     = 0x002,
+   U_RAKE    = 0x004,
+   U_SHELL   = 0x008,
+   U_WSCGI   = 0x010,
+   U_GENERIC = 0x020
+};
+
 class UHTTP;
 
 template <class T> class UPlugIn;
@@ -30,11 +39,9 @@ template <class T> class UPlugIn;
 template <> class U_EXPORT UPlugIn<void*> : public UDynamic {
 public:
 
-   // COSTRUTTORI
-
    UPlugIn()
       {
-      U_TRACE(0, "UPlugIn<void*>::UPlugIn()")
+      U_TRACE_NO_PARAM(0, "UPlugIn<void*>::UPlugIn()")
 
       obj      = 0;
       next     = 0;
@@ -51,11 +58,11 @@ public:
 
    static bool empty()
       {
-      U_TRACE(0, "UPlugIn<void*>::empty()")
+      U_TRACE_NO_PARAM(0, "UPlugIn<void*>::empty()")
 
-      bool result = (first == 0);
+      if (first == 0) U_RETURN(true);
 
-      U_RETURN(result);
+      U_RETURN(false);
       }
 
    static UPlugIn<void*>* getObjWrapper(void* obj) __pure;
@@ -78,8 +85,7 @@ protected:
    static void* create(const char* name, uint32_t name_len);
 
 private:
-   UPlugIn<void*>(const UPlugIn<void*>&) : UDynamic() {}
-   UPlugIn<void*>& operator=(const UPlugIn<void*>&)   { return *this; }
+   U_DISALLOW_COPY_AND_ASSIGN(UPlugIn<void*>)
 
    friend class UHTTP;
    friend class UServer_Base;
@@ -87,8 +93,6 @@ private:
 
 template <class T> class U_EXPORT UPlugIn<T*> : public UPlugIn<void*> {
 public:
-
-   // COSTRUTTORI
 
    UPlugIn()
       {
@@ -109,13 +113,7 @@ public:
 #endif
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UPlugIn<T*>(const UPlugIn<T*>&) = delete;
-   UPlugIn<T*>& operator=(const UPlugIn<T*>&) = delete;
-#else
-   UPlugIn<T*>(const UPlugIn<T*>&)            {}
-   UPlugIn<T*>& operator=(const UPlugIn<T*>&) { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UPlugIn<T*>)
 };
 
 #endif

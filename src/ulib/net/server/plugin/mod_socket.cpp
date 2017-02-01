@@ -50,7 +50,6 @@ int UWebSocketPlugIn::handlerConfig(UFileConfig& cfg)
 {
    U_TRACE(0, "UWebSocketPlugIn::handlerConfig(%p)", &cfg)
 
-   // ----------------------------------------------------------------------------------------------
    // Perform registration of web socket method
    // ----------------------------------------------------------------------------------------------
    // COMMAND                          command (alternative to USP websocket) to execute
@@ -73,17 +72,17 @@ int UWebSocketPlugIn::handlerConfig(UFileConfig& cfg)
 
 int UWebSocketPlugIn::handlerRun()
 {
-   U_TRACE(0, "UWebSocketPlugIn::handlerRun()")
+   U_TRACE_NO_PARAM(0, "UWebSocketPlugIn::handlerRun()")
 
    U_INTERNAL_ASSERT_EQUALS(UWebSocket::rbuffer, 0)
 
-   UWebSocket::rbuffer = U_NEW(UString(U_CAPACITY));
+   U_NEW(UString, UWebSocket::rbuffer, UString(U_CAPACITY));
 
    UHTTP::UServletPage* usp = UHTTP::getUSP(U_CONSTANT_TO_PARAM("/modsocket"));
 
    if (usp)
       {
-      U_INTERNAL_DUMP("usp->runDynamicPage = %p", usp->runDynamicPage)
+      U_INTERNAL_DUMP("modsocket->runDynamicPage = %p", usp->runDynamicPage)
 
       U_INTERNAL_ASSERT_POINTER(usp->runDynamicPage)
 
@@ -101,7 +100,7 @@ int UWebSocketPlugIn::handlerRun()
 
 int UWebSocketPlugIn::handlerRequest()
 {
-   U_TRACE(0, "UWebSocketPlugIn::handlerRequest()")
+   U_TRACE_NO_PARAM(0, "UWebSocketPlugIn::handlerRequest()")
 
    if (U_http_websocket_len)
       {
@@ -121,13 +120,13 @@ int UWebSocketPlugIn::handlerRequest()
 
          (void) environment.append(command->getStringEnvironment());
 
-         if (UHTTP::getCGIEnvironment(environment, U_CGI) == false) U_RETURN(U_PLUGIN_HANDLER_ERROR);
+         if (UHTTP::getCGIEnvironment(environment, U_GENERIC) == false) U_RETURN(U_PLUGIN_HANDLER_ERROR);
 
          command->setEnvironment(&environment);
 
          if (command->execute((UString*)-1, (UString*)-1, -1, fd_stderr))
             {
-#        ifdef U_LOG_ENABLE
+#        ifndef U_LOG_DISABLE
             UServer_Base::logCommandMsgError(command->getCommand(), true);
 #        endif
 

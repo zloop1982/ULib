@@ -17,7 +17,7 @@
 
 U_NO_EXPORT void URDBClient_Base::setStatus()
 {
-   U_TRACE(0, "URDBClient_Base::setStatus()")
+   U_TRACE_NO_PARAM(0, "URDBClient_Base::setStatus()")
 
    const char* descr;
 
@@ -39,12 +39,12 @@ U_NO_EXPORT void URDBClient_Base::setStatus()
 
    U_INTERNAL_ASSERT_EQUALS(u_buffer_len, 0)
 
-   u_buffer_len = u__snprintf(u_buffer, U_BUFFER_SIZE, "(%d, %s)", nResponseCode, descr);
+   u_buffer_len = u__snprintf(u_buffer, U_BUFFER_SIZE, U_CONSTANT_TO_PARAM("(%d, %s)"), nResponseCode, descr);
 }
 
 bool URDBClient_Base::readResponse()
 {
-   U_TRACE(0, "URDBClient_Base::readResponse()")
+   U_TRACE_NO_PARAM(0, "URDBClient_Base::readResponse()")
 
    response.setBuffer(U_CAPACITY);
 
@@ -91,7 +91,7 @@ bool URDBClient_Base::processRequest(const char* token)
 
 bool URDBClient_Base::closeReorganize()
 {
-   U_TRACE(0, "URDBClient_Base::closeReorganize()")
+   U_TRACE_NO_PARAM(0, "URDBClient_Base::closeReorganize()")
 
    reset();
 
@@ -104,7 +104,7 @@ bool URDBClient_Base::closeReorganize()
 
 bool URDBClient_Base::beginTransaction()
 {
-   U_TRACE(0, "URDBClient_Base::beginTransaction()")
+   U_TRACE_NO_PARAM(0, "URDBClient_Base::beginTransaction()")
 
    reset();
 
@@ -115,7 +115,7 @@ bool URDBClient_Base::beginTransaction()
 
 bool URDBClient_Base::abortTransaction()
 {
-   U_TRACE(0, "URDBClient_Base::abortTransaction()")
+   U_TRACE_NO_PARAM(0, "URDBClient_Base::abortTransaction()")
 
    reset();
 
@@ -126,7 +126,7 @@ bool URDBClient_Base::abortTransaction()
 
 bool URDBClient_Base::commitTransaction()
 {
-   U_TRACE(0, "URDBClient_Base::commitTransaction()")
+   U_TRACE_NO_PARAM(0, "URDBClient_Base::commitTransaction()")
 
    reset();
 
@@ -254,19 +254,22 @@ void URDBClient_Base::_callForAllEntry(vPFprpr function, bool sorted)
       U_INTERNAL_ASSERT_EQUALS(nResponseCode, 200)
 
       UCDB::datum _key, _data;
-      const char* ptr  = response.data();
+      const char* ptr = response.data();
 
       while (*ptr == '+')
          {
-         U_ASSERT(ptr < response.rep->end())
+         UStringRep* key;
+         UStringRep* data;
+
+         U_INTERNAL_ASSERT_MINOR(ptr, response.pend())
 
          ptr = URDB::parseLine(ptr, &_key, &_data);
 
          U_INTERNAL_ASSERT_MAJOR(_key.dsize,0)
          U_INTERNAL_ASSERT_MAJOR(_data.dsize,0)
 
-         UStringRep* key  = U_NEW(UStringRep((const char*) _key.dptr,  _key.dsize));
-         UStringRep* data = U_NEW(UStringRep((const char*)_data.dptr, _data.dsize));
+         U_NEW(UStringRep, key,  UStringRep((const char*) _key.dptr,  _key.dsize));
+         U_NEW(UStringRep, data, UStringRep((const char*)_data.dptr, _data.dsize));
 
          function(key, data);
 

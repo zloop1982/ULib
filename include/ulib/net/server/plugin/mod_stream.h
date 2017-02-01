@@ -25,8 +25,6 @@ public:
    // Check for memory error
    U_MEMORY_TEST
 
-   // COSTRUTTORI
-
             UStreamPlugIn();
    virtual ~UStreamPlugIn();
 
@@ -34,13 +32,13 @@ public:
 
    // Server-wide hooks
 
-   virtual int handlerConfig(UFileConfig& cfg) U_DECL_OVERRIDE;
-   virtual int handlerInit() U_DECL_OVERRIDE;
-   virtual int handlerRun() U_DECL_OVERRIDE;
+   virtual int handlerConfig(UFileConfig& cfg) U_DECL_FINAL;
+   virtual int handlerInit() U_DECL_FINAL;
+   virtual int handlerRun() U_DECL_FINAL;
 
    // Connection-wide hooks
 
-   virtual int handlerRequest() U_DECL_OVERRIDE;
+   virtual int handlerRequest() U_DECL_FINAL;
 
    // DEBUG
 
@@ -60,13 +58,7 @@ protected:
    static RETSIGTYPE handlerForSigTERM(int signo);
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UStreamPlugIn(const UStreamPlugIn&) = delete;
-   UStreamPlugIn& operator=(const UStreamPlugIn&) = delete;
-#else
-   UStreamPlugIn(const UStreamPlugIn&) : UServerPlugIn() {}
-   UStreamPlugIn& operator=(const UStreamPlugIn&)        { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UStreamPlugIn)
 };
 
 #endif

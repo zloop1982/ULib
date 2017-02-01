@@ -15,20 +15,138 @@
 #define ULIB_HTTP2_H 1
 
 #include <ulib/net/ipaddress.h>
-#include <ulib/container/hash_map.h>
+#include <ulib/utility/uhttp.h>
+#include <ulib/utility/hexdump.h>
+
+#define HTTP2_FRAME_HEADER_SIZE               9 // The number of bytes of the frame header
+#define HTTP2_DEFAULT_WINDOW_SIZE         65535 
+#define HTTP2_HEADER_TABLE_OFFSET            62
+#define HTTP2_MAX_CONCURRENT_STREAMS        128
+#define HTTP2_HEADER_TABLE_ENTRY_SIZE_OFFSET 32
 
 #define HTTP2_CONNECTION_PREFACE "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n" // (24 bytes)
 
 class UHTTP;
 class UClientImage_Base;
-class UHashMap<UString>;
 
 class U_EXPORT UHTTP2 {
 public:
 
-   static void ctor();
-   static void dtor();
-   static bool manageSetting();
+   enum ConnectionState {
+      CONN_STATE_IDLE       = 0x000,
+      CONN_STATE_OPEN       = 0x001,
+      CONN_STATE_IS_CLOSING = 0x002
+   };
+
+   enum StreamState {
+      STREAM_STATE_IDLE        = 0x000,
+      STREAM_STATE_OPEN        = 0x001,
+      STREAM_STATE_HALF_CLOSED = 0x002,
+      STREAM_STATE_CLOSED      = 0x004,
+      STREAM_STATE_RESERVED    = 0x008
+   };
+
+   enum SettingsId {
+      HEADER_TABLE_SIZE      = 1,
+      ENABLE_PUSH            = 2,
+      MAX_CONCURRENT_STREAMS = 3,
+      INITIAL_WINDOW_SIZE    = 4,
+      MAX_FRAME_SIZE         = 5,
+      MAX_HEADER_LIST_SIZE   = 6
+   };
+
+   struct Settings {
+      uint32_t header_table_size,
+               enable_push,
+               max_concurrent_streams,
+               initial_window_size,
+               max_frame_size,
+               max_header_list_size;
+   };
+
+   struct HpackHeaderTableEntry {
+      const UString* name;
+      const UString* value;
+   };
+
+   struct HpackDynamicTable {
+      uint32_t num_entries,
+               entry_capacity,
+               entry_start_index;
+      // size and capacities are 32+name_len+value_len (as defined by hpack spec)
+      uint32_t hpack_size,
+               hpack_capacity,        // the value set by SETTINGS_HEADER_TABLE_SIZE _and_ dynamic table size update
+               hpack_max_capacity;    // the value set by SETTINGS_HEADER_TABLE_SIZE
+      HpackHeaderTableEntry* entries; // ring buffer
+   };
+
+   struct Stream {
+      UString headers, body;
+      uint32_t id, state, clength;
+   };
+
+   class Connection {
+   public:
+
+   // Check for memory error
+   U_MEMORY_TEST
+
+   // Allocator e Deallocator
+   U_MEMORY_ALLOCATOR
+   U_MEMORY_DEALLOCATOR
+
+   int32_t inp_window,                 // receive flow control window (its size is a measure of the buffering capacity of the   sender)
+           out_window;                 //    send flow control window (its size is a measure of the buffering capacity of the receiver)
+   ConnectionState state;              // state
+   Settings peer_settings;             // settings
+   UHashMap<UString> itable;           // headers request
+   HpackDynamicTable idyntbl, odyntbl; // hpack dynamic table (request, response)
+   // streams
+   uint32_t max_processed_stream_id;
+   Stream streams[HTTP2_MAX_CONCURRENT_STREAMS];
+#ifdef DEBUG
+   UHashMap<UString> dtable;
+   HpackDynamicTable ddyntbl;
+#endif
+
+    Connection();
+   ~Connection()
+      {
+      U_TRACE_UNREGISTER_OBJECT(0, Connection)
+      }
+
+   void reset()
+      {
+      U_TRACE_NO_PARAM(0, "UHTTP2::Connection::reset()")
+
+      inp_window              =
+      out_window              = HTTP2_DEFAULT_WINDOW_SIZE;
+      peer_settings           = settings;
+      max_processed_stream_id = 0;
+      }
+
+   // SERVICES
+
+   static void preallocate(uint32_t max_connection)
+      {
+      U_TRACE(0+256, "UHTTP2::Connection::preallocate(%u)", max_connection)
+
+      U_INTERNAL_ASSERT_EQUALS(vConnection, 0)
+
+      U_INTERNAL_DUMP("sizeof(Connection) = %u sizeof(Stream) = %u", sizeof(Connection), sizeof(Stream))
+
+      vConnection = new Connection[max_connection];
+      }
+
+   // DEBUG
+
+#if defined(U_STDCPP_ENABLE) && defined(DEBUG)
+   const char* dump(bool reset) const U_EXPORT;
+#endif
+
+   private:
+   U_DISALLOW_COPY_AND_ASSIGN(Connection)
+   };
 
 protected:
    enum FrameTypesId {
@@ -46,11 +164,11 @@ protected:
 
    enum FrameFlagsId {
       FLAG_NONE        = 0x00,
-      FLAG_ACK         = 0x01,
-      FLAG_END_STREAM  = 0x01,
-      FLAG_END_HEADERS = 0x04,
-      FLAG_PADDED      = 0x08,
-      FLAG_PRIORITY    = 0x20
+      FLAG_ACK         = 0x01, // 1
+      FLAG_END_STREAM  = 0x01, // 1
+      FLAG_END_HEADERS = 0x04, // 100
+      FLAG_PADDED      = 0x08, // 1000
+      FLAG_PRIORITY    = 0x20  // 100000
    };
 
    enum FrameErrorCode { // The status codes for the RST_STREAM and GOAWAY frames
@@ -68,7 +186,13 @@ protected:
       ENHANCE_YOUR_CALM   = 0x0b,
       INADEQUATE_SECURITY = 0x0c,
       HTTP_1_1_REQUIRED   = 0x0d,
-      ERROR_INCOMPLETE    = 0xff
+      ERROR_INCOMPLETE    = 0x0e
+   };
+
+   enum HuffDecodeFlag {
+      HUFF_ACCEPTED =  1,       // FSA accepts this state as the end of huffman encoding sequence
+      HUFF_SYM      = (1 << 1), // This state emits symbol
+      HUFF_FAIL     = (1 << 2)  // If state machine reaches this state, decoding fails
    };
 
    /**
@@ -88,233 +212,515 @@ protected:
     */
 
    struct FrameHeader {
-      const char* payload;
-      int32_t length;    // The length field of this frame, excluding frame header
-      int32_t stream_id; // The stream identifier (aka, stream ID)
-      uint8_t type;      // The type of this frame
-      uint8_t flags;
-   };
-
-   enum SettingsId {
-      HEADER_TABLE_SIZE      = 1,
-      ENABLE_PUSH            = 2,
-      MAX_CONCURRENT_STREAMS = 3,
-      INITIAL_WINDOW_SIZE    = 4,
-      MAX_FRAME_SIZE         = 5,
-      MAX_HEADER_LIST_SIZE   = 6
-   };
-
-   struct Settings {
-      uint32_t header_table_size;
-      uint32_t enable_push;
-      uint32_t max_concurrent_streams;
-      uint32_t initial_window_size;
-      uint32_t max_frame_size;
-      uint32_t max_header_list_size;
-   };
-
-   enum StreamState {
-      STREAM_STATE_IDLE        = 0x000,
-      STREAM_STATE_RESERVED    = 0x001,
-      STREAM_STATE_OPEN        = 0x002,
-      STREAM_STATE_HALF_CLOSED = 0x004,
-      STREAM_STATE_CLOSED      = 0x008
-   };
-
-   enum ConnectionState {
-      CONN_STATE_OPEN,
-      CONN_STATE_IS_CLOSING
-   };
-
-   struct Stream {
-      int id;
-      int state;
-      int  input_window;
-      int output_window;
-      // priority
-      uint32_t priority_dependency; // 0 if not set
-          char priority_weight;     // 0 if not set
-          bool priority_exclusive;
-   };
-
-   struct Connection {
-      ConnectionState state; // state
-      Settings peer_settings; // settings
-      UHashMap<UString> itable; // headers request
-      // internal
-      uint32_t  input_window;
-      uint32_t output_window;
-       int32_t hpack_max_capacity; // the value set by SETTINGS_HEADER_TABLE_SIZE
-      // streams
-      int max_open_stream_id;
-      uint32_t num_responding_streams;
-      uint32_t max_processed_stream_id;
-      Stream streams[100];
-   };
-
-   struct HpackHeaderTableEntry {
-      UString* name;
-      UString* value;
-   };
-
-   static UString* str_authority;
-   static UString* str_method;
-   static UString* str_method_get;
-   static UString* str_method_post;
-   static UString* str_path;
-   static UString* str_path_root;
-   static UString* str_path_index;
-   static UString* str_scheme;
-   static UString* str_scheme_http;
-   static UString* str_scheme_https;
-   static UString* str_status;
-   static UString* str_status_200;
-   static UString* str_status_204;
-   static UString* str_status_206;
-   static UString* str_status_304;
-   static UString* str_status_400;
-   static UString* str_status_404;
-   static UString* str_status_500;
-   static UString* str_accept_charset;
-   static UString* str_accept_encoding;
-   static UString* str_accept_encoding_value;
-   static UString* str_accept_language;
-   static UString* str_accept_ranges;
-   static UString* str_accept;
-   static UString* str_access_control_allow_origin;
-   static UString* str_age;
-   static UString* str_allow;
-   static UString* str_authorization;
-   static UString* str_cache_control;
-   static UString* str_content_disposition;
-   static UString* str_content_encoding;
-   static UString* str_content_language;
-   static UString* str_content_length;
-   static UString* str_content_location;
-   static UString* str_content_range;
-   static UString* str_content_type;
-   static UString* str_cookie;
-   static UString* str_date;
-   static UString* str_etag;
-   static UString* str_expect;
-   static UString* str_expires;
-   static UString* str_from;
-   static UString* str_host;
-   static UString* str_if_match;
-   static UString* str_if_modified_since;
-   static UString* str_if_none_match;
-   static UString* str_if_range;
-   static UString* str_if_unmodified_since;
-   static UString* str_last_modified;
-   static UString* str_link;
-   static UString* str_location;
-   static UString* str_max_forwards;
-   static UString* str_proxy_authenticate;
-   static UString* str_proxy_authorization;
-   static UString* str_range;
-   static UString* str_referer;
-   static UString* str_refresh;
-   static UString* str_retry_after;
-   static UString* str_server;
-   static UString* str_set_cookie;
-   static UString* str_strict_transport_security;
-   static UString* str_transfer_encoding;
-   static UString* str_user_agent;
-   static UString* str_vary;
-   static UString* str_via;
-   static UString* str_www_authenticate;
-
-   static int nerror;
-   static Stream* pStream;
-   static bool settings_ack;
-   static FrameHeader frame;
-   static void* pConnectionEnd;
-   static Connection* pConnection;
-   static const Settings settings;
-   static const char* upgrade_settings;
-
-   static uint32_t hash_static_table[61];
-   static HpackHeaderTableEntry hpack_static_table[61];
-
-   // SERVICES
-
-   static void readFrame();
-   static void sendError();
-   static void manageData();
-   static void manageHeaders();
-   static bool readBodyRequest();
-   static bool updateSetting(const char*  ptr, uint32_t len);
-   static void decodeHeaders(const char*  ptr, const char*  endptr);
-
-#ifdef DEBUG
-   static const char* getFrameTypeDescription();
-#endif      
-
-   static bool setIndexStaticTable(UHashMap<void*>* ptable, const char* key, uint32_t length)
-      {
-      U_TRACE(0, "UHTTP2::setIndexStaticTable(%p,%.*S,%u)", ptable, length, key, length)
-
-      ptable->index = ptable->hash % ptable->_capacity;
-
-      U_RETURN(false);
-      }
-
-   static void setLengthAndType(char* ptr, uint32_t length, FrameTypesId type)
-      {
-      U_TRACE(0, "UHTTP2::setLengthAndType(%p,%u,%d)", ptr, length, type)
-
-      U_INTERNAL_ASSERT(type <= CONTINUATION)
-
-      *(uint32_t*)ptr    = htonl(length & 0x00ffffff) >> 8;
-                  ptr[3] = type;
-
-      U_INTERNAL_DUMP("length = %#.4S", ptr) // "\000\000\004\003" (big endian: 0x11223344)
-      }
-
-   // HPACK
-
-   enum HuffDecodeFlag {
-      HUFF_ACCEPTED =  1,        // FSA accepts this state as the end of huffman encoding sequence
-      HUFF_SYM      = (1 << 1),  // This state emits symbol
-      HUFF_FAIL     = (1 << 2)   // If state machine reaches this state, decoding fails
-   };
-
-   struct HuffDecode {
-      /**
-       * huffman decoding state, which is actually the node ID of internal huffman tree.
-       * We have 257 leaf nodes, but they are identical to root node other than emitting
-       * a symbol, so we have 256 internal nodes [1..255], inclusive
-       */
-      uint8_t state;
-      uint8_t flags; // bitwise OR of zero or more of the HuffDecodeFlag
-      uint8_t sym;   // symbol if HUFF_SYM flag set
+      unsigned char* payload;
+      uint32_t length,    // The length field of this frame, excluding frame header
+               stream_id; // The stream identifier (aka, stream ID)
+      uint8_t  type,      // The type of this frame
+               flags;
    };
 
    struct HuffSym {
-      uint32_t nbits; // The number of bits in this code
-      uint32_t code;  // Huffman code aligned to LSB
+      uint32_t nbits, // The number of bits in this code
+               code;  // Huffman code aligned to LSB
    };
+
+   /**
+    * huffman decoding state, which is actually the node ID of internal huffman tree.
+    * We have 257 leaf nodes, but they are identical to root node other than emitting
+    * a symbol, so we have 256 internal nodes [1..255], inclusive
+    */
+
+   struct HuffDecode {
+      uint8_t state,
+              flags, // bitwise OR of zero or more of the HuffDecodeFlag
+              sym;   // symbol if HUFF_SYM flag set
+   };
+
+   static Stream* pStream;
+   static FrameHeader frame;
+   static Stream* pStreamEnd;
+   static int nerror, hpack_errno;
+   static Connection* vConnection;
+   static Connection* pConnection;
+   static const Settings settings;
+   static uint32_t wait_for_continuation;
+   static bool bcontinue100, bsetting_ack, bsetting_send, bnghttp2;
+
+   static uint8_t  priority_weight;     // 0 if not set
+   static bool     priority_exclusive;
+   static uint32_t priority_dependency; // 0 if not set
 
    static const HuffSym    huff_sym_table[];
    static const HuffDecode huff_decode_table[][16];
 
-   static uint32_t       hpackDecodeString(const unsigned char* src, const unsigned char* src_end, UString* pvalue);
-   static uint32_t       hpackEncodeString(      unsigned char* dst,                               const char* src, uint32_t len);
+   static uint32_t               hash_static_table[61];
+   static HpackHeaderTableEntry hpack_static_table[61];
 
-   static unsigned char* hpackEncodeInt(         unsigned char* dst,                               uint32_t   value, uint8_t prefix_max);
-   static uint32_t       hpackDecodeInt(   const unsigned char* src, const unsigned char* src_end,  int32_t* pvalue, uint8_t prefix_max);
+   // SERVICES
+
+   static void ctor();
+   static void dtor()
+      {
+      U_TRACE_NO_PARAM(0, "UHTTP2::dtor()")
+
+      delete[] vConnection;
+      }
+
+   static void sendPing();
+   static void readFrame();
+   static void setStream();
+   static void manageData();
+   static void sendGoAway();
+   static bool initRequest();
+   static void writeResponse();
+   static void decodeHeaders();
+   static void manageHeaders();
+   static void handlerRequest();
+   static void handlerResponse();
+   static void sendResetStream();
+   static void sendWindowUpdate();
+
+   static void handlerDelete(UClientImage_Base* pclient);
+   static void updateSetting(unsigned char* ptr, uint32_t len);
+   static void writeData(struct iovec* iov, bool bdata, bool flag);
+
+   static void resetDataRead()
+      {
+      U_TRACE_NO_PARAM(0, "UHTTP2::resetDataRead()")
+
+      UClientImage_Base::rstart = 0;
+
+      UClientImage_Base::rbuffer->setEmptyForce();
+      }
+
+   static void clear()
+      {
+      U_TRACE_NO_PARAM(0, "UHTTP2::clear()")
+
+      for (pStream = pConnection->streams; pStream <= pStreamEnd; ++pStream)
+         {
+         pStream->body.clear();
+         pStream->headers.clear();
+
+         pStream->id      =
+         pStream->state   =
+         pStream->clength = 0;
+         }
+
+#  ifdef DEBUG
+      for (pStreamEnd = (pConnection->streams+HTTP2_MAX_CONCURRENT_STREAMS); pStream < pStreamEnd; ++pStream)
+         {
+      // U_INTERNAL_DUMP("pStream index = %u", pStream - pConnection->streams)
+
+         U_ASSERT(pStream->body.empty())
+         U_ASSERT(pStream->headers.empty())
+
+         U_INTERNAL_ASSERT_EQUALS(pStream->id, 0)
+         U_INTERNAL_ASSERT_EQUALS(pStream->clength, 0)
+         U_INTERNAL_ASSERT_EQUALS(pStream->state, STREAM_STATE_IDLE)
+         }
+#  endif
+      }
+
+   static void readPriority(unsigned char* ptr)
+      {
+      U_TRACE(0, "UHTTP2::readPriority(%p)", ptr)
+
+      priority_weight = ptr[4];
+
+      uint32_t u4 = ntohl(*(uint32_t*)ptr);
+
+      priority_exclusive  = (u4 >> 31) != 0;
+      priority_dependency =  u4 & 0x7fffffff;
+
+      U_INTERNAL_DUMP("priority_weight = %u priority_exclusive = %b priority_dependency = %u frame.stream_id = %u",
+                       priority_weight,     priority_exclusive,     priority_dependency,     frame.stream_id)
+
+      if (priority_dependency == frame.stream_id) nerror = PROTOCOL_ERROR;
+      }
+
+   static void setEncoding(const UString& x)
+      {
+      U_TRACE(0, "UHTTP2::setEncoding(%V)", x.rep)
+
+      U_INTERNAL_ASSERT_EQUALS(U_http_is_accept_gzip, false)
+
+      U_INTERNAL_DUMP("Accept-Encoding: = %V", x.rep)
+
+      U_INTERNAL_ASSERT(u_find(x.data(), 30, U_CONSTANT_TO_PARAM("gzip")))
+
+      U_http_flag |= HTTP_IS_ACCEPT_GZIP;
+
+      U_INTERNAL_DUMP("U_http_is_accept_gzip = %b", U_http_is_accept_gzip)
+      }
+
+   static void setURI(const char* ptr, uint32_t len)
+      {
+      U_TRACE(0, "UHTTP2::setURI(%.*S,%u)", len, ptr, len)
+
+      U_INTERNAL_ASSERT_EQUALS(U_http_info.uri_len, 0)
+
+      U_http_info.query = (const char*) memchr((U_http_info.uri = ptr), '?', (U_http_info.uri_len = len));
+
+      U_INTERNAL_DUMP("URI = %.*S", U_HTTP_URI_TO_TRACE)
+
+      if (U_http_info.query)
+         {
+         U_http_info.query_len = U_http_info.uri_len - (U_http_info.query++ - U_http_info.uri);
+
+         U_http_info.uri_len -= U_http_info.query_len;
+
+         U_INTERNAL_DUMP("query = %.*S", U_HTTP_QUERY_TO_TRACE)
+         }
+      }
+
+   static void setURI(const UString& uri) { setURI(U_STRING_TO_PARAM(uri)); }
+
+   static void updateSetting(const UString& data) { updateSetting((unsigned char*)U_STRING_TO_PARAM(data)); }
+
+   static void writev(struct iovec* iov, int iovcnt, uint32_t count)
+      {
+      U_TRACE(0, "UHTTP2::writev(%p,%d,%u)", iov, iovcnt, count)
+
+      U_DUMP_IOVEC(iov,iovcnt)
+
+#  if defined(USE_LIBSSL) || defined(_MSWINDOWS_)
+      (void) USocketExt::writev( UServer_Base::csocket, iov, iovcnt, count, 0);
+#  else
+      (void) USocketExt::_writev(UServer_Base::csocket, iov, iovcnt, count, 0);
+#  endif
+      }
+
+   static bool setIndexStaticTable(UHashMap<void*>* table, const char* key, uint32_t length)
+      {
+      U_TRACE(0, "UHTTP2::setIndexStaticTable(%p,%.*S,%u)", table, length, key, length)
+
+   // if (bhash) table->hash = u_hash_ignore_case((unsigned char*)key, length);
+
+      U_INTERNAL_DUMP("table->hash = %u", table->hash)
+
+      U_INTERNAL_ASSERT_MAJOR(table->hash, 0)
+
+      table->index = table->hash % table->_capacity;
+
+      U_RETURN(true); // NB: ignore case...
+      }
+
+   // HPACK (HTTP headers compression)
+
+   static bool isHpackError()
+      {
+      U_TRACE_NO_PARAM(0, "UHTTP2::isHpackError()")
+
+      U_INTERNAL_DUMP("hpack_errno = %d", hpack_errno)
+
+      if (hpack_errno)
+         {
+         nerror = COMPRESSION_ERROR;
+
+         U_RETURN(true);
+         }
+
+      U_RETURN(false);
+      }
+
+   static void clearHpackDynTbl(     HpackDynamicTable* dyntbl);
+   static void   addHpackDynTblEntry(HpackDynamicTable* dyntbl, const UString& name, const UString& value);
+
+   static HpackHeaderTableEntry* getHpackDynTblEntry(const HpackDynamicTable* dyntbl, uint32_t index)
+      {
+      U_TRACE(0, "UHTTP2::getHpackDynTblEntry(%p,%u)", dyntbl, index)
+
+      U_INTERNAL_DUMP("dyntbl->entry_start_index = %u dyntbl->entry_capacity = %u", dyntbl->entry_start_index, dyntbl->entry_capacity)
+
+      uint32_t entry_index = (dyntbl->entry_start_index + index) % dyntbl->entry_capacity;
+
+      HpackHeaderTableEntry* entry = dyntbl->entries + entry_index;
+
+      U_INTERNAL_ASSERT_POINTER(entry->name)
+
+      U_INTERNAL_DUMP("entry->name = %V entry->value = %V", entry->name->rep, entry->value->rep)
+
+      U_RETURN_POINTER(entry, HpackHeaderTableEntry);
+      }
+
+   static void evictHpackDynTblEntry(HpackDynamicTable* dyntbl, HpackHeaderTableEntry* entry)
+      {
+      U_TRACE(0, "UHTTP2::evictHpackDynTblEntry(%p,%p)", dyntbl, entry)
+
+      U_INTERNAL_ASSERT_MAJOR(dyntbl->num_entries, 0)
+
+      dyntbl->num_entries--;
+
+      dyntbl->hpack_size -= entry->name->size() + entry->value->size() + HTTP2_HEADER_TABLE_ENTRY_SIZE_OFFSET;
+
+      delete entry->name;
+      delete entry->value;
+      }
+
+   static void evictHpackDynTblEntry(HpackDynamicTable* dyntbl) { evictHpackDynTblEntry(dyntbl, getHpackDynTblEntry(dyntbl, dyntbl->num_entries-1)); }
+
+   static void setHpackDynTblCapacity(HpackDynamicTable* dyntbl, uint32_t value)
+      {
+      U_TRACE(0, "UHTTP2::setHpackDynTblCapacity(%p,%u)", dyntbl, value)
+
+      U_INTERNAL_DUMP("hpack_capacity = %u hpack_max_capacity = %u", dyntbl->hpack_capacity, dyntbl->hpack_max_capacity)
+
+      U_INTERNAL_ASSERT_DIFFERS(dyntbl->hpack_capacity, value)
+
+      dyntbl->hpack_capacity = value;
+
+      // adjust the size
+
+      while (dyntbl->num_entries != 0 &&
+             dyntbl->hpack_size > dyntbl->hpack_capacity)
+         {
+         evictHpackDynTblEntry(dyntbl);
+         }
+      }
+
+   static void setHpackInputDynTblCapacity(uint32_t value)
+      {
+      U_TRACE(0, "UHTTP2::setHpackInputDynTblCapacity(%u)", value)
+
+      HpackDynamicTable* dyntbl = &(pConnection->idyntbl);
+
+      U_INTERNAL_DUMP("hpack_capacity = %u hpack_max_capacity = %u", dyntbl->hpack_capacity, dyntbl->hpack_max_capacity)
+
+      if (value != dyntbl->hpack_capacity)
+         {
+         dyntbl->hpack_max_capacity = value;
+
+         setHpackDynTblCapacity(dyntbl, value);
+         }
+      }
+
+   static unsigned char* setHpackOutputDynTblCapacity(unsigned char* dst, uint32_t& value)
+      {
+      U_TRACE(0, "UHTTP2::setHpackOutputDynTblCapacity(%p,%u)", dst, value)
+
+      HpackDynamicTable* dyntbl = &(pConnection->odyntbl);
+
+      U_INTERNAL_DUMP("hpack_capacity = %u hpack_max_capacity = %u", dyntbl->hpack_capacity, dyntbl->hpack_max_capacity)
+
+      if (value > 4096) value = 4096;
+
+      if (value != dyntbl->hpack_capacity)
+         {
+         setHpackDynTblCapacity(dyntbl, value);
+
+         dst = hpackEncodeInt(dst, value, (1<<5)-1, 0x20);
+         }
+
+      U_RETURN_POINTER(dst, unsigned char);
+      }
+
+   static void addHpackOutputDynTblEntry(const UString& name, const UString& value) { addHpackDynTblEntry(&(pConnection->odyntbl), name, value); }
+
+   static unsigned char* hpackDecodeInt(   unsigned char* src, unsigned char* src_end, int32_t& value, uint8_t prefix_max);
+   static unsigned char* hpackDecodeString(unsigned char* src, unsigned char* src_end, UString& value);
+
+   static unsigned char* hpackEncodeInt(unsigned char* dst, uint32_t value, uint8_t prefix_max, uint8_t pattern)
+      {
+      U_TRACE(0+256, "UHTTP2::hpackEncodeInt(%p,%u,%u,%u)", dst, value, prefix_max, pattern)
+
+      /*
+#  ifdef DEBUG
+      unsigned char* src  = dst;
+      uint32_t value_save = value;
+#  endif
+      */
+
+      if (value < prefix_max) *dst++ = (uint8_t)(value | pattern);
+      else
+         {
+         *dst++ = (pattern | prefix_max);
+
+         for (value -= prefix_max; value >= 0x80; value >>= 7) *dst++ = 0x80 | (value & 0x7f);
+
+         *dst++ = (uint8_t)value;
+         }
+
+      /*
+#  ifdef DEBUG
+      int32_t index;
+      (void) hpackDecodeInt(src, src+(dst-src), index, prefix_max);
+      U_INTERNAL_ASSERT_EQUALS((uint32_t)index, value_save)
+#  endif
+      */
+
+      U_RETURN_POINTER(dst, unsigned char);
+      }
+
+   static unsigned char* setHpackEncodeStringLen(unsigned char* dst, uint32_t sz)
+      {
+      U_TRACE(0, "UHTTP2::setHpackEncodeStringLen(%p,%u)", dst, sz)
+
+      uint32_t l = sz >> 3;
+
+      if (sz & 0x07) ++l;
+
+      dst = hpackEncodeInt(dst, l, (1<<7)-1, 0x80);
+
+      U_RETURN_POINTER(dst, unsigned char);
+      }
+
+   // Header field grammar validation (RFC 7230 Section 3.2)
+
+   static bool isHeaderName( const char* s, uint32_t n) __pure;
+   static bool isHeaderValue(const char* s, uint32_t n) __pure;
+
+   static bool isHeaderName( const UString& s) { return isHeaderName( U_STRING_TO_PARAM(s)); }
+   static bool isHeaderValue(const UString& s) { return isHeaderValue(U_STRING_TO_PARAM(s)); } 
+
+   static    const char* getFrameErrorCodeDescription(uint32_t error);
+   static unsigned char* hpackEncodeHeader(unsigned char* dst, const UString& key, const UString& value);
+
+   static void decodeHeaders(UHashMap<UString>* itable, HpackDynamicTable* dyntbl, unsigned char* ptr, unsigned char* endptr);
+
+   static unsigned char* hpackEncodeString(unsigned char* dst, const char* src, uint32_t len, bool bhuffman);
+   static unsigned char* hpackEncodeString(unsigned char* dst, const UString& value,          bool bhuffman) { return hpackEncodeString(dst, U_STRING_TO_PARAM(value), bhuffman); }
+
+#ifdef DEBUG
+   typedef struct { const char* str; int value; const char* desc; } HpackError;
+
+   static unsigned char* index_ptr;
+   static HpackError hpack_error[8];
+   static bool btest, bdecodeHeadersDebug, bhash;
+
+   static const char* hpack_strerror()
+      {
+      U_TRACE_NO_PARAM(0, "UHTTP2::hpack_strerror()")
+
+      U_INTERNAL_DUMP("hpack_errno = %d hpack_error[%d] = %S", hpack_errno, -hpack_errno-2, hpack_error[-hpack_errno-2].desc)
+
+      return hpack_error[-hpack_errno-2].desc;
+      }
+
+   static bool isHpackError(int32_t index)
+      {
+      U_TRACE(0, "UHTTP2::isHpackError(%d)", index)
+
+      U_INTERNAL_DUMP("index = %d hpack_errno = %d", index, hpack_errno)
+
+      if (index == -1 ||
+          hpack_errno)
+         {
+         if (hpack_errno == 0) hpack_errno = -2; // The decoding buffer ends before the decoded HPACK block
+
+         nerror = COMPRESSION_ERROR;
+
+         U_RETURN(true);
+         }
+
+      U_RETURN(false);
+      }
+
+   static bool findHeader(uint32_t index)
+      {
+      U_TRACE(0, "UHTTP2::findHeader(%u)", index)
+
+      UHashMap<UString>* table = &(pConnection->dtable);
+
+      table->hash = hash_static_table[index];
+
+      table->lookup(hpack_static_table[index].name->rep);
+
+      if (table->node) U_RETURN(true);
+
+      U_RETURN(false);
+      }
+
+   static const char* getStreamStatusDescription();
+   static const char* getConnectionStatusDescription();
+   static const char* getFrameTypeDescription(char type);
+
+   static void printHpackDynamicTable(const HpackDynamicTable* dyntbl, ostream& os);
+
+   static void printHpackInputDynTable()  { printHpackDynamicTable(&(pConnection->idyntbl), cout); }
+   static void printHpackOutputDynTable() { printHpackDynamicTable(&(pConnection->odyntbl), cout); }
+
+# ifdef U_STDCPP_ENABLE
+   friend ostream& operator<<(ostream& os, const HpackDynamicTable& v)
+      {
+      U_TRACE(0+256, "HpackDynamicTable::operator<<(%p,%p)", &os, &v)
+
+      printHpackDynamicTable(&v, os);
+
+      return os;
+      }
+# endif
+
+   /**
+    * We save the Header Block Fragment of the frame to inspect it with inflatehd (https://github.com/tatsuhiro-t/nghttp2)
+    *
+    * ./inflatehd < inflatehd.json => { "cases": [ { "wire": "8285" } ] }
+    *
+    * static void saveHpackData(const char* ptr, uint32_t len, bool breq)
+    * {
+    * U_TRACE(0+256, "UHTTP2::saveHpackData(%.*S,%u,%b)", len, ptr, len, breq)
+    *
+    * UString tmp(U_CAPACITY);
+    *
+    * UHexDump::encode(ptr, len, tmp);
+    *
+    * (void) UFile::writeToTmp(U_STRING_TO_PARAM(tmp), O_RDWR | O_TRUNC, U_CONSTANT_TO_PARAM("%s.hpack.%P"), breq ? "request" : "response");
+    * }
+    *
+    * static void eraseHeader(uint32_t index)
+    * {
+    * U_TRACE(0, "UHTTP2::eraseHeader(%u)", index)
+    *
+    * UHashMap<UString>* table = &(pConnection->itable);
+    *
+    * table->hash = hash_static_table[index];
+    *
+    * table->lookup(hpack_static_table[index].name->rep);
+    *
+    * if (table->node) table->eraseAfterFind();
+    * }
+    *
+    * static void setFrameLengthAndType(char* ptr, uint32_t length, FrameTypesId type)
+    * {
+    * U_TRACE(0, "UHTTP2::setFrameLengthAndType(%p,%u,%d)", ptr, length, type)
+    *
+    * U_INTERNAL_ASSERT(type <= CONTINUATION)
+    *
+    * *(uint32_t*)ptr    = htonl(length & 0x00ffffff) >> 8;
+    *             ptr[3] = type;
+    *
+    * U_INTERNAL_DUMP("length = %#.4S", ptr) // "\000\000\004\003" (big endian: 0x11223344)
+    * }
+    *
+    * static void decodeHeadersResponse(unsigned char* ptr, uint32_t length)
+    * {
+    * U_TRACE(0, "UHTTP2::decodeHeadersResponse(%p,%u)", ptr, length)
+    *
+    * bdecodeHeadersDebug = true;
+    *
+    * decodeHeaders(&(pConnection->dtable),
+    *               &(pConnection->ddyntbl), ptr, ptr+length));
+    *
+    * bdecodeHeadersDebug = false;
+    *
+    * U_DUMP_OBJECT_TO_TMP(pConnection->dtable,  response.dtable)
+    * U_DUMP_OBJECT_TO_TMP(pConnection->ddyntbl, response.ddyntbl)
+    *
+    * U_ASSERT(findHeader(53)) // UString::str_server
+    * U_ASSERT(findHeader(32)) // UString::str_date
+    * U_ASSERT(findHeader(27)) // UString::str_content_length
+    *
+    * pConnection->dtable.clear();
+    * clearHpackDynTbl(&(pConnection->ddyntbl));
+    * }
+    */
+#endif
 
 private:
+   U_DISALLOW_COPY_AND_ASSIGN(UHTTP2)
+
    friend class UHTTP;
+   friend class Application;
    friend class UClientImage_Base;
-
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UHTTP2(const UHTTP2&) = delete;
-   UHTTP2& operator=(const UHTTP2&) = delete;
-#else
-   UHTTP2(const UHTTP2&)            {}
-   UHTTP2& operator=(const UHTTP2&) { return *this; }
-#endif      
 };
-
 #endif

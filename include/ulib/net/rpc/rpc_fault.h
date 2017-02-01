@@ -17,8 +17,8 @@
 #include <ulib/string.h>
 
 /**
-  @class URPCFault
-*/
+ * @class URPCFault
+ */
 
 class U_EXPORT URPCFault {
 public:
@@ -32,8 +32,6 @@ public:
 
    enum FaultCode { Sender, Receiver, DataEncodingUnknown, MustUnderstand, VersionMismatch };
 
-   // COSTRUTTORI
-
    URPCFault() : detail(U_CAPACITY)
       {
       U_TRACE_REGISTER_OBJECT(0, URPCFault, "", 0)
@@ -45,8 +43,6 @@ public:
       {
       U_TRACE_UNREGISTER_OBJECT(0, URPCFault)
       }
-
-   // SERVICES
 
    // Gets the general reason why the call failed.
    // Returns a string combining the generic fault and any more specific fault data
@@ -61,16 +57,16 @@ public:
 
    void setDetail()
       {
-      U_TRACE(0, "URPCFault::setDetail()")
+      U_TRACE_NO_PARAM(0, "URPCFault::setDetail()")
 
       U_INTERNAL_ASSERT_MAJOR(u_buffer_len, 0)
 
-      detail.snprintf("%.*s", u_buffer_len, u_buffer);
+      detail.snprintf(U_CONSTANT_TO_PARAM("%.*s"), u_buffer_len, u_buffer);
 
       u_buffer_len = 0;
       }
 
-   void setDetail(const char* format, ...);
+   void setDetail(const char* format, uint32_t fmt_size, ...);
 
    UString& getDetail()      { return detail; }
    UString& getFaultReason() { return faultReason; }
@@ -100,13 +96,7 @@ protected:
    FaultCode faultCode;    // Generic reason the call failed
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   URPCFault(const URPCFault&) = delete;
-   URPCFault& operator=(const URPCFault&) = delete;
-#else
-   URPCFault(const URPCFault&)            {}
-   URPCFault& operator=(const URPCFault&) { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(URPCFault)
 };
 
 #endif

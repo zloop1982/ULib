@@ -34,13 +34,6 @@ public:
    U_MEMORY_ALLOCATOR
    U_MEMORY_DEALLOCATOR
 
-   static const UString* str_FOLLOW_REDIRECTS;
-   static const UString* str_CLIENT_CERTIFICATE;
-   static const UString* str_REMOTE_ADDRESS_IP;
-   static const UString* str_WEBSOCKET;
-
-   static void str_allocate();
-
    enum Error {
       INTERNAL_ERROR            = 1, // NB: we need to start from 1 because we use a vector...
       BAD_REQUEST               = 2,
@@ -54,12 +47,8 @@ public:
       ERROR_A_X509_NOBASICAUTH  = 10
    };
 
-   // COSTRUTTORI
-
     UModProxyService();
    ~UModProxyService();
-
-   // VARIE
 
    int     getPort() const           { return port; }
    UString getUser() const           { return user; }
@@ -74,7 +63,7 @@ public:
 
    bool isAuthorization() const
       {
-      U_TRACE(0, "UModProxyService::isAuthorization()")
+      U_TRACE_NO_PARAM(0, "UModProxyService::isAuthorization()")
 
       if (    user.empty() == false &&
           password.empty() == false)
@@ -120,11 +109,7 @@ protected:
    bool request_cert, follow_redirects, response_client, websocket;
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UModProxyService& operator=(const UModProxyService&) = delete;
-#else
-   UModProxyService& operator=(const UModProxyService&) { return *this; }
-#endif
+   U_DISALLOW_ASSIGN(UModProxyService)
 
    friend class UHTTP;
 };

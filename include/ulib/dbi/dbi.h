@@ -30,7 +30,7 @@ extern "C" {
 /**
  * @class UDBI
  *
- * @brief This class is a wrapper around the DBI C API library (Database Independent Abstraction Layer).
+ * @brief This class is a wrapper around the DBI C API library (Database Independent Abstraction Layer)
  */
 
 class UDBIRow;
@@ -45,7 +45,7 @@ class UDBISet;
 
 template <typename T> std::pair<T,bool> use(T ref, bool is_null = false) { return std::pair<T,bool>(ref, is_null); }
 
-struct exec {}; // Special type to start statement execution   using operator,() - syntactic sugar
+struct exec {}; // Special type to start statement execution using operator,() - syntactic sugar
 
 typedef struct exec UExecType;
 
@@ -59,12 +59,8 @@ public:
    U_MEMORY_ALLOCATOR
    U_MEMORY_DEALLOCATOR
 
-   // COSTRUTTORI
-
     UDBI(const char* driverdir = 0, const char* drivername = "sqlite3"); // ex: "/usr/lib/dbd"
    ~UDBI();
-
-   // VARIE
 
    void close();
    bool reconnect();
@@ -153,7 +149,7 @@ public:
 
    template <typename ProcessQuery> typename ProcessQuery::ReturnType Exec()
       {
-      U_TRACE(1, "UDBI::Exec()")
+      U_TRACE_NO_PARAM(1, "UDBI::Exec()")
 
       U_CHECK_MEMORY
 
@@ -173,7 +169,7 @@ public:
 
    unsigned long long affected()
       {
-      U_TRACE(1, "UDBI::affected()")
+      U_TRACE_NO_PARAM(1, "UDBI::affected()")
 
       U_RETURN(affected_rows);
       }
@@ -184,9 +180,9 @@ public:
 
    // DEBUG
 
-#  ifdef DEBUG
+# ifdef DEBUG
    const char* dump(bool reset) const;
-#  endif
+# endif
 #endif
 
 protected:
@@ -232,13 +228,7 @@ protected:
       }
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UDBI(const UDBI&) = delete;
-   UDBI& operator=(const UDBI&) = delete;
-#else
-   UDBI(const UDBI&)            {}
-   UDBI& operator=(const UDBI&) { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UDBI)
 };
 
 // This class represents a single row that is fetched from the DB
@@ -252,8 +242,6 @@ public:
    // Allocator e Deallocator
    U_MEMORY_ALLOCATOR
    U_MEMORY_DEALLOCATOR
-
-   // COSTRUTTORI
 
    UDBIRow(dbi_result res_ = 0) : res(res_)
       {
@@ -274,8 +262,6 @@ public:
          U_SYSCALL_VOID(dbi_result_free, "%p", res);
          }
       }
-
-   // VARIE
 
    dbi_result getResult() { return res; }  // Get underlying libdbi result object. For low level access
 
@@ -339,7 +325,7 @@ public:
 
    unsigned int cols()
       {
-      U_TRACE(1, "UDBIRow::cols()")
+      U_TRACE_NO_PARAM(1, "UDBIRow::cols()")
 
       U_INTERNAL_ASSERT_POINTER_MSG(res, "DBI: using unititilized row")
 
@@ -469,13 +455,7 @@ private:
    bool fetch(int pos, UString&   _value); // Fetch \a string value at position \a pos (starting from 1), returns false if the column has null value
    bool fetch(int pos, struct tm& _value); // Fetch \a   time value at position \a pos (starting from 1), returns false if the column has null value
 
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UDBIRow(const UDBIRow&) = delete;
-   UDBIRow& operator=(const UDBIRow&) = delete;
-#else
-   UDBIRow(const UDBIRow&)            {}
-   UDBIRow& operator=(const UDBIRow&) { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UDBIRow)
 
    friend class UDBISet;
 };
@@ -492,8 +472,6 @@ public:
    U_MEMORY_ALLOCATOR
    U_MEMORY_DEALLOCATOR
 
-   // COSTRUTTORI
-
    UDBISet(dbi_result res_ = 0) : res(res_)
       {
       U_TRACE_REGISTER_OBJECT(0, UDBISet, "%p", res_)
@@ -506,11 +484,9 @@ public:
       if (res) clear();
       }
 
-   // VARIE
-
    void clear()
       {
-      U_TRACE(1, "UDBISet::clear()")
+      U_TRACE_NO_PARAM(1, "UDBISet::clear()")
 
       U_INTERNAL_ASSERT_POINTER_MSG(res, "DBI: no result assigned")
 
@@ -534,7 +510,7 @@ public:
 
    unsigned int cols()
       {
-      U_TRACE(1, "UDBISet::cols()")
+      U_TRACE_NO_PARAM(1, "UDBISet::cols()")
 
       U_INTERNAL_ASSERT_POINTER_MSG(res, "DBI: no result assigned")
 
@@ -558,13 +534,7 @@ public:
 private:
    dbi_result res;
 
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UDBISet(const UDBISet&) = delete;
-   UDBISet& operator=(const UDBISet&) = delete;
-#else
-   UDBISet(const UDBISet&)            {}
-   UDBISet& operator=(const UDBISet&) { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UDBISet)
 
    friend class UDBI;
 };
@@ -607,7 +577,7 @@ public:
 
    void commit()
       {
-      U_TRACE(0, "UDBITransaction::commit()")
+      U_TRACE_NO_PARAM(0, "UDBITransaction::commit()")
 
       sql << "COMMIT",exec();
 
@@ -618,7 +588,7 @@ public:
 
    void rollback()
       {
-      U_TRACE(0, "UDBITransaction::rollback()")
+      U_TRACE_NO_PARAM(0, "UDBITransaction::rollback()")
 
       sql << "ROLLBACK",exec();
 
@@ -635,13 +605,7 @@ private:
    UDBI& sql;
    bool commited;
 
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UDBITransaction(const UDBITransaction&) = delete;
-   UDBITransaction& operator=(const UDBITransaction&) = delete;
-#else
-   UDBITransaction(const UDBITransaction&); // NB: gcc give error if we try to define the ctor...
-   UDBITransaction& operator=(const UDBITransaction&) { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UDBITransaction)
 };
 
 // Declare and define the ProcessQueryPolicy
@@ -669,7 +633,7 @@ struct U_EXPORT UWithData
 {
    // The policy for the query with entire dataset
 
-   static UDBISet* deepQuery(dbi_result res) { return U_NEW(UDBISet(res)); }
+   static UDBISet* deepQuery(dbi_result res) { UDBISet* r; U_NEW(UDBISet, r, UDBISet(res)); return r; }
 };
 
 template <class T> struct U_EXPORT UCheckOneRecord

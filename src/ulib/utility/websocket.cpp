@@ -53,33 +53,13 @@ UString*    UWebSocket::rbuffer;
 uint32_t    UWebSocket::max_message_size;
 const char* UWebSocket::upgrade_settings;
 
-const UString* UWebSocket::str_websocket_key;
-const UString* UWebSocket::str_websocket_prot;
-
 UWebSocket::WebSocketFrameData UWebSocket::control_frame = { 0, 0, 1, 8, 0 };
 UWebSocket::WebSocketFrameData UWebSocket::message_frame = { 0, 0, 1, 0, 0 };
 
-void UWebSocket::str_allocate()
-{
-   U_TRACE(0+256, "UWebSocket::str_allocate()")
-
-   U_INTERNAL_ASSERT_EQUALS(str_websocket_key, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_websocket_prot, 0)
-
-   static ustringrep stringrep_storage[] = {
-      { U_STRINGREP_FROM_CONSTANT("Sec-WebSocket-Key") },
-      { U_STRINGREP_FROM_CONSTANT("Sec-WebSocket-Protocol") }
-   };
-
-   U_NEW_ULIB_OBJECT(str_websocket_key,  U_STRING_FROM_STRINGREP_STORAGE(0));
-   U_NEW_ULIB_OBJECT(str_websocket_prot, U_STRING_FROM_STRINGREP_STORAGE(1));
-}
-
 bool UWebSocket::sendAccept()
 {
-   U_TRACE(0, "UWebSocket::sendAccept()")
+   U_TRACE_NO_PARAM(0, "UWebSocket::sendAccept()")
 
-   U_INTERNAL_ASSERT_POINTER(str_websocket_key)
    U_INTERNAL_ASSERT_MAJOR(U_http_websocket_len, 0)
 
    // In order to establish a websocket connection, a client (a web browser) sends a HTTP GET request with a number of HTTP headers. Among those
@@ -100,10 +80,10 @@ bool UWebSocket::sendAccept()
 
    UServices::generateDigest(U_HASH_SHA1, 0, challenge, U_http_websocket_len + WEBSOCKET_GUID_LEN, accept, true);
 
-   UClientImage_Base::wbuffer->snprintf("HTTP/1.1 101 Switching Protocols\r\n"
+   UClientImage_Base::wbuffer->snprintf(U_CONSTANT_TO_PARAM("HTTP/1.1 101 Switching Protocols\r\n"
                                         "Upgrade: websocket\r\n"
                                         "Connection: Upgrade\r\n"
-                                        "Sec-WebSocket-Accept: %v\r\n\r\n", accept.rep);
+                                        "Sec-WebSocket-Accept: %v\r\n\r\n"), accept.rep);
 
    if (USocketExt::write(UServer_Base::csocket, *UClientImage_Base::wbuffer, UServer_Base::timeoutMS))
       {
@@ -120,7 +100,7 @@ bool UWebSocket::sendAccept()
 
 void UWebSocket::checkForInitialData()
 {
-   U_TRACE(0, "UWebSocket::checkForInitialData()")
+   U_TRACE_NO_PARAM(0, "UWebSocket::checkForInitialData()")
 
    U_INTERNAL_ASSERT_POINTER(rbuffer)
    U_INTERNAL_ASSERT_MAJOR(UClientImage_Base::size_request, 0)
@@ -614,7 +594,7 @@ bool UWebSocket::sendData(int type, const unsigned char* buffer, uint32_t buffer
                            { (caddr_t)buffer, payload_length } };
 
    int iBytesWrite = (payload_length
-            ? (pos += payload_length, USocketExt::writev(UServer_Base::csocket, iov, 2,                pos, UServer_Base::timeoutMS))
+            ? (pos += payload_length, USocketExt::writev(UServer_Base::csocket, iov, 2,              pos, UServer_Base::timeoutMS))
             :                         USocketExt::write( UServer_Base::csocket, (const char*)header, pos, UServer_Base::timeoutMS));
 
    if (iBytesWrite == (int)pos) U_RETURN(true);

@@ -33,7 +33,8 @@ bool UDynamic::load(const char* pathname)
 #ifdef _MSWINDOWS_
    handle = ::LoadLibrary(pathname);
 #else
-   /* Perform lazy binding
+   /**
+    * Perform lazy binding
     * --------------------------------------------------------------------
     * Only resolve symbols as the code that references them is executed.
     * If the symbol is never referenced, then it is never resolved.
@@ -95,7 +96,7 @@ void* UDynamic::operator[](const char* _sym)
 
 void UDynamic::close()
 {
-   U_TRACE(0, "UDynamic::close()")
+   U_TRACE_NO_PARAM(0, "UDynamic::close()")
 
    U_CHECK_MEMORY
 
@@ -118,7 +119,7 @@ void UDynamic::setPluginDirectory(const UString& dir)
 
    U_INTERNAL_ASSERT(dir.isNullTerminated())
 
-   if (plugin_dir == 0) plugin_dir = U_NEW(UString(dir));
+   if (plugin_dir == 0) U_NEW(UString, plugin_dir, UString(dir));
    else
       {
       U_INTERNAL_DUMP("plugin_dir = %V", plugin_dir->rep)
@@ -129,7 +130,7 @@ void UDynamic::setPluginDirectory(const UString& dir)
 
 void UDynamic::clear()
 {
-   U_TRACE(0, "UDynamic::clear()")
+   U_TRACE_NO_PARAM(0, "UDynamic::clear()")
 
    if (plugin_dir)
       {
@@ -146,13 +147,13 @@ bool UDynamic::load(const char* _name, uint32_t _name_len)
 
    U_INTERNAL_ASSERT_EQUALS(handle, 0)
 
-   if (plugin_dir == 0) plugin_dir = U_NEW(UString(U_STRING_FROM_CONSTANT(U_LIBEXECDIR)));
+   if (plugin_dir == 0) U_NEW(UString, plugin_dir, UString(U_STRING_FROM_CONSTANT(U_LIBEXECDIR)));
 
    U_INTERNAL_ASSERT(plugin_dir->isNullTerminated())
 
    char buffer[U_PATH_MAX];
 
-   (void) u__snprintf(buffer, sizeof(buffer), U_FMT_LIBPATH, U_PATH_CONV(plugin_dir->data()), _name_len, _name);
+   (void) u__snprintf(buffer, sizeof(buffer), U_CONSTANT_TO_PARAM(U_FMT_LIBPATH), U_PATH_CONV(plugin_dir->data()), _name_len, _name);
 
    bool result = load(buffer);
 

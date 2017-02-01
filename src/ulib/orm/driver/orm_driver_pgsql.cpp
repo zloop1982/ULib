@@ -16,32 +16,14 @@
 
 U_CREAT_FUNC(orm_driver_pgsql, UOrmDriverPgSql)
 
-const UString* UOrmDriverPgSql::str_name;
-
-void UOrmDriverPgSql::str_allocate()
-{
-   U_TRACE(0, "UOrmDriverPgSql::str_allocate()")
-
-   U_INTERNAL_ASSERT_EQUALS(str_name,0)
-
-   static ustringrep stringrep_storage[] = {
-      { U_STRINGREP_FROM_CONSTANT("pgsql") },
-   };
-
-   U_NEW_ULIB_OBJECT(str_name, U_STRING_FROM_STRINGREP_STORAGE(0));
-}
-
 UOrmDriverPgSql::~UOrmDriverPgSql()
 {
    U_TRACE_UNREGISTER_OBJECT(0, UOrmDriverPgSql)
 }
 
-#undef  ENTRY
-#define ENTRY(name) {name, #name}
-
 void UOrmDriverPgSql::handlerError()
 {
-   U_TRACE(0, "UOrmDriverPgSql::UOrmDriverPgSql()")
+   U_TRACE_NO_PARAM(0, "UOrmDriverPgSql::UOrmDriverPgSql()")
 
    U_INTERNAL_ASSERT_POINTER(UOrmDriver::connection)
 
@@ -61,7 +43,7 @@ void UOrmDriverPgSql::handlerError()
                                  UOrmDriver::errname = "???";
 
    /*
-   if (UOrmDriver::errcode < U_NUM_ELEMENTS(error_value_table) &&
+   if (UOrmDriver::errcode < (int)U_NUM_ELEMENTS(error_value_table) &&
        UOrmDriver::errcode == error_value_table[UOrmDriver::errcode].value)
       {
       UOrmDriver::errname = error_value_table[UOrmDriver::errcode].name;
@@ -73,7 +55,10 @@ UOrmDriver* UOrmDriverPgSql::handlerConnect(const UString& option)
 {
    U_TRACE(0, "UOrmDriverPgSql::handlerConnect(%V)", option.rep)
 
-   UOrmDriver* pdrv = (UOrmDriver::connection ? U_NEW(UOrmDriverPgSql(*str_name)) : this);
+   UOrmDriver* pdrv;
+
+   if (UOrmDriver::connection == 0) pdrv = this;
+   else U_NEW(UOrmDriverPgSql, pdrv, UOrmDriverPgSql(*UString::str_pgsql_name));
 
    // PQconnectdb accepts additional options as a string of "key=value" pairs
 
@@ -110,7 +95,7 @@ UOrmDriver* UOrmDriverPgSql::handlerConnect(const UString& option)
 
 void UOrmDriverPgSql::handlerDisConnect()
 {
-   U_TRACE(0, "UOrmDriverPgSql::handlerDisConnect()")
+   U_TRACE_NO_PARAM(0, "UOrmDriverPgSql::handlerDisConnect()")
 
    U_INTERNAL_ASSERT_POINTER(UOrmDriver::connection)
 
@@ -224,7 +209,7 @@ UPgSqlStatement::~UPgSqlStatement()
 
 void UPgSqlStatement::reset()
 {
-   U_TRACE(0, "UPgSqlStatement::reset()")
+   U_TRACE_NO_PARAM(0, "UPgSqlStatement::reset()")
 
    U_ASSERT_EQUALS(num_bind_param,  vparam.size())
    U_ASSERT_EQUALS(num_bind_result, vresult.size())
@@ -258,7 +243,7 @@ void UOrmDriverPgSql::handlerStatementRemove(USqlStatement* pstmt)
 
    char query[32];
 
-   (void) u__snprintf(query, sizeof(query), "DEALLOCATE %.12s", ((UPgSqlStatement*)pstmt)->stmtName);
+   (void) u__snprintf(query, sizeof(query), U_CONSTANT_TO_PARAM("DEALLOCATE %.12s"), ((UPgSqlStatement*)pstmt)->stmtName);
 
    (void) handlerQuery(query, 0);
    */
@@ -340,7 +325,7 @@ bool UPgSqlStatement::setBindParam(UOrmDriver* pdrv)
       /**
        * The functions PQnparams and PQparamtype can be applied to the PGresult to obtain information about the parameters
        * of the prepared statement, and the functions PQnfields, PQfname, PQftype, etc provide information about the result
-       * columns (if any) of the statement.
+       * columns (if any) of the statement
        */
 
       U_INTERNAL_ASSERT_EQUALS(num_bind_param, (uint32_t)PQnparams(res))
@@ -410,9 +395,9 @@ bool UPgSqlStatement::setBindParam(UOrmDriver* pdrv)
             {
             switch (param->type)
                {
-               case INT2OID: ptr[u_num2str32s(ptr,     *(short*)param->buffer)] = '\0'; break;
-               case INT4OID: ptr[u_num2str32s(ptr,       *(int*)param->buffer)] = '\0'; break;
-               case INT8OID: ptr[u_num2str64s(ptr, *(long long*)param->buffer)] = '\0'; break;
+               case INT2OID: ptr[u_num2str32s(    *(short*)param->buffer, ptr)-ptr] = '\0'; break;
+               case INT4OID: ptr[u_num2str32s(      *(int*)param->buffer, ptr)-ptr] = '\0'; break;
+               case INT8OID: ptr[u_num2str64s(*(long long*)param->buffer, ptr)-ptr] = '\0'; break;
                }
             }
 
@@ -431,7 +416,9 @@ USqlStatementBindParam* UOrmDriverPgSql::creatSqlStatementBindParam(USqlStatemen
 
    if (rebind == -1)
       {
-      USqlStatementBindParam* ptr = U_NEW(UPgSqlStatementBindParam(s, n, bstatic));
+      USqlStatementBindParam* ptr;
+      
+      U_NEW(UPgSqlStatementBindParam, ptr, UPgSqlStatementBindParam(s, n, bstatic));
 
       U_RETURN_POINTER(ptr, USqlStatementBindParam);
       }

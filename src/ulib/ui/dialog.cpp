@@ -17,14 +17,16 @@
 #include <ulib/container/vector.h>
 #include <ulib/utility/services.h>
 
-#include <errno.h>
+#if defined(__NetBSD__) || defined(__UNIKERNEL__) || defined(__OSX__)
+extern char** environ;
+#endif
 
 bool  UDialog::xdialog;
 char* UDialog::path_dialog;
 
 void UDialog::initialize()
 {
-   U_TRACE(0, "UDialog::initialize()")
+   U_TRACE_NO_PARAM(0, "UDialog::initialize()")
 
    U_INTERNAL_ASSERT_EQUALS(path_dialog, 0)
 
@@ -47,23 +49,23 @@ bool UDialog::run(const char* title, const char* format, ...)
 
    if (command.empty())
       {
-                     command.snprintf("%s ", path_dialog);
-      if (backtitle) command.snprintf_add("--backtitle \"%s\" ", backtitle);
+                     command.snprintf(U_CONSTANT_TO_PARAM("%s "), path_dialog);
+      if (backtitle) command.snprintf_add(U_CONSTANT_TO_PARAM("--backtitle \"%s\" "), backtitle);
       }
 
    UString tmp(U_CAPACITY);
 
    if (xdialog)
       {
-      if (title) tmp.snprintf("%v --stdout --title \"%s\" ", options.rep, title);
-      else       tmp.snprintf("%v --stdout ",                options.rep);
+      if (title) tmp.snprintf(U_CONSTANT_TO_PARAM("%v --stdout --title \"%s\" "), options.rep, title);
+      else       tmp.snprintf(U_CONSTANT_TO_PARAM("%v --stdout "),                options.rep);
       }
    else
       {
       UProcess::pipe(STDOUT_FILENO);
 
-      if (title) tmp.snprintf("%v --output-fd %d --title \"%s\" ", options.rep, UProcess::filedes[3], title);
-      else       tmp.snprintf("%v --output-fd %d ",                options.rep, UProcess::filedes[3]);
+      if (title) tmp.snprintf(U_CONSTANT_TO_PARAM("%v --output-fd %d --title \"%s\" "), options.rep, UProcess::filedes[3], title);
+      else       tmp.snprintf(U_CONSTANT_TO_PARAM("%v --output-fd %d "),                options.rep, UProcess::filedes[3]);
       }
 
    UString cmd = command + tmp;
@@ -71,7 +73,7 @@ bool UDialog::run(const char* title, const char* format, ...)
    va_list argp;
    va_start(argp, format);
 
-   tmp.vsnprintf(format, argp);
+   tmp.vsnprintf(format, u__strlen(format, __PRETTY_FUNCTION__), argp);
 
    va_end(argp);
 
@@ -138,7 +140,7 @@ int UDialog::radiolist(const char* text, const char* tags[], const char* items[]
 
       for (int i = 0; items[i]; ++i)
          {
-         item.snprintf(" \"%s\" \"%s\" %s", tags[i], items[i], (i == select ? "on" : "off"));
+         item.snprintf(U_CONSTANT_TO_PARAM(" \"%s\" \"%s\" %s"), tags[i], items[i], (i == select ? "on" : "off"));
 
          argument += item;
          }
@@ -169,7 +171,7 @@ void UDialog::checklist(const char* text, const char* tags[], const char* items[
 
       for (int i = 0; items[i]; ++i)
          {
-         item.snprintf(" \"%s\" \"%s\" %s", tags[i], items[i], (selected[i] ? "on" : "off"));
+         item.snprintf(U_CONSTANT_TO_PARAM(" \"%s\" \"%s\" %s"), tags[i], items[i], (selected[i] ? "on" : "off"));
                                                                 selected[i] = false;
 
          argument += item;
@@ -207,7 +209,7 @@ int UDialog::menu(const char* text, const char* tags[], const char* items[], int
 
       for (int i = 0; items[i]; ++i)
          {
-         item.snprintf(" \"%s\" \"%s\"", tags[i], items[i]);
+         item.snprintf(U_CONSTANT_TO_PARAM(" \"%s\" \"%s\""), tags[i], items[i]);
 
          argument += item;
          }
@@ -240,7 +242,7 @@ bool UDialog::menu(const char* text, UVector<UString>& list, UString& choice, in
          {
          item = list[i];
 
-         fmt.snprintf(" \"%u\" \"%v\"", i+1, item.rep);
+         fmt.snprintf(U_CONSTANT_TO_PARAM(" \"%u\" \"%v\""), i+1, item.rep);
 
          argument += fmt;
          }
@@ -249,7 +251,7 @@ bool UDialog::menu(const char* text, UVector<UString>& list, UString& choice, in
    if (run(title, "--single-quoted --menu \"%s\" %d %d %d", text, height, width, list_height) &&
        output)
       {
-      choice = list[output.strtol() -1].copy();
+      choice = list[output.strtoul() -1].copy();
 
       U_RETURN(true);
       }
@@ -278,7 +280,7 @@ bool UDialog::inputbox(const char* text, UString& init, const char* title)
 // The --2inputsbox and the --3inputsbox widgets allow for two or three entry fields into the same box. A <label> is setup above each field
 // (see the --center, --left, --right and --fill common options to learn how the labels justification and alignement can be affected); as for
 // the <text> parameter, the <label>s may hold "\n" sequences IOT force text splitting into several lines. The <init> strings cannot be omitted
-// but may perfectly be NULL (empty) strings.
+// but may perfectly be NULL (empty) strings
 
 bool UDialog::inputsbox(int n, const char* text, const char* labels[], UVector<UString>& init, const char* title)
 {
@@ -295,7 +297,7 @@ bool UDialog::inputsbox(int n, const char* text, const char* labels[], UVector<U
 
          for (i = 0; labels[i]; ++i)
             {
-            item.snprintf(" \"%s\" \"%v\"", labels[i], init[i].rep);
+            item.snprintf(U_CONSTANT_TO_PARAM(" \"%s\" \"%v\""), labels[i], init[i].rep);
 
             argument += item;
             }
@@ -344,7 +346,7 @@ bool UDialog::combobox(const char* text, UVector<UString>& list, UString& choice
          {
          item = list[i];
 
-         fmt.snprintf(" \"%v\"", item.rep);
+         fmt.snprintf(U_CONSTANT_TO_PARAM(" \"%v\""), item.rep);
 
          argument += fmt;
          }
@@ -373,7 +375,7 @@ int UDialog::tree(const char* text, const char* items[], uint32_t items_depth[],
 
       for (int i = 0; items[i]; ++i)
          {
-         item.snprintf(" \"%s\" \"%s\" %s %u \"%s\"",
+         item.snprintf(U_CONSTANT_TO_PARAM(" \"%s\" \"%s\" %s %u \"%s\""),
                            (item_tags ? item_tags[i] : ""),
                            items[i],
                            (items_status ? items_status[i] : "on"),

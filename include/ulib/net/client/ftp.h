@@ -46,7 +46,7 @@
  * fact that the FTP @a SIZE command, which reports the size of the remote
  * file, reports the <i>transfer size</i> of the file, which is not necessarily
  * the same as the physical size of the file. The is described in more detail
- * in the documentation for the getFileSize() method.
+ * in the documentation for the getFileSize() method
  */
 
 #define FTP_DATA_CONNECTION_OPEN       125
@@ -177,7 +177,7 @@ public:
     * @returns @c true if successful and @c false if the ssl negotiation failed
     *
     * Notes: The library uses an ssl/tls encryption approach defined in the draft-murray-auth-ftp-ssl
-    *        available at http://www.ford-hutchinson.com/~fh-1-pfh/ftps-ext.html.
+    *        available at http://www.ford-hutchinson.com/~fh-1-pfh/ftps-ext.html
     */
 
    bool negotiateEncryption();
@@ -237,7 +237,7 @@ public:
 
    bool dataTransferComplete()
       {
-      U_TRACE(0, "UFtpClient::dataTransferComplete()")
+      U_TRACE_NO_PARAM(0, "UFtpClient::dataTransferComplete()")
 
       readCommandResponse();
 
@@ -317,7 +317,7 @@ protected:
 
    bool setConnection();
    void readCommandResponse();
-   bool syncCommand(const char* format, ...); // Send a command to the FTP server and wait for a response
+   bool syncCommand(const char* format, uint32_t fmt_size, ...); // Send a command to the FTP server and wait for a response
 
    bool waitReady(uint32_t timeoutMS);
    int  download(const UString& path, off_t offset);
@@ -396,13 +396,7 @@ private:
    inline void readNumberOfByte() U_NO_EXPORT;
    inline bool readPortToConnect() U_NO_EXPORT;
 
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UFtpClient(const UFtpClient&) = delete;
-   UFtpClient& operator=(const UFtpClient&) = delete;
-#else
-   UFtpClient(const UFtpClient&) : Socket(false) {}
-   UFtpClient& operator=(const UFtpClient&)      { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UFtpClient)
 };
 
 #endif

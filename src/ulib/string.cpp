@@ -12,54 +12,36 @@
 // ============================================================================
 
 #include <ulib/file.h>
+#include <ulib/json/value.h>
 #include <ulib/utility/escape.h>
 #include <ulib/internal/chttp.h>
-#include <ulib/container/hash_map.h>
 
-struct ustring    { ustringrep* rep; };
-union uustring    { ustring*    p1; UString*    p2; };
-union uustringrep { ustringrep* p1; UStringRep* p2; };
-
-static ustring     empty_string_storage = { &u_empty_string_rep_storage };
-static uustringrep uustringrepnull      = { &u_empty_string_rep_storage };
-static uustring    uustringnull         = {   &empty_string_storage };
-
-UString*    UString::string_null        = uustringnull.p2;
-UStringRep* UStringRep::string_rep_null = uustringrepnull.p2;
+UString*    UString::string_null        = ULib::uustringnull.p2;
+UStringRep* UStringRep::string_rep_null = ULib::uustringrepnull.p2;
 
 // OPTMIZE APPEND (BUFFERED)
 char* UString::appbuf;
 char* UString::ptrbuf;
 
 const UString* UString::str_host;
-const UString* UString::str_cookie;
-const UString* UString::str_connection;
-const UString* UString::str_user_agent;
-const UString* UString::str_authorization;
-const UString* UString::str_content_type;
-const UString* UString::str_content_length;
-const UString* UString::str_accept;
-const UString* UString::str_accept_encoding;
-const UString* UString::str_referer;
-const UString* UString::str_X_Real_IP;
-const UString* UString::str_Transfer_Encoding;
-const UString* UString::str_X_Progress_ID;
 const UString* UString::str_chunked;
 const UString* UString::str_without_mac;
-const UString* UString::str_encoding;
-const UString* UString::str_user;
-const UString* UString::str_name;
 const UString* UString::str_localhost;
 const UString* UString::str_http;
-const UString* UString::str_filename;
 const UString* UString::str_msg_rfc;
 const UString* UString::str_txt_plain;
 const UString* UString::str_address;
+const UString* UString::str_CLIENT_QUEUE_DIR;
+const UString* UString::str_point;
+const UString* UString::str_true;
+const UString* UString::str_false;
+const UString* UString::str_response;
+const UString* UString::str_zero;
+const UString* UString::str_nostat;
+const UString* UString::str_tsa;
+const UString* UString::str_soap;
+// SOAP
 const UString* UString::str_ns;
-const UString* UString::str_METHOD_NAME;
-const UString* UString::str_RESPONSE_TYPE;
-const UString* UString::str_xmlns;
-const UString* UString::str_fault;
 const UString* UString::str_boolean;
 const UString* UString::str_byte;
 const UString* UString::str_unsignedByte;
@@ -73,246 +55,539 @@ const UString* UString::str_float;
 const UString* UString::str_double;
 const UString* UString::str_string;
 const UString* UString::str_base64Binary;
-const UString* UString::str_PORT;
-const UString* UString::str_USER;
-const UString* UString::str_SERVER;
-const UString* UString::str_CA_FILE;
-const UString* UString::str_CA_PATH;
-const UString* UString::str_PASSWORD;
-const UString* UString::str_KEY_FILE;
-const UString* UString::str_PID_FILE;
-const UString* UString::str_LOG_FILE;
-const UString* UString::str_CERT_FILE;
-const UString* UString::str_LOG_FILE_SZ;
-const UString* UString::str_VERIFY_MODE;
-const UString* UString::str_SOCKET_NAME;
-const UString* UString::str_ENVIRONMENT;
-const UString* UString::str_CLIENT_QUEUE_DIR;
-const UString* UString::str_point;
-const UString* UString::str_true;
-const UString* UString::str_false;
-
-void UString::str_allocate()
-{
-   U_TRACE(0+256, "UString::str_allocate()")
-
-   U_INTERNAL_ASSERT_EQUALS(str_host, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_cookie, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_connection, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_user_agent, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_authorization, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_content_type, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_content_length, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_accept, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_accept_encoding, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_referer, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_X_Real_IP, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_Transfer_Encoding, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_X_Progress_ID, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_chunked, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_without_mac, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_encoding, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_user, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_name, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_localhost, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_http, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_filename, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_msg_rfc, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_txt_plain, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_address, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_ns, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_METHOD_NAME, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_RESPONSE_TYPE, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_xmlns, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_fault, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_boolean, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_byte, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_unsignedByte, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_short, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_unsignedShort, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_int, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_unsignedInt, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_long, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_unsignedLong, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_float, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_double, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_string, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_base64Binary, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_PORT, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_USER, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_SERVER, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_CA_FILE, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_CA_PATH, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_PASSWORD, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_KEY_FILE, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_PID_FILE, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_LOG_FILE, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_CERT_FILE, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_LOG_FILE_SZ, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_VERIFY_MODE, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_SOCKET_NAME, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_ENVIRONMENT, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_CLIENT_QUEUE_DIR, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_point, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_true, 0)
-   U_INTERNAL_ASSERT_EQUALS(str_false, 0)
-   U_INTERNAL_ASSERT_EQUALS(UHashMap<void*>::pkey, 0)
-
-   static ustringrep stringrep_storage[] = {
-      { U_STRINGREP_FROM_CONSTANT("Host") },
-      { U_STRINGREP_FROM_CONSTANT("Cookie") },
-      { U_STRINGREP_FROM_CONSTANT("Connection") },
-      { U_STRINGREP_FROM_CONSTANT("User-Agent") },
-      { U_STRINGREP_FROM_CONSTANT("Authorization") },
-      { U_STRINGREP_FROM_CONSTANT("Content-Type") },
-      { U_STRINGREP_FROM_CONSTANT("Content-Length") },
-      { U_STRINGREP_FROM_CONSTANT("Accept") },
-      { U_STRINGREP_FROM_CONSTANT("Accept-Encoding") },
-      { U_STRINGREP_FROM_CONSTANT("Referer") },
-      { U_STRINGREP_FROM_CONSTANT("X-Real-IP") },
-      { U_STRINGREP_FROM_CONSTANT("Transfer-Encoding") },
-      { U_STRINGREP_FROM_CONSTANT("X-Progress-ID") },
-      { U_STRINGREP_FROM_CONSTANT("chunked") },
-      { U_STRINGREP_FROM_CONSTANT("00:00:00:00:00:00") },
-      { U_STRINGREP_FROM_CONSTANT("encoding") },
-      { U_STRINGREP_FROM_CONSTANT("user") },
-      { U_STRINGREP_FROM_CONSTANT("name") },
-      { U_STRINGREP_FROM_CONSTANT("localhost") },
-      { U_STRINGREP_FROM_CONSTANT("http") },
-      { U_STRINGREP_FROM_CONSTANT("filename") },
-      { U_STRINGREP_FROM_CONSTANT("message/rfc822") },
-      { U_STRINGREP_FROM_CONSTANT("text/plain") },
-      { U_STRINGREP_FROM_CONSTANT("stefano.casazza@gmail.com") },
-      { U_STRINGREP_FROM_CONSTANT("ns") },
-      { U_STRINGREP_FROM_CONSTANT("METHOD_NAME") },
-      { U_STRINGREP_FROM_CONSTANT("RESPONSE_TYPE") },
-      { U_STRINGREP_FROM_CONSTANT("xmlns") },
-      { U_STRINGREP_FROM_CONSTANT("Fault") },
-      { U_STRINGREP_FROM_CONSTANT("boolean") },
-      { U_STRINGREP_FROM_CONSTANT("byte") },
-      { U_STRINGREP_FROM_CONSTANT("unsignedByte") },
-      { U_STRINGREP_FROM_CONSTANT("short") },
-      { U_STRINGREP_FROM_CONSTANT("unsignedShort") },
-      { U_STRINGREP_FROM_CONSTANT("int") },
-      { U_STRINGREP_FROM_CONSTANT("unsignedInt") },
-      { U_STRINGREP_FROM_CONSTANT("long") },
-      { U_STRINGREP_FROM_CONSTANT("unsignedLong") },
-      { U_STRINGREP_FROM_CONSTANT("float") },
-      { U_STRINGREP_FROM_CONSTANT("double") },
-      { U_STRINGREP_FROM_CONSTANT("string") },
-      { U_STRINGREP_FROM_CONSTANT("base64Binary") },
-      { U_STRINGREP_FROM_CONSTANT("PORT") },
-      { U_STRINGREP_FROM_CONSTANT("USER") },
-      { U_STRINGREP_FROM_CONSTANT("SERVER") },
-      { U_STRINGREP_FROM_CONSTANT("CA_FILE") },
-      { U_STRINGREP_FROM_CONSTANT("CA_PATH") },
-      { U_STRINGREP_FROM_CONSTANT("PASSWORD") },
-      { U_STRINGREP_FROM_CONSTANT("KEY_FILE") },
-      { U_STRINGREP_FROM_CONSTANT("PID_FILE") },
-      { U_STRINGREP_FROM_CONSTANT("LOG_FILE") },
-      { U_STRINGREP_FROM_CONSTANT("CERT_FILE") },
-      { U_STRINGREP_FROM_CONSTANT("LOG_FILE_SZ") },
-      { U_STRINGREP_FROM_CONSTANT("VERIFY_MODE") },
-      { U_STRINGREP_FROM_CONSTANT("SOCKET_NAME") },
-      { U_STRINGREP_FROM_CONSTANT("ENVIRONMENT") },
-      { U_STRINGREP_FROM_CONSTANT("/tmp/uclient") },
-      { U_STRINGREP_FROM_CONSTANT(".") },
-      { U_STRINGREP_FROM_CONSTANT("true") },
-      { U_STRINGREP_FROM_CONSTANT("false") },
-      { U_STRINGREP_FROM_CONSTANT("") }
-   };
-
-   U_NEW_ULIB_OBJECT(str_host,                  U_STRING_FROM_STRINGREP_STORAGE(0));
-   U_NEW_ULIB_OBJECT(str_cookie,                U_STRING_FROM_STRINGREP_STORAGE(1));
-   U_NEW_ULIB_OBJECT(str_connection,            U_STRING_FROM_STRINGREP_STORAGE(2));
-   U_NEW_ULIB_OBJECT(str_user_agent,            U_STRING_FROM_STRINGREP_STORAGE(3));
-   U_NEW_ULIB_OBJECT(str_authorization,         U_STRING_FROM_STRINGREP_STORAGE(4));
-   U_NEW_ULIB_OBJECT(str_content_type,          U_STRING_FROM_STRINGREP_STORAGE(5));
-   U_NEW_ULIB_OBJECT(str_content_length,        U_STRING_FROM_STRINGREP_STORAGE(6));
-   U_NEW_ULIB_OBJECT(str_accept,                U_STRING_FROM_STRINGREP_STORAGE(7));
-   U_NEW_ULIB_OBJECT(str_accept_encoding,       U_STRING_FROM_STRINGREP_STORAGE(8));
-   U_NEW_ULIB_OBJECT(str_referer,               U_STRING_FROM_STRINGREP_STORAGE(9));
-   U_NEW_ULIB_OBJECT(str_X_Real_IP,             U_STRING_FROM_STRINGREP_STORAGE(10));
-   U_NEW_ULIB_OBJECT(str_Transfer_Encoding,     U_STRING_FROM_STRINGREP_STORAGE(11));
-   U_NEW_ULIB_OBJECT(str_X_Progress_ID,         U_STRING_FROM_STRINGREP_STORAGE(12));
-   U_NEW_ULIB_OBJECT(str_chunked,               U_STRING_FROM_STRINGREP_STORAGE(13));
-   U_NEW_ULIB_OBJECT(str_without_mac,           U_STRING_FROM_STRINGREP_STORAGE(14));
-   U_NEW_ULIB_OBJECT(str_encoding,              U_STRING_FROM_STRINGREP_STORAGE(15));
-   U_NEW_ULIB_OBJECT(str_user,                  U_STRING_FROM_STRINGREP_STORAGE(16));
-   U_NEW_ULIB_OBJECT(str_name,                  U_STRING_FROM_STRINGREP_STORAGE(17));
-   U_NEW_ULIB_OBJECT(str_localhost,             U_STRING_FROM_STRINGREP_STORAGE(18));
-   U_NEW_ULIB_OBJECT(str_http,                  U_STRING_FROM_STRINGREP_STORAGE(19));
-   U_NEW_ULIB_OBJECT(str_filename,              U_STRING_FROM_STRINGREP_STORAGE(20));
-   U_NEW_ULIB_OBJECT(str_msg_rfc,               U_STRING_FROM_STRINGREP_STORAGE(21));
-   U_NEW_ULIB_OBJECT(str_txt_plain,             U_STRING_FROM_STRINGREP_STORAGE(22));
-   U_NEW_ULIB_OBJECT(str_address,               U_STRING_FROM_STRINGREP_STORAGE(23));
-   U_NEW_ULIB_OBJECT(str_ns,                    U_STRING_FROM_STRINGREP_STORAGE(24));
-   U_NEW_ULIB_OBJECT(str_METHOD_NAME,           U_STRING_FROM_STRINGREP_STORAGE(25));
-   U_NEW_ULIB_OBJECT(str_RESPONSE_TYPE,         U_STRING_FROM_STRINGREP_STORAGE(26));
-   U_NEW_ULIB_OBJECT(str_xmlns,                 U_STRING_FROM_STRINGREP_STORAGE(27));
-   U_NEW_ULIB_OBJECT(str_fault,                 U_STRING_FROM_STRINGREP_STORAGE(28));
-   U_NEW_ULIB_OBJECT(str_boolean,               U_STRING_FROM_STRINGREP_STORAGE(29));
-   U_NEW_ULIB_OBJECT(str_byte,                  U_STRING_FROM_STRINGREP_STORAGE(30));
-   U_NEW_ULIB_OBJECT(str_unsignedByte,          U_STRING_FROM_STRINGREP_STORAGE(31));
-   U_NEW_ULIB_OBJECT(str_short,                 U_STRING_FROM_STRINGREP_STORAGE(32));
-   U_NEW_ULIB_OBJECT(str_unsignedShort,         U_STRING_FROM_STRINGREP_STORAGE(33));
-   U_NEW_ULIB_OBJECT(str_int,                   U_STRING_FROM_STRINGREP_STORAGE(34));
-   U_NEW_ULIB_OBJECT(str_unsignedInt,           U_STRING_FROM_STRINGREP_STORAGE(35));
-   U_NEW_ULIB_OBJECT(str_long,                  U_STRING_FROM_STRINGREP_STORAGE(36));
-   U_NEW_ULIB_OBJECT(str_unsignedLong,          U_STRING_FROM_STRINGREP_STORAGE(37));
-   U_NEW_ULIB_OBJECT(str_float,                 U_STRING_FROM_STRINGREP_STORAGE(38));
-   U_NEW_ULIB_OBJECT(str_double,                U_STRING_FROM_STRINGREP_STORAGE(39));
-   U_NEW_ULIB_OBJECT(str_string,                U_STRING_FROM_STRINGREP_STORAGE(40));
-   U_NEW_ULIB_OBJECT(str_base64Binary,          U_STRING_FROM_STRINGREP_STORAGE(41));
-   U_NEW_ULIB_OBJECT(str_PORT,                  U_STRING_FROM_STRINGREP_STORAGE(42));
-   U_NEW_ULIB_OBJECT(str_USER,                  U_STRING_FROM_STRINGREP_STORAGE(43));
-   U_NEW_ULIB_OBJECT(str_SERVER,                U_STRING_FROM_STRINGREP_STORAGE(44));
-   U_NEW_ULIB_OBJECT(str_CA_FILE,               U_STRING_FROM_STRINGREP_STORAGE(45));
-   U_NEW_ULIB_OBJECT(str_CA_PATH,               U_STRING_FROM_STRINGREP_STORAGE(46));
-   U_NEW_ULIB_OBJECT(str_PASSWORD,              U_STRING_FROM_STRINGREP_STORAGE(47));
-   U_NEW_ULIB_OBJECT(str_KEY_FILE,              U_STRING_FROM_STRINGREP_STORAGE(48));
-   U_NEW_ULIB_OBJECT(str_PID_FILE,              U_STRING_FROM_STRINGREP_STORAGE(49));
-   U_NEW_ULIB_OBJECT(str_LOG_FILE,              U_STRING_FROM_STRINGREP_STORAGE(50));
-   U_NEW_ULIB_OBJECT(str_CERT_FILE,             U_STRING_FROM_STRINGREP_STORAGE(51));
-   U_NEW_ULIB_OBJECT(str_LOG_FILE_SZ,           U_STRING_FROM_STRINGREP_STORAGE(52));
-   U_NEW_ULIB_OBJECT(str_VERIFY_MODE,           U_STRING_FROM_STRINGREP_STORAGE(53));
-   U_NEW_ULIB_OBJECT(str_SOCKET_NAME,           U_STRING_FROM_STRINGREP_STORAGE(54));
-   U_NEW_ULIB_OBJECT(str_ENVIRONMENT,           U_STRING_FROM_STRINGREP_STORAGE(55));
-   U_NEW_ULIB_OBJECT(str_CLIENT_QUEUE_DIR,      U_STRING_FROM_STRINGREP_STORAGE(56));
-   U_NEW_ULIB_OBJECT(str_point,                 U_STRING_FROM_STRINGREP_STORAGE(57));
-   U_NEW_ULIB_OBJECT(str_true,                  U_STRING_FROM_STRINGREP_STORAGE(58));
-   U_NEW_ULIB_OBJECT(str_false,                 U_STRING_FROM_STRINGREP_STORAGE(59));
-
-   U_INTERNAL_ASSERT_EQUALS(*str_without_mac,      "00:00:00:00:00:00")
-   U_INTERNAL_ASSERT_EQUALS(*str_CLIENT_QUEUE_DIR, "/tmp/uclient")
-   U_INTERNAL_ASSERT_EQUALS(U_NUM_ELEMENTS(stringrep_storage), 61)
-
-   uustringrep key1 = { stringrep_storage+60 };
-
-   UHashMap<void*>::pkey = key1.p2;
-
-   U_INTERNAL_ASSERT(UHashMap<void*>::pkey->invariant())
-}
-
-void UStringRep::set(uint32_t __length, uint32_t __capacity, const char* ptr)
-{
-   U_TRACE(0, "UStringRep::set(%u,%u,%p)", __length, __capacity, ptr) // problem with sanitize address
-
-   U_CHECK_MEMORY
-
-   U_INTERNAL_ASSERT_POINTER(ptr)
-
-#if defined(U_SUBSTR_INC_REF) || defined(DEBUG)
-   parent = 0;
-#  ifdef DEBUG
-   child  = 0;
-#  endif
+// IMAP
+const UString* UString::str_recent;
+const UString* UString::str_unseen;
+const UString* UString::str_uidnext;
+const UString* UString::str_uidvalidity;
+// PROXY SERVICE
+const UString* UString::str_FOLLOW_REDIRECTS;
+const UString* UString::str_CLIENT_CERTIFICATE;
+const UString* UString::str_REMOTE_ADDRESS_IP;
+const UString* UString::str_WEBSOCKET;
+// NOCAT
+const UString* UString::str_without_label;
+const UString* UString::str_allowed_members_default;
+// SSI
+const UString* UString::str_cgi;
+const UString* UString::str_var;
+// HTTP
+const UString* UString::str_origin;
+const UString* UString::str_indexhtml;
+const UString* UString::str_ctype_tsa;
+const UString* UString::str_ctype_txt;
+const UString* UString::str_ctype_html;
+const UString* UString::str_ctype_soap;
+const UString* UString::str_ulib_header;
+const UString* UString::str_storage_keyid;
+const UString* UString::str_websocket_key;
+const UString* UString::str_websocket_prot;
+// QUERY PARSER
+const UString* UString::str_p1;
+const UString* UString::str_p2;
+const UString* UString::str_or;
+const UString* UString::str_and;
+const UString* UString::str_not;
+// ORM
+const UString* UString::str_port;
+const UString* UString::str_root;
+const UString* UString::str_UTF8;
+const UString* UString::str_UTF16;
+const UString* UString::str_dbname;
+const UString* UString::str_timeout;
+const UString* UString::str_compress;
+const UString* UString::str_character_set;
+// ORM MYSQL
+const UString* UString::str_mysql_name;
+const UString* UString::str_secure_auth;
+const UString* UString::str_auto_reconnect;
+// ORM PGSQL
+const UString* UString::str_pgsql_name;
+// ORM SQLITE
+const UString* UString::str_sqlite_name;
+const UString* UString::str_dbdir;
+const UString* UString::str_memory;
+#ifndef U_HTTP2_DISABLE
+const UString* UString::str_authority;
+const UString* UString::str_method;
+const UString* UString::str_method_get;
+const UString* UString::str_method_post;
+const UString* UString::str_path;
+const UString* UString::str_path_root;
+const UString* UString::str_path_index;
+const UString* UString::str_scheme;
+const UString* UString::str_scheme_https;
+const UString* UString::str_status;
+const UString* UString::str_status_200;
+const UString* UString::str_status_204;
+const UString* UString::str_status_206;
+const UString* UString::str_status_304;
+const UString* UString::str_status_400;
+const UString* UString::str_status_404;
+const UString* UString::str_status_500;
+const UString* UString::str_accept_charset;
+const UString* UString::str_accept_encoding;
+const UString* UString::str_accept_encoding_value;
+const UString* UString::str_accept_language;
+const UString* UString::str_accept_ranges;
+const UString* UString::str_accept;
+const UString* UString::str_access_control_allow_origin;
+const UString* UString::str_age;
+const UString* UString::str_allow;
+const UString* UString::str_authorization;
+const UString* UString::str_cache_control;
+const UString* UString::str_content_disposition;
+const UString* UString::str_content_encoding;
+const UString* UString::str_content_language;
+const UString* UString::str_content_length;
+const UString* UString::str_content_location;
+const UString* UString::str_content_range;
+const UString* UString::str_content_type;
+const UString* UString::str_cookie;
+const UString* UString::str_date;
+const UString* UString::str_etag;
+const UString* UString::str_expect;
+const UString* UString::str_expires;
+const UString* UString::str_from;
+const UString* UString::str_if_match;
+const UString* UString::str_if_modified_since;
+const UString* UString::str_if_none_match;
+const UString* UString::str_if_range;
+const UString* UString::str_if_unmodified_since;
+const UString* UString::str_last_modified;
+const UString* UString::str_link;
+const UString* UString::str_location;
+const UString* UString::str_max_forwards;
+const UString* UString::str_proxy_authenticate;
+const UString* UString::str_proxy_authorization;
+const UString* UString::str_range;
+const UString* UString::str_referer;
+const UString* UString::str_refresh;
+const UString* UString::str_retry_after;
+const UString* UString::str_server;
+const UString* UString::str_set_cookie;
+const UString* UString::str_strict_transport_security;
+const UString* UString::str_transfer_encoding;
+const UString* UString::str_user_agent;
+const UString* UString::str_vary;
+const UString* UString::str_via;
+const UString* UString::str_www_authenticate;
+const UString* UString::str_ULib;
 #endif
 
-   _length    = __length;
-   _capacity  = __capacity; // [0 const | -1 mmap | -2 to free]...
-   references = 0;
-   str        = ptr;
+#ifdef U_HTTP2_DISABLE
+static ustringrep stringrep_storage[71] = {
+#else
+static ustringrep stringrep_storage[136] = {
+#endif
+   { U_STRINGREP_FROM_CONSTANT("host") },
+   { U_STRINGREP_FROM_CONSTANT("chunked") },
+   { U_STRINGREP_FROM_CONSTANT("00:00:00:00:00:00") },
+   { U_STRINGREP_FROM_CONSTANT("localhost") },
+   { U_STRINGREP_FROM_CONSTANT("http") },
+   { U_STRINGREP_FROM_CONSTANT("message/rfc822") },
+   { U_STRINGREP_FROM_CONSTANT("text/plain") },
+   { U_STRINGREP_FROM_CONSTANT("stefano.casazza@gmail.com") },
+   { U_STRINGREP_FROM_CONSTANT("/tmp/uclient") },
+   { U_STRINGREP_FROM_CONSTANT(".") },
+   { U_STRINGREP_FROM_CONSTANT("true") },
+   { U_STRINGREP_FROM_CONSTANT("false") },
+   { U_STRINGREP_FROM_CONSTANT("response") },
+   { U_STRINGREP_FROM_CONSTANT("0") },
+   { U_STRINGREP_FROM_CONSTANT("/nostat") },
+   { U_STRINGREP_FROM_CONSTANT("/tsa") },
+   { U_STRINGREP_FROM_CONSTANT("/soap") },
+   { U_STRINGREP_FROM_CONSTANT("") },
+   // SOAP
+   { U_STRINGREP_FROM_CONSTANT("ns") },
+   { U_STRINGREP_FROM_CONSTANT("boolean") },
+   { U_STRINGREP_FROM_CONSTANT("byte") },
+   { U_STRINGREP_FROM_CONSTANT("unsignedByte") },
+   { U_STRINGREP_FROM_CONSTANT("short") },
+   { U_STRINGREP_FROM_CONSTANT("unsignedShort") },
+   { U_STRINGREP_FROM_CONSTANT("int") },
+   { U_STRINGREP_FROM_CONSTANT("unsignedInt") },
+   { U_STRINGREP_FROM_CONSTANT("long") },
+   { U_STRINGREP_FROM_CONSTANT("unsignedLong") },
+   { U_STRINGREP_FROM_CONSTANT("float") },
+   { U_STRINGREP_FROM_CONSTANT("double") },
+   { U_STRINGREP_FROM_CONSTANT("string") },
+   { U_STRINGREP_FROM_CONSTANT("base64Binary") },
+   // IMAP
+   { U_STRINGREP_FROM_CONSTANT("RECENT") },
+   { U_STRINGREP_FROM_CONSTANT("UNSEEN") },
+   { U_STRINGREP_FROM_CONSTANT("UIDNEXT") },
+   { U_STRINGREP_FROM_CONSTANT("UIDVALIDITY") },
+   // SSI
+   { U_STRINGREP_FROM_CONSTANT("cgi") },
+   { U_STRINGREP_FROM_CONSTANT("var") },
+   // NOCAT
+   { U_STRINGREP_FROM_CONSTANT("without_label") },
+   { U_STRINGREP_FROM_CONSTANT("/etc/nodog.allowed") },
+   // HTTP
+   { U_STRINGREP_FROM_CONSTANT("index.html") },
+   { U_STRINGREP_FROM_CONSTANT("application/timestamp-reply\r\n") },
+   { U_STRINGREP_FROM_CONSTANT(U_CTYPE_TEXT_WITH_CHARSET U_CRLF) },
+   { U_STRINGREP_FROM_CONSTANT(U_CTYPE_HTML U_CRLF) },
+   { U_STRINGREP_FROM_CONSTANT("application/soap+xml; charset=\"utf-8\"\r\n") },
+   { U_STRINGREP_FROM_CONSTANT("Origin") },
+   { U_STRINGREP_FROM_CONSTANT("X-Powered-By: ULib/" ULIB_VERSION "\r\n") },
+   { U_STRINGREP_FROM_CONSTANT("StiD") },
+   { U_STRINGREP_FROM_CONSTANT("Sec-WebSocket-Key") },
+   { U_STRINGREP_FROM_CONSTANT("Sec-WebSocket-Protocol") },
+   // QUERY PARSER
+   { U_STRINGREP_FROM_CONSTANT("(") },
+   { U_STRINGREP_FROM_CONSTANT(")") },
+   { U_STRINGREP_FROM_CONSTANT("OR") },
+   { U_STRINGREP_FROM_CONSTANT("AND") },
+   { U_STRINGREP_FROM_CONSTANT("NOT") },
+   // ORM
+   { U_STRINGREP_FROM_CONSTANT("port") },
+   { U_STRINGREP_FROM_CONSTANT("root") },
+   { U_STRINGREP_FROM_CONSTANT("utf8") },
+   { U_STRINGREP_FROM_CONSTANT("utf16") },
+   { U_STRINGREP_FROM_CONSTANT("dbname") },
+   { U_STRINGREP_FROM_CONSTANT("timeout") },
+   { U_STRINGREP_FROM_CONSTANT("compress") },
+   { U_STRINGREP_FROM_CONSTANT("character-set") },
+   // ORM SQLITE
+   { U_STRINGREP_FROM_CONSTANT("sqlite") },
+   { U_STRINGREP_FROM_CONSTANT("dbdir") },
+   { U_STRINGREP_FROM_CONSTANT(":memory:") },
+   // ORM MYSQL
+   { U_STRINGREP_FROM_CONSTANT("mysql") },
+   { U_STRINGREP_FROM_CONSTANT("secure-auth") },
+   { U_STRINGREP_FROM_CONSTANT("auto-reconnect") },
+   // ORM PGSQL
+   { U_STRINGREP_FROM_CONSTANT("pgsql") },
+#ifndef U_HTTP2_DISABLE
+   { U_STRINGREP_FROM_CONSTANT(":authority") },
+   { U_STRINGREP_FROM_CONSTANT(":method") },
+   { U_STRINGREP_FROM_CONSTANT("GET") },
+   { U_STRINGREP_FROM_CONSTANT("POST") },
+   { U_STRINGREP_FROM_CONSTANT(":path") },
+   { U_STRINGREP_FROM_CONSTANT("/") },
+   { U_STRINGREP_FROM_CONSTANT("/index.html") },
+   { U_STRINGREP_FROM_CONSTANT(":scheme") },
+   { U_STRINGREP_FROM_CONSTANT("https") },
+   { U_STRINGREP_FROM_CONSTANT(":status") },
+   { U_STRINGREP_FROM_CONSTANT("200") },
+   { U_STRINGREP_FROM_CONSTANT("204") },
+   { U_STRINGREP_FROM_CONSTANT("206") },
+   { U_STRINGREP_FROM_CONSTANT("304") },
+   { U_STRINGREP_FROM_CONSTANT("400") },
+   { U_STRINGREP_FROM_CONSTANT("404") },
+   { U_STRINGREP_FROM_CONSTANT("500") },
+   { U_STRINGREP_FROM_CONSTANT("accept-charset") },
+   { U_STRINGREP_FROM_CONSTANT("accept-encoding") },
+   { U_STRINGREP_FROM_CONSTANT("gzip, deflate") },
+   { U_STRINGREP_FROM_CONSTANT("accept-language") },
+   { U_STRINGREP_FROM_CONSTANT("accept-ranges") },
+   { U_STRINGREP_FROM_CONSTANT("accept") },
+   { U_STRINGREP_FROM_CONSTANT("access-control-allow-origin") },
+   { U_STRINGREP_FROM_CONSTANT("age") },
+   { U_STRINGREP_FROM_CONSTANT("allow") },
+   { U_STRINGREP_FROM_CONSTANT("authorization") },
+   { U_STRINGREP_FROM_CONSTANT("cache-control") },
+   { U_STRINGREP_FROM_CONSTANT("content-disposition") },
+   { U_STRINGREP_FROM_CONSTANT("content-encoding") },
+   { U_STRINGREP_FROM_CONSTANT("content-language") },
+   { U_STRINGREP_FROM_CONSTANT("content-length") },
+   { U_STRINGREP_FROM_CONSTANT("content-location") },
+   { U_STRINGREP_FROM_CONSTANT("content-range") },
+   { U_STRINGREP_FROM_CONSTANT("content-type") },
+   { U_STRINGREP_FROM_CONSTANT("cookie") },
+   { U_STRINGREP_FROM_CONSTANT("date") },
+   { U_STRINGREP_FROM_CONSTANT("etag") },
+   { U_STRINGREP_FROM_CONSTANT("expect") },
+   { U_STRINGREP_FROM_CONSTANT("expires") },
+   { U_STRINGREP_FROM_CONSTANT("from") },
+   { U_STRINGREP_FROM_CONSTANT("if-match") },
+   { U_STRINGREP_FROM_CONSTANT("if-modified-since") },
+   { U_STRINGREP_FROM_CONSTANT("if-none-match") },
+   { U_STRINGREP_FROM_CONSTANT("if-range") },
+   { U_STRINGREP_FROM_CONSTANT("if-unmodified-since") },
+   { U_STRINGREP_FROM_CONSTANT("last-modified") },
+   { U_STRINGREP_FROM_CONSTANT("link") },
+   { U_STRINGREP_FROM_CONSTANT("location") },
+   { U_STRINGREP_FROM_CONSTANT("max-forwards") },
+   { U_STRINGREP_FROM_CONSTANT("proxy-authenticate") },
+   { U_STRINGREP_FROM_CONSTANT("proxy-authorization") },
+   { U_STRINGREP_FROM_CONSTANT("range") },
+   { U_STRINGREP_FROM_CONSTANT("referer") },
+   { U_STRINGREP_FROM_CONSTANT("refresh") },
+   { U_STRINGREP_FROM_CONSTANT("retry-after") },
+   { U_STRINGREP_FROM_CONSTANT("server") },
+   { U_STRINGREP_FROM_CONSTANT("set-cookie") },
+   { U_STRINGREP_FROM_CONSTANT("strict-transport-security") },
+   { U_STRINGREP_FROM_CONSTANT("transfer-encoding") },
+   { U_STRINGREP_FROM_CONSTANT("user-agent") },
+   { U_STRINGREP_FROM_CONSTANT("vary") },
+   { U_STRINGREP_FROM_CONSTANT("via") },
+   { U_STRINGREP_FROM_CONSTANT("www-authenticate") },
+   { U_STRINGREP_FROM_CONSTANT("ULib") }
+#endif
+};
+
+void UString::str_allocate(int which)
+{
+   U_TRACE(0+256, "UString::str_allocate(%d)", which)
+
+   if (which == 0)
+      {
+      U_INTERNAL_ASSERT_EQUALS(str_host, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_chunked, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_without_mac, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_localhost, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_http, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_msg_rfc, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_txt_plain, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_address, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_CLIENT_QUEUE_DIR, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_point, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_true, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_false, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_response, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_zero, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_nostat, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_tsa, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_soap, 0)
+      U_INTERNAL_ASSERT_EQUALS(UHashMap<void*>::pkey, 0)
+
+      U_NEW_ULIB_OBJECT(UString, str_host,             UString(stringrep_storage+0));
+      U_NEW_ULIB_OBJECT(UString, str_chunked,          UString(stringrep_storage+1));
+      U_NEW_ULIB_OBJECT(UString, str_without_mac,      UString(stringrep_storage+2));
+      U_NEW_ULIB_OBJECT(UString, str_localhost,        UString(stringrep_storage+3));
+      U_NEW_ULIB_OBJECT(UString, str_http,             UString(stringrep_storage+4));
+      U_NEW_ULIB_OBJECT(UString, str_msg_rfc,          UString(stringrep_storage+5));
+      U_NEW_ULIB_OBJECT(UString, str_txt_plain,        UString(stringrep_storage+6));
+      U_NEW_ULIB_OBJECT(UString, str_address,          UString(stringrep_storage+7));
+      U_NEW_ULIB_OBJECT(UString, str_CLIENT_QUEUE_DIR, UString(stringrep_storage+8));
+      U_NEW_ULIB_OBJECT(UString, str_point,            UString(stringrep_storage+9));
+      U_NEW_ULIB_OBJECT(UString, str_true,             UString(stringrep_storage+10));
+      U_NEW_ULIB_OBJECT(UString, str_false,            UString(stringrep_storage+11));
+      U_NEW_ULIB_OBJECT(UString, str_response,         UString(stringrep_storage+12));
+      U_NEW_ULIB_OBJECT(UString, str_zero,             UString(stringrep_storage+13));
+      U_NEW_ULIB_OBJECT(UString, str_nostat,           UString(stringrep_storage+14));
+      U_NEW_ULIB_OBJECT(UString, str_tsa,              UString(stringrep_storage+15));
+      U_NEW_ULIB_OBJECT(UString, str_soap,             UString(stringrep_storage+16));
+
+      uustringrep key1 = { stringrep_storage+17 };
+
+      UHashMap<void*>::pkey = key1.p2;
+
+      U_INTERNAL_ASSERT(UHashMap<void*>::pkey->invariant())
+
+      U_INTERNAL_ASSERT_EQUALS(*str_without_mac,      "00:00:00:00:00:00")
+      U_INTERNAL_ASSERT_EQUALS(*str_CLIENT_QUEUE_DIR, "/tmp/uclient")
+      }
+   else if ((which & STR_ALLOCATE_SOAP) != 0)
+      {
+      U_INTERNAL_ASSERT_EQUALS(str_ns, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_boolean, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_byte, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_unsignedByte, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_short, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_unsignedShort, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_int, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_unsignedInt, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_long, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_unsignedLong, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_float, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_double, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_string, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_base64Binary, 0)
+
+      U_NEW_ULIB_OBJECT(UString, str_ns,            UString(stringrep_storage+STR_ALLOCATE_INDEX_SOAP+0));
+      U_NEW_ULIB_OBJECT(UString, str_boolean,       UString(stringrep_storage+STR_ALLOCATE_INDEX_SOAP+1));
+      U_NEW_ULIB_OBJECT(UString, str_byte,          UString(stringrep_storage+STR_ALLOCATE_INDEX_SOAP+2));
+      U_NEW_ULIB_OBJECT(UString, str_unsignedByte,  UString(stringrep_storage+STR_ALLOCATE_INDEX_SOAP+3));
+      U_NEW_ULIB_OBJECT(UString, str_short,         UString(stringrep_storage+STR_ALLOCATE_INDEX_SOAP+4));
+      U_NEW_ULIB_OBJECT(UString, str_unsignedShort, UString(stringrep_storage+STR_ALLOCATE_INDEX_SOAP+5));
+      U_NEW_ULIB_OBJECT(UString, str_int,           UString(stringrep_storage+STR_ALLOCATE_INDEX_SOAP+6));
+      U_NEW_ULIB_OBJECT(UString, str_unsignedInt,   UString(stringrep_storage+STR_ALLOCATE_INDEX_SOAP+7));
+      U_NEW_ULIB_OBJECT(UString, str_long,          UString(stringrep_storage+STR_ALLOCATE_INDEX_SOAP+8));
+      U_NEW_ULIB_OBJECT(UString, str_unsignedLong,  UString(stringrep_storage+STR_ALLOCATE_INDEX_SOAP+9));
+      U_NEW_ULIB_OBJECT(UString, str_float,         UString(stringrep_storage+STR_ALLOCATE_INDEX_SOAP+10));
+      U_NEW_ULIB_OBJECT(UString, str_double,        UString(stringrep_storage+STR_ALLOCATE_INDEX_SOAP+11));
+      U_NEW_ULIB_OBJECT(UString, str_string,        UString(stringrep_storage+STR_ALLOCATE_INDEX_SOAP+12));
+      U_NEW_ULIB_OBJECT(UString, str_base64Binary,  UString(stringrep_storage+STR_ALLOCATE_INDEX_SOAP+13));
+      }
+   else if ((which & STR_ALLOCATE_IMAP) != 0)
+      {
+      U_INTERNAL_ASSERT_EQUALS(str_recent, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_unseen, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_uidnext, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_uidvalidity, 0)
+
+      U_NEW_ULIB_OBJECT(UString, str_recent,      UString(stringrep_storage+STR_ALLOCATE_INDEX_IMAP+0));
+      U_NEW_ULIB_OBJECT(UString, str_unseen,      UString(stringrep_storage+STR_ALLOCATE_INDEX_IMAP+1));
+      U_NEW_ULIB_OBJECT(UString, str_uidnext,     UString(stringrep_storage+STR_ALLOCATE_INDEX_IMAP+2));
+      U_NEW_ULIB_OBJECT(UString, str_uidvalidity, UString(stringrep_storage+STR_ALLOCATE_INDEX_IMAP+3));
+      }
+   else if ((which & STR_ALLOCATE_SSI) != 0)
+      {
+      U_INTERNAL_ASSERT_EQUALS(str_cgi, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_var, 0)
+
+      U_NEW_ULIB_OBJECT(UString, str_cgi, UString(stringrep_storage+STR_ALLOCATE_INDEX_SSI+0));
+      U_NEW_ULIB_OBJECT(UString, str_var, UString(stringrep_storage+STR_ALLOCATE_INDEX_SSI+1));
+      }
+   else if ((which & STR_ALLOCATE_NOCAT) != 0)
+      {
+      U_INTERNAL_ASSERT_EQUALS(str_without_label, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_allowed_members_default, 0)
+
+      U_NEW_ULIB_OBJECT(UString, str_without_label,           UString(stringrep_storage+STR_ALLOCATE_INDEX_NOCAT+0));
+      U_NEW_ULIB_OBJECT(UString, str_allowed_members_default, UString(stringrep_storage+STR_ALLOCATE_INDEX_NOCAT+1));
+      }
+   else if ((which & STR_ALLOCATE_HTTP) != 0)
+      {
+      U_INTERNAL_ASSERT_EQUALS(str_indexhtml, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_ctype_tsa, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_ctype_txt, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_ctype_html, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_ctype_soap, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_origin, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_ulib_header, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_storage_keyid, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_websocket_key, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_websocket_prot, 0)
+
+      U_NEW_ULIB_OBJECT(UString, str_indexhtml,      UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP+0));
+      U_NEW_ULIB_OBJECT(UString, str_ctype_tsa,      UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP+1));
+      U_NEW_ULIB_OBJECT(UString, str_ctype_txt,      UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP+2));
+      U_NEW_ULIB_OBJECT(UString, str_ctype_html,     UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP+3));
+      U_NEW_ULIB_OBJECT(UString, str_ctype_soap,     UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP+4));
+      U_NEW_ULIB_OBJECT(UString, str_origin,         UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP+5));
+      U_NEW_ULIB_OBJECT(UString, str_ulib_header,    UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP+6));
+      U_NEW_ULIB_OBJECT(UString, str_storage_keyid,  UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP+7));
+      U_NEW_ULIB_OBJECT(UString, str_websocket_key,  UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP+8));
+      U_NEW_ULIB_OBJECT(UString, str_websocket_prot, UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP+9));
+      }
+   else if ((which & STR_ALLOCATE_QUERY_PARSER) != 0)
+      {
+      U_INTERNAL_ASSERT_EQUALS(str_p1, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_p2, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_or, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_and, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_not, 0)
+
+      U_NEW_ULIB_OBJECT(UString, str_p1,  UString(stringrep_storage+STR_ALLOCATE_INDEX_QUERY_PARSER+0));
+      U_NEW_ULIB_OBJECT(UString, str_p2,  UString(stringrep_storage+STR_ALLOCATE_INDEX_QUERY_PARSER+1));
+      U_NEW_ULIB_OBJECT(UString, str_or,  UString(stringrep_storage+STR_ALLOCATE_INDEX_QUERY_PARSER+2));
+      U_NEW_ULIB_OBJECT(UString, str_and, UString(stringrep_storage+STR_ALLOCATE_INDEX_QUERY_PARSER+3));
+      U_NEW_ULIB_OBJECT(UString, str_not, UString(stringrep_storage+STR_ALLOCATE_INDEX_QUERY_PARSER+4));
+      }
+   else if ((which & STR_ALLOCATE_ORM) != 0)
+      {
+      U_INTERNAL_ASSERT_EQUALS(str_port, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_root, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_UTF8, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_UTF16, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_dbname, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_timeout, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_compress, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_character_set, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_sqlite_name, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_dbdir, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_memory, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_mysql_name, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_secure_auth, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_auto_reconnect, 0)
+      U_INTERNAL_ASSERT_EQUALS(str_pgsql_name, 0)
+
+      U_NEW_ULIB_OBJECT(UString, str_port,           UString(stringrep_storage+STR_ALLOCATE_INDEX_ORM+0));
+      U_NEW_ULIB_OBJECT(UString, str_root,           UString(stringrep_storage+STR_ALLOCATE_INDEX_ORM+1));
+      U_NEW_ULIB_OBJECT(UString, str_UTF8,           UString(stringrep_storage+STR_ALLOCATE_INDEX_ORM+2));
+      U_NEW_ULIB_OBJECT(UString, str_UTF16,          UString(stringrep_storage+STR_ALLOCATE_INDEX_ORM+3));
+      U_NEW_ULIB_OBJECT(UString, str_dbname,         UString(stringrep_storage+STR_ALLOCATE_INDEX_ORM+4));
+      U_NEW_ULIB_OBJECT(UString, str_timeout,        UString(stringrep_storage+STR_ALLOCATE_INDEX_ORM+5));
+      U_NEW_ULIB_OBJECT(UString, str_compress,       UString(stringrep_storage+STR_ALLOCATE_INDEX_ORM+6));
+      U_NEW_ULIB_OBJECT(UString, str_character_set,  UString(stringrep_storage+STR_ALLOCATE_INDEX_ORM+7));
+      U_NEW_ULIB_OBJECT(UString, str_sqlite_name,    UString(stringrep_storage+STR_ALLOCATE_INDEX_ORM+8));
+      U_NEW_ULIB_OBJECT(UString, str_dbdir,          UString(stringrep_storage+STR_ALLOCATE_INDEX_ORM+9));
+      U_NEW_ULIB_OBJECT(UString, str_memory,         UString(stringrep_storage+STR_ALLOCATE_INDEX_ORM+10));
+      U_NEW_ULIB_OBJECT(UString, str_mysql_name,     UString(stringrep_storage+STR_ALLOCATE_INDEX_ORM+11));
+      U_NEW_ULIB_OBJECT(UString, str_secure_auth,    UString(stringrep_storage+STR_ALLOCATE_INDEX_ORM+12));
+      U_NEW_ULIB_OBJECT(UString, str_auto_reconnect, UString(stringrep_storage+STR_ALLOCATE_INDEX_ORM+13));
+      U_NEW_ULIB_OBJECT(UString, str_pgsql_name,     UString(stringrep_storage+STR_ALLOCATE_INDEX_ORM+14));
+      }
+#ifndef U_HTTP2_DISABLE
+   else if ((which & STR_ALLOCATE_HTTP2) != 0)
+      {
+      U_INTERNAL_ASSERT_EQUALS(str_authority, 0)
+      U_INTERNAL_ASSERT_EQUALS(U_NUM_ELEMENTS(stringrep_storage), 136)
+
+      U_NEW_ULIB_OBJECT(UString, str_authority,                   UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+0));
+      U_NEW_ULIB_OBJECT(UString, str_method,                      UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+1));
+      U_NEW_ULIB_OBJECT(UString, str_method_get,                  UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+2));
+      U_NEW_ULIB_OBJECT(UString, str_method_post,                 UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+3));
+      U_NEW_ULIB_OBJECT(UString, str_path,                        UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+4));
+      U_NEW_ULIB_OBJECT(UString, str_path_root,                   UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+5));
+      U_NEW_ULIB_OBJECT(UString, str_path_index,                  UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+6));
+      U_NEW_ULIB_OBJECT(UString, str_scheme,                      UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+7));
+      U_NEW_ULIB_OBJECT(UString, str_scheme_https,                UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+8));
+      U_NEW_ULIB_OBJECT(UString, str_status,                      UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+9));
+      U_NEW_ULIB_OBJECT(UString, str_status_200,                  UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+10));
+      U_NEW_ULIB_OBJECT(UString, str_status_204,                  UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+11));
+      U_NEW_ULIB_OBJECT(UString, str_status_206,                  UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+12));
+      U_NEW_ULIB_OBJECT(UString, str_status_304,                  UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+13));
+      U_NEW_ULIB_OBJECT(UString, str_status_400,                  UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+14));
+      U_NEW_ULIB_OBJECT(UString, str_status_404,                  UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+15));
+      U_NEW_ULIB_OBJECT(UString, str_status_500,                  UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+16));
+      U_NEW_ULIB_OBJECT(UString, str_accept_charset,              UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+17));
+      U_NEW_ULIB_OBJECT(UString, str_accept_encoding,             UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+18));
+      U_NEW_ULIB_OBJECT(UString, str_accept_encoding_value,       UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+19));
+      U_NEW_ULIB_OBJECT(UString, str_accept_language,             UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+20));
+      U_NEW_ULIB_OBJECT(UString, str_accept_ranges,               UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+21));
+      U_NEW_ULIB_OBJECT(UString, str_accept,                      UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+22));
+      U_NEW_ULIB_OBJECT(UString, str_access_control_allow_origin, UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+23));
+      U_NEW_ULIB_OBJECT(UString, str_age,                         UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+24));
+      U_NEW_ULIB_OBJECT(UString, str_allow,                       UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+25));
+      U_NEW_ULIB_OBJECT(UString, str_authorization,               UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+26));
+      U_NEW_ULIB_OBJECT(UString, str_cache_control,               UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+27));
+      U_NEW_ULIB_OBJECT(UString, str_content_disposition,         UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+28));
+      U_NEW_ULIB_OBJECT(UString, str_content_encoding,            UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+29));
+      U_NEW_ULIB_OBJECT(UString, str_content_language,            UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+30));
+      U_NEW_ULIB_OBJECT(UString, str_content_length,              UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+31));
+      U_NEW_ULIB_OBJECT(UString, str_content_location,            UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+32));
+      U_NEW_ULIB_OBJECT(UString, str_content_range,               UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+33));
+      U_NEW_ULIB_OBJECT(UString, str_content_type,                UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+34));
+      U_NEW_ULIB_OBJECT(UString, str_cookie,                      UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+35));
+      U_NEW_ULIB_OBJECT(UString, str_date,                        UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+36));
+      U_NEW_ULIB_OBJECT(UString, str_etag,                        UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+37));
+      U_NEW_ULIB_OBJECT(UString, str_expect,                      UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+38));
+      U_NEW_ULIB_OBJECT(UString, str_expires,                     UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+39));
+      U_NEW_ULIB_OBJECT(UString, str_from,                        UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+40));
+      U_NEW_ULIB_OBJECT(UString, str_if_match,                    UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+41));
+      U_NEW_ULIB_OBJECT(UString, str_if_modified_since,           UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+42));
+      U_NEW_ULIB_OBJECT(UString, str_if_none_match,               UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+43));
+      U_NEW_ULIB_OBJECT(UString, str_if_range,                    UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+44));
+      U_NEW_ULIB_OBJECT(UString, str_if_unmodified_since,         UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+45));
+      U_NEW_ULIB_OBJECT(UString, str_last_modified,               UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+46));
+      U_NEW_ULIB_OBJECT(UString, str_link,                        UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+47));
+      U_NEW_ULIB_OBJECT(UString, str_location,                    UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+48));
+      U_NEW_ULIB_OBJECT(UString, str_max_forwards,                UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+49));
+      U_NEW_ULIB_OBJECT(UString, str_proxy_authenticate,          UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+50));
+      U_NEW_ULIB_OBJECT(UString, str_proxy_authorization,         UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+51));
+      U_NEW_ULIB_OBJECT(UString, str_range,                       UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+52));
+      U_NEW_ULIB_OBJECT(UString, str_referer,                     UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+53));
+      U_NEW_ULIB_OBJECT(UString, str_refresh,                     UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+54));
+      U_NEW_ULIB_OBJECT(UString, str_retry_after,                 UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+55));
+      U_NEW_ULIB_OBJECT(UString, str_server,                      UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+56));
+      U_NEW_ULIB_OBJECT(UString, str_set_cookie,                  UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+57));
+      U_NEW_ULIB_OBJECT(UString, str_strict_transport_security,   UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+58));
+      U_NEW_ULIB_OBJECT(UString, str_transfer_encoding,           UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+59));
+      U_NEW_ULIB_OBJECT(UString, str_user_agent,                  UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+60));
+      U_NEW_ULIB_OBJECT(UString, str_vary,                        UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+61));
+      U_NEW_ULIB_OBJECT(UString, str_via,                         UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+62));
+      U_NEW_ULIB_OBJECT(UString, str_www_authenticate,            UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+63));
+      U_NEW_ULIB_OBJECT(UString, str_ULib,                        UString(stringrep_storage+STR_ALLOCATE_INDEX_HTTP2+64));
+      }
+#else
+   U_INTERNAL_ASSERT_EQUALS(U_NUM_ELEMENTS(stringrep_storage), 71)
+#endif
 }
 
 UStringRep* UStringRep::create(uint32_t length, uint32_t need, const char* ptr)
@@ -332,9 +607,14 @@ UStringRep* UStringRep::create(uint32_t length, uint32_t need, const char* ptr)
 #else
    if (need > U_CAPACITY)
       {
-      _ptr = UFile::mmap(&need, -1, PROT_READ | PROT_WRITE, U_MAP_ANON, 0);
+      _ptr = UFile::mmap(&need, -1, PROT_READ | PROT_WRITE, MAP_PRIVATE | U_MAP_ANON, 0);
 
-      if (_ptr == MAP_FAILED) U_RETURN_POINTER(string_rep_null, UStringRep);
+      if (_ptr == MAP_FAILED)
+         {
+         string_rep_null->references++;
+
+         U_RETURN_POINTER(string_rep_null, UStringRep);
+         }
 
       r = U_MALLOC_TYPE(UStringRep);
       }
@@ -426,7 +706,7 @@ UStringRep* UStringRep::create(uint32_t length, uint32_t need, const char* ptr)
 
 bool UString::shrink()
 {
-   U_TRACE(0, "UString::shrink()")
+   U_TRACE_NO_PARAM(0, "UString::shrink()")
 
 #ifdef ENABLE_MEMPOOL
    uint32_t _length = rep->_length, sz = _length+(1+sizeof(UStringRep)); // NB: we need an array of char[_length], plus a terminating null char, plus the UStringRep data structure...
@@ -499,97 +779,81 @@ bool UString::shrink()
    U_RETURN(false);
 }
 
-void UStringRep::release()
+static const int MultiplyDeBruijnBitPosition2[32] = { 0, 1, 28, 2, 29, 14, 24, 3, 30, 22, 20, 15, 25, 17, 4, 8, 31, 27, 13, 23, 21, 19, 16, 7, 26, 12, 18, 6, 11, 5, 10, 9 };
+
+void UStringRep::_release()
 {
-   U_TRACE(0, "UStringRep::release()") // problem with sanitize address
+   U_TRACE_NO_PARAM(0, "UStringRep::_release()")
 
-   U_INTERNAL_DUMP("this = %p parent = %p references = %u child = %d", this, parent, references, child)
-
-#ifdef DEBUG
-   bool ok = memory.invariant();
-
-   if (ok == false)
-      {
-      U_ERROR("UStringRep::release() %s - this = %p parent = %p references = %u child = %d _capacity = %u str(%u) = %.*S",
-               memory.getErrorType(this),
-               this, parent, references, child, _capacity, _length, _length, str);
-      }
-#endif
-
-   if (references)
-      {
-    --references;
-
-      return;
-      }
-
-   // NB: we don't use delete (dtor) because add a deallocation to the destroy process...
-
-   U_INTERNAL_DUMP("_capacity = %u str(%u) = %.*S", _capacity, _length, _length, str)
+   U_INTERNAL_DUMP("_capacity = %u str(%u) = %V", _capacity, _length, this)
 
    U_INTERNAL_ASSERT_EQUALS(references, 0)
    U_INTERNAL_ASSERT_DIFFERS(this, string_rep_null)
 
 #if defined(U_SUBSTR_INC_REF) || defined(DEBUG)
    if (parent)
-#  ifdef U_SUBSTR_INC_REF
-      parent->release(); // NB: solo la morte della substring de-referenzia la source...
-#  else
+# ifdef U_SUBSTR_INC_REF
+   parent->release(); // NB: only the death of substring de-reference the source...
+# else
+   {
+   U_INTERNAL_ASSERT_EQUALS(child, 0)
+
+   U_INTERNAL_DUMP("parent->child = %d", parent->child)
+
+// U_INTERNAL_ASSERT_RANGE(1, parent->child, max_child)
+
+   if (parent->child >= 1 &&
+       parent->child <= max_child)
       {
-      U_INTERNAL_ASSERT_EQUALS(child, 0)
+      parent->child--;
 
-      U_INTERNAL_DUMP("parent->child = %d", parent->child)
-
-   // U_INTERNAL_ASSERT_RANGE(1, parent->child, max_child)
-
-      if (parent->child >= 1 &&
-          parent->child <= max_child)
+      U_INTERNAL_DUMP("this = %p parent = %p parent->references = %u parent->child = %d", this, parent, parent->references, parent->child)
+      }
+   else
+      {
+      U_WARNING("parent->child has value(%d) out of range [1-%d]", parent->child, max_child);
+      }
+   }
+   else // source...
+   {
+   if (child)
+      {
+#  ifdef U_STDCPP_ENABLE
+      if (UObjectDB::fd > 0)
          {
-         parent->child--;
+         parent_destroy = this;
 
-         U_INTERNAL_DUMP("this = %p parent = %p parent->references = %u parent->child = %d", this, parent, parent->references, parent->child)
+         U_DUMP_OBJECT_WITH_CHECK("DEAD OF SOURCE STRING WITH CHILD ALIVE - child of this", checkIfChild)
+         }
+      else
+#  endif
+      {
+      char buffer[4096];
+
+      uint32_t len = u__snprintf(buffer, sizeof(buffer), U_CONSTANT_TO_PARAM("DEAD OF SOURCE STRING WITH CHILD ALIVE: child(%u) source(%u) = %V"), child, _length, this);
+
+      if (check_dead_of_source_string_with_child_alive)
+         {
+         U_INTERNAL_ASSERT_MSG(false, buffer)
          }
       else
          {
-         U_WARNING("parent->child has value(%d) out of range (1-%d)", parent->child, max_child);
+         U_WARNING("%.*s", len, buffer);
          }
       }
-   else // source...
-      {
-      if (child)
-         {
-         if (UObjectDB::fd > 0)
-            {
-            parent_destroy = this;
-
-            U_DUMP_OBJECT("DEAD OF SOURCE STRING WITH CHILD ALIVE - child of this", checkIfChild)
-            }
-         else
-            {
-            char buffer[4096];
-
-            (void) u__snprintf(buffer, sizeof(buffer), "DEAD OF SOURCE STRING WITH CHILD ALIVE: child(%u) source(%u) = %.*S", child, _length, _length, str);
-
-            if (check_dead_of_source_string_with_child_alive)
-               {
-               U_INTERNAL_ASSERT_MSG(false, buffer)
-               }
-            else
-               {
-               U_WARNING("%s", buffer);
-               }
-            }
-         }
       }
-#  endif
-#  ifdef DEBUG
+   }
+# endif
+# ifdef DEBUG
    U_UNREGISTER_OBJECT(0, this)
-#  endif
+# endif
 #endif
 
 #ifndef ENABLE_MEMPOOL
    U_SYSCALL_VOID(free, "%p", (void*)this);
 #else
+   U_INTERNAL_DUMP("_capacity = %d (_capacity <= U_CAPACITY) = %b", (int32_t)_capacity, (_capacity <= U_CAPACITY))
+
    if (_capacity <= U_CAPACITY)
       {
       if (_capacity == 0) UMemoryPool::push(this, U_SIZE_TO_STACK_INDEX(sizeof(UStringRep))); // NB: no room for data, which mean constant string...
@@ -600,16 +864,14 @@ void UStringRep::release()
          uint32_t sz = _capacity + (1 + sizeof(UStringRep));
 
          /**
-          * -----------
           * power of 2:
           * -----------
-          * 2^7   128
-          * 2^8   256
-          * 2^9   512
+          * 2^7    128
+          * 2^8    256
+          * 2^9    512
           * 2^10  1024
           * 2^11  2048
           * 2^12  4096
-          * -----------
           */
 
          U_INTERNAL_ASSERT_EQUALS(sz & (sz-1), 0) // must be a power of 2
@@ -621,20 +883,11 @@ void UStringRep::release()
       {
       if (_capacity != U_NOT_FOUND)
          {
-         U_INTERNAL_DUMP("_capacity = %d", (int32_t)_capacity)
-
-#     ifdef USE_LIBTDB
-         if (_capacity == U_TO_FREE)
-            {
-            U_SYSCALL_VOID(free, "%p", (void*)str);
-            }
+#     if defined(USE_LIBTDB) || defined(USE_MONGODB)
+         if (_capacity == U_TO_FREE) { U_SYSCALL_VOID(free, "%p", (void*)str); }
          else
 #     endif
-         {
-         U_INTERNAL_ASSERT_EQUALS(_capacity & U_PAGEMASK, 0)
-
          UMemoryPool::deallocate((void*)str, _capacity);
-         }
          }
       else
          {
@@ -656,8 +909,7 @@ void UStringRep::release()
 #endif
 }
 
-#ifdef DEBUG
-// substring capture event 'DEAD OF SOURCE STRING WITH CHILD ALIVE'...
+#ifdef DEBUG // substring capture event 'DEAD OF SOURCE STRING WITH CHILD ALIVE'...
 int32_t     UStringRep::max_child;
 UStringRep* UStringRep::parent_destroy;
 UStringRep* UStringRep::string_rep_share;
@@ -692,7 +944,7 @@ bool UStringRep::checkIfChild(const char* name_class, const void* ptr_object)
 }
 #endif
 
-UStringRep* UStringRep::substr(const char* t, uint32_t tlen)
+UStringRep* UStringRep::substr(const char* t, uint32_t tlen) const
 {
    U_TRACE(0+256, "UStringRep::substr(%.*S,%u)", tlen, t, tlen)
 
@@ -710,12 +962,12 @@ UStringRep* UStringRep::substr(const char* t, uint32_t tlen)
       }
    else
       {
-      U_INTERNAL_ASSERT_RANGE(str, t, end())
+      U_INTERNAL_ASSERT_RANGE(str, t, pend())
 
-      r = U_NEW(UStringRep(t, tlen));
+      U_NEW(UStringRep, r, UStringRep(t, tlen));
 
 #  if defined(U_SUBSTR_INC_REF) || defined(DEBUG)
-      UStringRep* p = this;
+      UStringRep* p = (UStringRep*)this;
 
       while (p->parent)
          {
@@ -747,10 +999,10 @@ __pure bool UStringRep::isSubStringOf(UStringRep* rep) const
 
    U_CHECK_MEMORY
 
-   if (this != rep             &&
-       _capacity == 0          && // mode: 0 -> const
-       begin() >= rep->begin() &&
-         end() <= rep->end())
+   if (this != rep           &&
+       _capacity == 0        && // mode: 0 -> const
+       data() >= rep->data() &&
+       pend() <= rep->pend())
       {
 #  if defined(U_SUBSTR_INC_REF) || defined(DEBUG)
       U_INTERNAL_ASSERT_EQUALS(parent, rep)
@@ -782,7 +1034,7 @@ void UStringRep::copy(char* s, uint32_t n, uint32_t pos) const
 
 void UStringRep::trim()
 {
-   U_TRACE(0, "UStringRep::trim()")
+   U_TRACE_NO_PARAM(0, "UStringRep::trim()")
 
    U_CHECK_MEMORY
 
@@ -822,7 +1074,7 @@ __pure int UStringRep::compare(const UStringRep* rep, uint32_t depth) const
 
    if (r == 0)
 next:
-      r = (_length - rep->_length);
+   r = (_length - rep->_length);
 
    U_RETURN(r);
 }
@@ -877,16 +1129,23 @@ __pure bool UStringRep::isEndHeader(uint32_t pos) const
    U_RETURN(false);
 }
 
-UString::UString(const char* t)
+__pure bool UStringRep::findEndHeader(uint32_t pos) const
 {
-   U_TRACE_REGISTER_OBJECT_WITHOUT_CHECK_MEMORY(0, UString, "%S", t)
+   U_TRACE(0, "UStringRep::findEndHeader(%u)", pos)
 
-   uint32_t len = (t ? u__strlen(t, __PRETTY_FUNCTION__) : 0);
+   U_CHECK_MEMORY
 
-   if (len) rep = U_NEW(UStringRep(t, len));
-   else     _copy(UStringRep::string_rep_null);
+   if (_length)
+      {
+      U_INTERNAL_ASSERT_MINOR(pos, _length)
 
-   U_INTERNAL_ASSERT(invariant())
+      const char* ptr  = str + pos;
+      uint32_t _remain = (_length - pos);
+
+      if (u_findEndHeader1(ptr, _remain) != U_NOT_FOUND) U_RETURN(true); // find sequence of U_CRLF2
+      }
+
+   U_RETURN(false);
 }
 
 UString::UString(const UString& str, uint32_t pos, uint32_t n)
@@ -903,24 +1162,25 @@ UString::UString(const UString& str, uint32_t pos, uint32_t n)
    U_INTERNAL_ASSERT(invariant())
 }
 
-UString::UString(ustringrep* r)
+UString::UString(uint32_t sz, const char* format, uint32_t fmt_size, ...) // ctor with var arg
 {
-   U_TRACE_REGISTER_OBJECT_WITHOUT_CHECK_MEMORY(0, UString, "%p", r)
+   U_TRACE_REGISTER_OBJECT_WITHOUT_CHECK_MEMORY(0, UString, "%u,%.*S,%u", sz, fmt_size, format, fmt_size)
 
-#ifdef DEBUG
-   r->_this = (void*)U_CHECK_MEMORY_SENTINEL;
-#endif
+   U_INTERNAL_ASSERT_POINTER(format)
 
-   uustringrep u = { r };
+   va_list argp;
+   va_start(argp, fmt_size);
 
-   _copy(u.p2);
+   rep = UStringRep::create(0U, sz, 0);
 
-   U_INTERNAL_ASSERT(invariant())
+   UString::vsnprintf(format, fmt_size, argp); 
+
+   va_end(argp);
 }
 
 UString UString::copy() const
 {
-   U_TRACE(0, "UString::copy()")
+   U_TRACE_NO_PARAM(0, "UString::copy()")
 
    if (rep->_length)
       {
@@ -952,7 +1212,7 @@ UString::UString(uint32_t len, uint32_t sz, char* ptr) // NB: for UStringExt::de
    U_TRACE_REGISTER_OBJECT_WITHOUT_CHECK_MEMORY(0, UString, "%u,%u,%p", len, sz, ptr)
 
    U_INTERNAL_ASSERT_MAJOR(sz, U_CAPACITY)
-   U_INTERNAL_ASSERT_EQUALS(sz & U_PAGEMASK, 0)
+   U_ASSERT(UFile::checkPageAlignment(sz))
 
    rep = U_MALLOC_TYPE(UStringRep);
 
@@ -969,13 +1229,23 @@ UString::UString(uint32_t len, uint32_t sz, char* ptr) // NB: for UStringExt::de
 
 UString& UString::assign(const char* s, uint32_t n)
 {
-   U_TRACE(0, "UString::assign(%S,%u)", s, n)
+   U_TRACE(0, "UString::assign(%.*S,%u)", n, s, n)
 
    if (rep->references ||
        rep->_capacity < n)
       {
-      if (n) _set(U_NEW(UStringRep(s, n)));
-      else _assign(UStringRep::string_rep_null);
+      if (n)
+         {
+         UStringRep* r;
+
+         U_NEW(UStringRep, r, UStringRep(s, n));
+
+         _set(r);
+         }
+      else
+         {
+         _assign(UStringRep::string_rep_null);
+         }
       }
    else
       {
@@ -1034,7 +1304,11 @@ void UString::moveToBeginDataInBuffer(uint32_t n)
 
    rep->_length -= n;
 
-   (void) U_SYSCALL(memmove, "%p,%p,%u", (void*)rep->str, rep->str + n, rep->_length);
+#ifdef U_APEX_ENABLE
+   (void) U_SYSCALL(apex_memmove, "%p,%p,%u", (void*)rep->str, rep->str + n, rep->_length);
+#else
+   (void) U_SYSCALL(     memmove, "%p,%p,%u", (void*)rep->str, rep->str + n, rep->_length);
+#endif
 
    U_INTERNAL_ASSERT(invariant())
 }
@@ -1083,13 +1357,13 @@ void UString::mmap(const char* map, uint32_t len)
       }
    else
       {
-      _set(U_NEW(UStringRep(map, len)));
+      UStringRep* r;
+
+      U_NEW(UStringRep, r, UStringRep(map, len));
+
+      _set(r);
 
       rep->_capacity = U_NOT_FOUND;
-
-#  if defined(MADV_SEQUENTIAL)
-      if (len > (64 * PAGESIZE)) (void) U_SYSCALL(madvise, "%p,%u,%d", (void*)map, len, MADV_SEQUENTIAL);
-#  endif
       }
 
    U_INTERNAL_ASSERT(invariant())
@@ -1149,7 +1423,11 @@ char* UString::__replace(uint32_t pos, uint32_t n1, uint32_t n2)
    else if (how_much > 0 &&
             n1 != n2)
       {
-      (void) U_SYSCALL(memmove, "%p,%p,%u", str + pos + n2, src, how_much);
+#  ifdef U_APEX_ENABLE
+      (void) U_SYSCALL(apex_memmove, "%p,%p,%u", str + pos + n2, src, how_much);
+#  else
+      (void) U_SYSCALL(     memmove, "%p,%p,%u", str + pos + n2, src, how_much);
+#  endif
       }
 
    U_ASSERT(uniq())
@@ -1161,7 +1439,7 @@ char* UString::__replace(uint32_t pos, uint32_t n1, uint32_t n2)
 
 void UString::unQuote()
 {
-   U_TRACE(0, "UString::unQuote()")
+   U_TRACE_NO_PARAM(0, "UString::unQuote()")
 
    U_ASSERT(uniq())
 
@@ -1175,7 +1453,11 @@ void UString::unQuote()
 
       char* ptr = (char*) rep->str;
 
-      (void) U_SYSCALL(memmove, "%p,%p,%u", ptr, ptr + 1, len);
+#  ifdef U_APEX_ENABLE
+      (void) U_SYSCALL(apex_memmove, "%p,%p,%u", ptr, ptr + 1, len);
+#  else
+      (void) U_SYSCALL(     memmove, "%p,%p,%u", ptr, ptr + 1, len);
+#  endif
 
       ptr[(rep->_length = len)] = '\0';
       }
@@ -1212,7 +1494,7 @@ char* UString::__append(uint32_t n)
 
 UString& UString::append(uint32_t n, char c)
 {
-   U_TRACE(0, "UString::append(%u,%C)", n, c)
+   U_TRACE(1, "UString::append(%u,%C)", n, c)
 
    if (n)
       {
@@ -1229,7 +1511,7 @@ UString& UString::append(uint32_t n, char c)
 
 void UString::duplicate() const
 {
-   U_TRACE(0, "UString::duplicate()")
+   U_TRACE_NO_PARAM(0, "UString::duplicate()")
 
    uint32_t sz = size();
 
@@ -1238,7 +1520,7 @@ void UString::duplicate() const
       {
       ((UString*)this)->_set(UStringRep::create(0, 100U, 0));
 
-      *(((UString*)this)->UString::rep->begin()) = '\0';
+      *(((UString*)this)->UString::rep->data()) = '\0';
       }
 
    U_INTERNAL_ASSERT(invariant())
@@ -1247,7 +1529,7 @@ void UString::duplicate() const
 
 void UString::setNullTerminated() const
 {
-   U_TRACE(0, "UString::setNullTerminated()")
+   U_TRACE_NO_PARAM(0, "UString::setNullTerminated()")
 
    // A file is mapped in multiples of the page size. For a file that is not a multiple of the page size,
    // the remaining memory is zeroed when mapped, and writes to that region are not written out to the file
@@ -1285,7 +1567,7 @@ void UString::resize(uint32_t n, unsigned char c)
 
 __pure uint32_t UString::find(const char* s, uint32_t pos, uint32_t s_len, uint32_t how_much) const
 {
-   U_TRACE(0, "UString::find(%S,%u,%u,%u)", s, pos, s_len, how_much)
+   U_TRACE(0, "UString::find(%.*S,%u,%u,%u)", s_len, s, pos, s_len, how_much)
 
    U_INTERNAL_ASSERT_MAJOR(s_len, 0)
 
@@ -1308,7 +1590,7 @@ __pure uint32_t UString::find(const char* s, uint32_t pos, uint32_t s_len, uint3
 
 __pure uint32_t UString::findnocase(const char* s, uint32_t pos, uint32_t s_len, uint32_t how_much) const
 {
-   U_TRACE(0, "UString::findnocase(%S,%u,%u,%u)", s, pos, s_len, how_much)
+   U_TRACE(0, "UString::findnocase(%.*S,%u,%u,%u)", s_len, s, pos, s_len, how_much)
 
    U_INTERNAL_ASSERT_MAJOR(s_len, 1)
 
@@ -1328,29 +1610,6 @@ __pure uint32_t UString::findnocase(const char* s, uint32_t pos, uint32_t s_len,
    U_RETURN(U_NOT_FOUND);
 }
 
-__pure uint32_t UString::find(unsigned char c, uint32_t pos) const
-{
-   U_TRACE(0, "UString::find(%C,%u)", c, pos)
-
-   uint32_t sz  = size(),
-            ret = U_NOT_FOUND;
-
-   const char* str = rep->str;
-
-   if (pos < sz)
-      {
-      uint32_t how_much = (sz - pos);
-
-   // U_INTERNAL_DUMP("how_much = %u", how_much)
-
-      void* p = (void*) memchr(str + pos, c, how_much);
-
-      if (p) ret = (const char*)p - str;
-      }
-
-   U_RETURN(ret);
-}
-
 // rfind() instead of starting at the beginning of the string and searching for the text's first occurence, starts its search at the end and returns the last occurence
 
 __pure uint32_t UString::rfind(unsigned char c, uint32_t pos) const
@@ -1365,11 +1624,9 @@ __pure uint32_t UString::rfind(unsigned char c, uint32_t pos) const
 
       if (xpos > pos) xpos = pos;
 
-      const char* str = rep->str;
-
       for (++xpos; xpos-- > 0; )
          {
-         if (str[xpos] == c) U_RETURN(xpos);
+         if (rep->str[xpos] == c) U_RETURN(xpos);
          }
       }
 
@@ -1378,7 +1635,7 @@ __pure uint32_t UString::rfind(unsigned char c, uint32_t pos) const
 
 __pure uint32_t UString::rfind(const char* s, uint32_t pos, uint32_t n) const
 {
-   U_TRACE(0, "UString::rfind(%S,%u,%u)", s, pos, n)
+   U_TRACE(0, "UString::rfind(%.*S,%u,%u)", n, s, pos, n)
 
    uint32_t sz = size();
 
@@ -1386,10 +1643,8 @@ __pure uint32_t UString::rfind(const char* s, uint32_t pos, uint32_t n) const
       {
       pos = U_min(sz - n, pos);
 
-      const char* str = rep->str;
-
       do {
-         if (memcmp(str + pos, s, n) == 0) U_RETURN(pos);
+         if (memcmp(rep->str + pos, s, n) == 0) U_RETURN(pos);
          }
       while (pos-- > 0);
       }
@@ -1402,17 +1657,13 @@ __pure uint32_t UString::rfind(const char* s, uint32_t pos, uint32_t n) const
 
 __pure uint32_t UString::find_first_of(const char* s, uint32_t pos, uint32_t n) const
 {
-   U_TRACE(0, "UString::find_first_of(%S,%u,%u)", s, pos, n)
+   U_TRACE(0, "UString::find_first_of(%.*S,%u,%u)", n, s, pos, n)
 
    if (n)
       {
-      uint32_t sz = size();
-
-      const char* str = rep->str;
-
-      for (; pos < sz; ++pos)
+      for (; pos < size(); ++pos)
          {
-         if (memchr(s, str[pos], n)) U_RETURN(pos);
+         if (memchr(s, rep->str[pos], n)) U_RETURN(pos);
          }
       }
 
@@ -1421,7 +1672,7 @@ __pure uint32_t UString::find_first_of(const char* s, uint32_t pos, uint32_t n) 
 
 __pure uint32_t UString::find_last_of(const char* s, uint32_t pos, uint32_t n) const
 {
-   U_TRACE(0, "UString::find_last_of(%S,%u,%u)", s, pos, n)
+   U_TRACE(0, "UString::find_last_of(%.*S,%u,%u)", n, s, pos, n)
 
    uint32_t sz = size();
 
@@ -1429,10 +1680,8 @@ __pure uint32_t UString::find_last_of(const char* s, uint32_t pos, uint32_t n) c
       {
       if (--sz > pos) sz = pos;
 
-      const char* str = rep->str;
-
       do {
-         if (memchr(s, str[sz], n)) U_RETURN(sz);
+         if (memchr(s, rep->str[sz], n)) U_RETURN(sz);
          }
       while (sz-- != 0);
       }
@@ -1444,18 +1693,16 @@ __pure uint32_t UString::find_last_of(const char* s, uint32_t pos, uint32_t n) c
 
 __pure uint32_t UString::find_first_not_of(const char* s, uint32_t pos, uint32_t n) const
 {
-   U_TRACE(0, "UString::find_first_not_of(%S,%u,%u)", s, pos, n)
+   U_TRACE(0, "UString::find_first_not_of(%.*S,%u,%u)", n, s, pos, n)
 
    if (n)
       {
       uint32_t sz   = size(),
                xpos = pos;
 
-      const char* str = rep->str;
-
       for (; xpos < sz; ++xpos)
          {
-         if (memchr(s, str[xpos], n) == 0) U_RETURN(xpos);
+         if (memchr(s, rep->str[xpos], n) == 0) U_RETURN(xpos);
          }
       }
 
@@ -1481,18 +1728,17 @@ __pure uint32_t UString::find_first_not_of(unsigned char c, uint32_t pos) const
 
 __pure uint32_t UString::find_last_not_of(const char* s, uint32_t pos, uint32_t n) const
 {
-   U_TRACE(0, "UString::find_last_not_of(%S,%u,%u)", s, pos, n)
+   U_TRACE(0, "UString::find_last_not_of(%.*S,%u,%u)", n, s, pos, n)
 
    uint32_t sz = size();
 
-   if (sz && n)
+   if (n &&
+       sz)
       {
       if (--sz > pos) sz = pos;
 
-      const char* str = rep->str;
-
       do {
-         if (memchr(s, str[sz], n) == 0) U_RETURN(sz);
+         if (memchr(s, rep->str[sz], n) == 0) U_RETURN(sz);
          }
       while (sz-- != 0);
       }
@@ -1527,29 +1773,10 @@ __pure uint32_t UString::find_last_not_of(unsigned char c, uint32_t pos) const
 
 __pure bool UStringRep::strtob() const
 {
-   U_TRACE(0, "UStringRep::strtob()")
+   U_TRACE_NO_PARAM(0, "UStringRep::strtob()")
 
    if (_length)
       {
-      enum {
-         VAL_yes  = U_MULTICHAR_CONSTANT32('y','e','s',0),
-         VAL_Yes  = U_MULTICHAR_CONSTANT32('Y','e','s',0),
-         VAL_YES  = U_MULTICHAR_CONSTANT32('Y','E','S',0),
-         VAL_true = U_MULTICHAR_CONSTANT32('t','r','u','e'),
-         VAL_True = U_MULTICHAR_CONSTANT32('T','r','u','e'),
-         VAL_TRUE = U_MULTICHAR_CONSTANT32('T','R','U','E')
-      };
-
-      switch (u_get_unalignedp32(str))
-         {
-         case VAL_yes:
-         case VAL_Yes:
-         case VAL_YES:
-         case VAL_true:
-         case VAL_True:
-         case VAL_TRUE: U_RETURN(true); 
-         }
-
       switch (u_get_unalignedp16(str))
          {
          case U_MULTICHAR_CONSTANT16('1',0):
@@ -1557,80 +1784,215 @@ __pure bool UStringRep::strtob() const
          case U_MULTICHAR_CONSTANT16('O','n'):
          case U_MULTICHAR_CONSTANT16('O','N'): U_RETURN(true);
          }
+
+      switch (u_get_unalignedp32(str))
+         {
+         case U_MULTICHAR_CONSTANT32('y','e','s',0):
+         case U_MULTICHAR_CONSTANT32('Y','e','s',0):
+         case U_MULTICHAR_CONSTANT32('Y','E','S',0):
+         case U_MULTICHAR_CONSTANT32('t','r','u','e'):
+         case U_MULTICHAR_CONSTANT32('T','r','u','e'):
+         case U_MULTICHAR_CONSTANT32('T','R','U','E'): U_RETURN(true); 
+         }
       }
 
    U_RETURN(false);
 }
 
-long UStringRep::strtol(int base) const
+#define U_MANAGE_CHECK_FOR_SUFFIX \
+   if (check_for_suffix == false) while (u__isdigit(*(endptr-1)) == false) --endptr; \
+   else \
+      { \
+      suffix = *(endptr-1); \
+                        \
+      if (suffix != 'M' && \
+          suffix != 'G' && \
+          u__toupper(suffix) != 'K') \
+         { \
+         suffix = 0; \
+         } \
+      else \
+         { \
+         --endptr; \
+                   \
+         U_INTERNAL_ASSERT(u__isdigit(*(endptr-1))) \
+         } \
+      }
+
+__pure long UStringRep::strtol(bool check_for_suffix) const
 {
-   U_TRACE(0, "UStringRep::strtol(%d)", base)
+   U_TRACE(0, "UString::strtol(%b)", check_for_suffix)
 
    if (_length)
       {
-      char* eos = (char*)str + _length;
+      char suffix        = 0;
+      const char* s      = str;
+      const char* endptr = str + _length;
 
-      if (isNullTerminated() == false && writeable()) *eos = '\0';
+      while (u__isspace(*s)) ++s;
 
-      errno = 0;
+      U_MANAGE_CHECK_FOR_SUFFIX
 
-      char* endptr;
-      long  result = (long) strtoul(str, &endptr, base);
+      long value = u_strtol(s, endptr);
 
-      U_INTERNAL_DUMP("errno = %d", errno)
+#  ifdef DEBUG
+      {
+      long tmp = ::strtol(s, 0, 10);
 
-      if (endptr &&
-          endptr < eos)
+      if (value != tmp)
          {
-         U_NUMBER_SUFFIX(result, *endptr);
+         U_WARNING("value(%V) = %ld differs from ::strtol() = %ld", this, value, tmp);
+         }
+      }
+#  endif
+
+      if (suffix)
+         {
+         U_NUMBER_SUFFIX(value, suffix);
          }
 
-      U_RETURN(result);
+      U_RETURN(value);
       }
 
-   U_RETURN(0L);
+   U_RETURN(0);
 }
 
-#ifdef HAVE_STRTOULL
-int64_t UStringRep::strtoll(int base) const
+__pure unsigned long UStringRep::strtoul(bool check_for_suffix) const
 {
-   U_TRACE(0, "UStringRep::strtoll(%d)", base)
+   U_TRACE(0, "UString::strtoul(%b)", check_for_suffix)
 
    if (_length)
       {
-      char* eos = (char*)str + _length;
+      char suffix        = 0;
+      const char* s      = str;
+      const char* endptr = str + _length;
 
-      if (isNullTerminated() == false && writeable()) *eos = '\0';
+      while (u__isspace(*s)) ++s;
 
-      char* endptr;
-      int64_t result = (int64_t) strtoull(str, &endptr, base);
+      U_MANAGE_CHECK_FOR_SUFFIX
 
-      U_INTERNAL_DUMP("errno = %d", errno)
+      unsigned long value = u_strtoul(s, endptr);
 
-      if (endptr &&
-          endptr < eos)
+#  ifdef DEBUG
+      {
+      unsigned long tmp = ::strtoul(s, 0, 10);
+
+      if (value != tmp)
          {
-         U_NUMBER_SUFFIX(result, *endptr);
+         U_WARNING("value(%V) = %lu differs from ::strtoul() = %lu", this, value, tmp);
+         }
+      }
+#  endif
+
+      if (suffix)
+         {
+         U_NUMBER_SUFFIX(value, suffix);
          }
 
-      U_RETURN(result);
+      U_RETURN(value);
       }
 
-   U_RETURN(0LL);
+   U_RETURN(0);
 }
-#endif
+
+__pure int64_t UStringRep::strtoll(bool check_for_suffix) const
+{
+   U_TRACE(0, "UString::strtoll(%b)", check_for_suffix)
+
+   if (_length)
+      {
+      char suffix        = 0;
+      const char* s      = str;
+      const char* endptr = str + _length;
+
+      while (u__isspace(*s)) ++s;
+
+      U_MANAGE_CHECK_FOR_SUFFIX
+
+      int64_t value = u_strtoll(s, endptr);
+
+#  if defined(DEBUG) && defined(HAVE_STRTOULL)
+      {
+      int64_t tmp = ::strtoll(s, 0, 10);
+
+      if (value != tmp)
+         {
+         U_WARNING("value(%V) = %lld differs from ::strtol() = %lld", this, value, tmp);
+         }
+      }
+#  endif
+
+      if (suffix)
+         {
+         U_NUMBER_SUFFIX(value, suffix);
+         }
+
+      U_RETURN(value);
+      }
+
+   U_RETURN(0);
+}
+
+__pure uint64_t UStringRep::strtoull(bool check_for_suffix) const
+{
+   U_TRACE(0, "UString::strtoull(%b)", check_for_suffix)
+
+   if (_length)
+      {
+      char suffix        = 0;
+      const char* s      = str;
+      const char* endptr = str + _length;
+
+      while (u__isspace(*s)) ++s;
+
+      U_MANAGE_CHECK_FOR_SUFFIX
+
+      uint64_t value = u_strtoull(s, endptr);
+
+#  if defined(DEBUG) && defined(HAVE_STRTOULL)
+      {
+      uint64_t tmp = ::strtoull(s, 0, 10);
+
+      if (value != tmp)
+         {
+         U_WARNING("value(%V) = %llu differs from ::strtol() = %llu", this, value, tmp);
+         }
+      }
+#  endif
+
+      if (suffix)
+         {
+         U_NUMBER_SUFFIX(value, suffix);
+         }
+
+      U_RETURN(value);
+      }
+
+   U_RETURN(0);
+}
+
+#undef U_MANAGE_CHECK_FOR_SUFFIX
 
 #ifdef HAVE_STRTOF
 // extern "C" { float strtof(const char* nptr, char** endptr); }
 float UStringRep::strtof() const
 {
-   U_TRACE(0, "UStringRep::strtof()")
+   U_TRACE_NO_PARAM(0, "UStringRep::strtof()")
 
    if (_length)
       {
-      if (isNullTerminated() == false && writeable()) setNullTerminated();
+      char* eos = (char*)str + _length;
 
+      if (isNullTerminated() == false && writeable()) *eos = '\0';
+
+#  ifndef DEBUG
       float result = ::strtof(str, 0);
+#  else
+      char* endptr;
+      float result = ::strtof(str, &endptr);
+
+      U_INTERNAL_ASSERT(endptr <= eos)
+#  endif
 
       U_INTERNAL_DUMP("errno = %d", errno)
 
@@ -1641,35 +2003,26 @@ float UStringRep::strtof() const
 }
 #endif
 
-double UStringRep::strtod() const
-{
-   U_TRACE(0, "UStringRep::strtod()")
-
-   if (_length)
-      {
-      if (isNullTerminated() == false && writeable()) setNullTerminated();
-
-      double result = ::strtod(str, 0);
-
-      U_INTERNAL_DUMP("errno = %d", errno)
-
-      U_RETURN(result);
-      }
-
-   U_RETURN(0);
-}
-
 #ifdef HAVE_STRTOLD
 // extern "C" { long double strtold(const char* nptr, char** endptr); }
 long double UStringRep::strtold() const
 {
-   U_TRACE(0, "UStringRep::strtold()")
+   U_TRACE_NO_PARAM(0, "UStringRep::strtold()")
 
    if (_length)
       {
-      if (isNullTerminated() == false && writeable()) setNullTerminated();
+      char* eos = (char*)str + _length;
 
+      if (isNullTerminated() == false && writeable()) *eos = '\0';
+
+#  ifndef DEBUG
       long double result = ::strtold(str, 0);
+#  else
+      char* endptr;
+      long double result = ::strtold(str, &endptr);
+
+      U_INTERNAL_ASSERT_MINOR(endptr, eos)
+#  endif
 
       U_INTERNAL_DUMP("errno = %d", errno)
 
@@ -1756,6 +2109,17 @@ UStringRep* UStringRep::toUTF8(const unsigned char* s, uint32_t n)
    U_RETURN_POINTER(r, UStringRep);
 }
 
+double UString::strtod() const
+{
+   U_TRACE_NO_PARAM(0, "UString::strtod()")
+
+   UValue json;
+
+   if (json.parse(*this)) return json.getDouble();
+
+   U_RETURN(0);
+}
+
 void UString::printKeyValue(const char* key, uint32_t keylen, const char* _data, uint32_t datalen)
 {
    U_TRACE(0, "UString::printKeyValue(%.*S,%u,%.*S,%u,%d)", keylen, key, keylen, datalen, _data, datalen)
@@ -1766,7 +2130,7 @@ void UString::printKeyValue(const char* key, uint32_t keylen, const char* _data,
 
    char* ptr = (char*)rep->str + rep->_length;
 
-   ptr += u__snprintf(ptr, 40, "+%u,%u:", keylen, datalen);
+   ptr += u__snprintf(ptr, 40, U_CONSTANT_TO_PARAM("+%u,%u:"), keylen, datalen);
 
    U_MEMCPY(ptr, key, keylen);
             ptr +=    keylen;
@@ -1784,37 +2148,23 @@ void UString::printKeyValue(const char* key, uint32_t keylen, const char* _data,
    U_INTERNAL_ASSERT(invariant())
 }
 
-void UString::setFromData(const char** p, uint32_t sz)
+void UString::setFromData(const char** p, uint32_t sz, unsigned char delim)
 {
-   U_TRACE(0, "UString::setFromData(%.*S,%u)", sz, *p, sz)
+   U_TRACE(0, "UString::setFromData(%.*S,%u,%C)", sz, *p, sz, delim)
 
-   U_ASSERT(empty())
    U_INTERNAL_ASSERT_MAJOR(sz, 0)
+   U_INTERNAL_ASSERT_EQUALS(rep->_length, 0)
 
-   const char* ptr  = *p;
-   unsigned char c  = *ptr;
-   const char* pend =  ptr + sz;
+   const char* ptr   = *p;
+   unsigned char c   = *ptr;
+   const char* _pend =  ptr + sz;
 
    U_INTERNAL_DUMP("c = %C", c)
 
    U_INTERNAL_ASSERT_EQUALS(u__isspace(c), false)
 
-   if (LIKELY(c != '@'))
-      {
-      do {
-         _append(c);
-
-         if  (++ptr >= pend) break;
-
-         c = *ptr;
-
-         if (u__isspace(c)) break;
-         }
-      while (true);
-
-      _append();
-      }
-   else
+   if (c == '@' &&
+       UVector<void*>::istream_loading == false)
       {
       // get content pointed by string 'meta' (that start with '@')
 
@@ -1829,7 +2179,7 @@ void UString::setFromData(const char** p, uint32_t sz)
 
          U_INTERNAL_ASSERT_EQUALS(u__isspace(*ptr), false)
 
-         for (char* path = pathname; ptr < pend; ++path, ++ptr)
+         for (char* path = pathname; ptr < _pend; ++path, ++ptr)
             {
             c = *ptr;
 
@@ -1851,8 +2201,12 @@ void UString::setFromData(const char** p, uint32_t sz)
          if (file.open(pathname)) *this = file.getContent();
          else
             {
-            U_WARNING("open file %S specified in configuration failed", pathname);
+            U_WARNING("Open file %S specified in configuration failed", pathname);
             }
+
+         U_INTERNAL_DUMP("size = %u, str = %V", size(), rep)
+
+         U_INTERNAL_ASSERT(invariant())
 
          return;
          }
@@ -1865,13 +2219,17 @@ void UString::setFromData(const char** p, uint32_t sz)
 
       if (*ptr == '"') // check if string is quoted...
          {
-         ptr = u_find_char((start = (ptr+1)), pend, '"'); // find char '"' not quoted
+         ptr = u_find_char((start = (ptr+1)), _pend, '"'); // find char '"' not quoted
 
-         if (ptr == pend)
+         if (ptr == _pend)
             {
-            (void) append(ptr, pend-ptr);
+            (void) append(ptr, _pend - ptr);
 
-            *p = pend;
+            *p = _pend;
+
+            U_INTERNAL_DUMP("size = %u, str = %V", size(), rep)
+
+            U_INTERNAL_ASSERT(invariant())
 
             return;
             }
@@ -1882,7 +2240,7 @@ void UString::setFromData(const char** p, uint32_t sz)
          }
       else
          {
-         for (start = ptr; ptr < pend; ++ptr)
+         for (start = ptr; ptr < _pend; ++ptr)
             {
             c = *ptr;
 
@@ -1895,85 +2253,81 @@ void UString::setFromData(const char** p, uint32_t sz)
       setBuffer(sz * 4);
 
       UEscape::decode(start, sz, *this);
+
+      U_INTERNAL_ASSERT_MAJOR(rep->_length, 0)
+
+      *p = ptr;
+
+      U_INTERNAL_DUMP("size = %u, str = %V", size(), rep)
+
+      U_INTERNAL_ASSERT(invariant())
+
+      return;
       }
 
-   *p = ptr;
-
-   if (empty()  == false &&
-       shrink() == false)
+loop:
+   if ( delim == c     ||
+       (delim != '"'   &&
+        u__isspace(c)) ||
+       (delim == '\0'  &&
+        (c == '}'      ||
+         c == ']')))
       {
-      setNullTerminated();
+      ++ptr;
+
+      goto end;
       }
 
-   U_INTERNAL_DUMP("size = %u, str = %V", size(), rep)
-
-   U_INTERNAL_ASSERT(invariant())
-}
-
-void UString::setFromData(const char** p, uint32_t sz, unsigned char delim)
-{
-   U_TRACE(0, "UString::setFromData(%.*S,%u,%C)", sz, *p, sz, delim)
-
-   U_ASSERT(empty())
-
-   const char* ptr = *p;
-
-   U_INTERNAL_ASSERT_EQUALS(u__isspace(*ptr), false)
-
-   for (const char* pend = ptr + sz; ptr < pend; ++ptr)
+   if (c == '\\')
       {
-      unsigned char c = *ptr;
+      c = *++ptr;
+
+      U_INTERNAL_DUMP("c (after '\\') = %C", c)
+
+      if (c != delim)
+         {
+         if (c == '\n')
+            {
+            // compress multiple white-space in a single new-line...
+
+            U_INTERNAL_DUMP("ptr+1 = %.*S", 20, ptr+1)
+
+            while (ptr < _pend)
+               {
+               if (u__isspace(ptr[1]) == false) break;
+
+               ++ptr;
+               }
+
+            U_INTERNAL_DUMP("ptr+1 = %.*S", 20, ptr+1)
+            }
+         else if (strchr("nrtbfvae", c))
+            {
+            _append('\\');
+            }
+         }
+      }
+
+   _append(c);
+
+   if (++ptr <= _pend)
+      {
+      c = *ptr;
 
       U_INTERNAL_DUMP("c = %C", c)
 
-      if (c == delim)
-         {
-         ++ptr;
-
-         break;
-         }
-
-      if (c == '\\')
-         {
-         c = *++ptr;
-
-         U_INTERNAL_DUMP("c (after '\\') = %C", c)
-
-         if (c != delim)
-            {
-            if (c == '\n')
-               {
-               // compress multiple white-space in a single new-line...
-
-               U_INTERNAL_DUMP("ptr+1 = %.*S", 20, ptr+1)
-
-               while (ptr < pend)
-                  {
-                  if (u__isspace(ptr[1]) == false) break;
-
-                  ++ptr;
-                  }
-
-               U_INTERNAL_DUMP("ptr+1 = %.*S", 20, ptr+1)
-               }
-            else if (strchr("nrtbfvae", c))
-               {
-               _append('\\');
-               }
-            }
-         }
-
-      _append(c);
+      goto loop;
       }
+
+end:
+   _append();
 
    *p = ptr;
 
-   _append();
-
-   if (empty()  == false &&
-       shrink() == false)
+   if (empty()) _assign(UStringRep::string_rep_null);
+   else
       {
-      setNullTerminated();
+      if (shrink() == false) setNullTerminated();
       }
 
    U_INTERNAL_DUMP("size = %u, str = %V", size(), rep)
@@ -2001,26 +2355,7 @@ void UStringRep::write(ostream& os) const
 {
    U_TRACE(0, "UStringRep::write(%p)", &os)
 
-   bool need_quote = (_length == 0);
-
-   if (need_quote == false)
-      {
-      for (const unsigned char* s = (const unsigned char*)str, *_end = s + _length; s < _end; ++s)
-         {
-         unsigned char c = *s;
-
-         if (c == '"'  ||
-             c == '\\' ||
-             u__isspace(c))
-            {
-            need_quote = true;
-
-            break;
-            }
-         }
-      }
-
-   if (need_quote == false) os.write(str, _length);
+   if (needQuote() == false) os.write(str, _length);
    else
       {
       os.put('"');
@@ -2076,7 +2411,11 @@ U_EXPORT istream& operator>>(istream& in, UString& str)
 
       if (c != EOF)
          {
-         if (str) str.rep->size_adjust(0U);
+         if (str)
+            {
+            if (str.uniq()) str.setEmpty();
+            else            str._set(UStringRep::create(0U, U_CAPACITY, 0)); // NB: we need this because we use the same object for all input stream of vector (see vector.h:830)...
+            }
 
          streamsize w = in.width();
 
@@ -2125,7 +2464,11 @@ istream& UString::getline(istream& in, unsigned char delim)
 
    if (in.good())
       {
-      if (empty() == false) rep->size_adjust(0U);
+      if (size())
+         {
+         if (uniq()) setEmpty();
+         else        _set(UStringRep::create(0U, U_CAPACITY, 0)); // NB: we need this because we use the same object for all input stream of vector (see vector.h:830)...
+         }
 
       streambuf* sb = in.rdbuf();
 
@@ -2253,23 +2596,65 @@ U_EXPORT ostream& operator<<(ostream& out, const UString& str)
 
 // operator +
 
+U_EXPORT UString operator+(const UString& lhs, const UString& rhs)
+{
+   uint32_t sz1 = lhs.size(),
+            sz2 = rhs.size();
+
+   UString str(sz1 + sz2);
+
+   (void) str.append(lhs.data(), sz1);
+   (void) str.append(rhs.data(), sz2);
+
+   return str;
+}
+
+U_EXPORT UString operator+(const UString& lhs, const char* rhs)
+{
+   uint32_t sz1 = lhs.size(),
+            sz2 = u__strlen(rhs, __PRETTY_FUNCTION__);
+
+   UString str(sz1 + sz2);
+
+   (void) str.append(lhs.data(), sz1);
+   (void) str.append(rhs,        sz2);
+
+   return str;
+}
+
 U_EXPORT UString operator+(const char* lhs, const UString& rhs)
 {
-   uint32_t len = u__strlen(lhs, __PRETTY_FUNCTION__);
-   UString str(len + rhs.size());
+   uint32_t sz2 = rhs.size(),
+            sz1 = u__strlen(lhs, __PRETTY_FUNCTION__);
 
-   (void) str.append(lhs, len);
-   (void) str.append(rhs);
+   UString str(sz1 + sz2);
+
+   (void) str.append(lhs,        sz1);
+   (void) str.append(rhs.data(), sz2);
+
+   return str;
+}
+
+U_EXPORT UString operator+(const UString& lhs, char rhs)
+{
+   uint32_t sz = lhs.size();
+
+   UString str(sz + 1U);
+
+   (void) str.append(lhs.data(), sz);
+   (void) str.append(1U, rhs);
 
    return str;
 }
 
 U_EXPORT UString operator+(char lhs, const UString& rhs)
 {
-   UString str(1U + rhs.size());
+   uint32_t sz = rhs.size();
+
+   UString str(sz + 1U);
 
    (void) str.append(1U, lhs);
-   (void) str.append(rhs);
+   (void) str.append(rhs.data(), sz);
 
    return str;
 }
@@ -2287,7 +2672,7 @@ const char* UStringRep::dump(bool reset) const
 
    char buffer[1024];
 
-   UObjectIO::os->write(buffer, u__snprintf(buffer, sizeof(buffer), "%V", this));
+   UObjectIO::os->write(buffer, u__snprintf(buffer, sizeof(buffer), U_CONSTANT_TO_PARAM("%V"), this));
 
    if (reset)
       {
@@ -2305,7 +2690,7 @@ bool UStringRep::invariant() const
    if (_capacity &&
        _capacity < _length)
       {
-      U_WARNING("error on rep string: (overflow)\n"
+      U_WARNING("Error on rep string: (overflow)\n"
                 "--------------------------------------------------\n%s", UStringRep::dump(true));
 
       return false;
@@ -2313,7 +2698,7 @@ bool UStringRep::invariant() const
 
    if ((int32_t)references < 0)
       {
-      U_WARNING("error on rep string: (leak reference)\n"
+      U_WARNING("Error on rep string: (leak reference)\n"
                 "--------------------------------------------------\n%s", UStringRep::dump(true));
 
       return false;
@@ -2325,7 +2710,7 @@ bool UStringRep::invariant() const
 
       if (_length)
          {
-         U_WARNING("error on string_rep_null: (not empty)\n"
+         U_WARNING("Error on string_rep_null: (not empty)\n"
                    "--------------------------------------------------\n%s", UStringRep::dump(true));
 
          return false;
@@ -2341,7 +2726,7 @@ bool UString::invariant() const
 {
    if (rep == 0)
       {
-      U_WARNING("error on string: (rep = null pointer)");
+      U_WARNING("Error on string: (rep = null pointer)");
 
       return false;
       }
@@ -2365,17 +2750,15 @@ void UString::vsnprintf_check(const char* format) const
       //                  format = "%v:" - ok_writeable = false ok_isNull = false ok_references = false ok_format = false
       // -----------------------------------------------------------------------------------------------------------------------------------------
 
-      U_ERROR("UString::vsnprintf_check() this = %p parent = %p references = %u child = %d _capacity = %u str(%u) = %V format = %S - "
+      U_ERROR("UString::vsnprintf_check() this = %p parent = %p rep = %p references = %u child = %d _capacity = %u str(%u) = %V format = %S - "
               "ok_writeable = %b ok_isNull = %b ok_references = %b ok_format = %b",
-               this, rep->parent, rep->references, rep->child, rep->_capacity, rep->_length, rep->_length, rep, format,
-               ok_writeable, ok_isNull, ok_references, ok_format);
+               this, rep->parent, rep, rep->references, rep->child, rep->_capacity, rep->_length, rep, format, ok_writeable, ok_isNull, ok_references, ok_format);
       }
    else if (ok_references == false)
       {
-      U_WARNING("UString::vsnprintf_check() this = %p parent = %p references = %u child = %d _capacity = %u str(%u) = %V format = %S - "
+      U_WARNING("UString::vsnprintf_check() this = %p parent = %p rep = %p references = %u child = %d _capacity = %u str(%u) = %V format = %S - "
                 "ok_writeable = %b ok_isNull = %b ok_references = %b ok_format = %b",
-                this, rep->parent, rep->references, rep->child, rep->_capacity, rep->_length, rep->_length, rep, format,
-                ok_writeable, ok_isNull, ok_references, ok_format);
+                this, rep->parent, rep, rep->references, rep->child, rep->_capacity, rep->_length, rep, format, ok_writeable, ok_isNull, ok_references, ok_format);
       }
 }
 #endif

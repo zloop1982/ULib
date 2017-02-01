@@ -28,8 +28,9 @@ public:
       UApplication::run(argc, argv, env);
 
       UString riga;
-      UString content1 = UFile::contentOf(argv[optind++]),
-              content2 = UFile::contentOf(argv[optind]);
+      const char* p = argv[optind++];
+      UString content1 = UFile::contentOf(UString(p, strlen(p))),
+              content2 = UFile::contentOf(UString(argv[optind]));
 
       UVector<UString> vec_entry(10),
                        vec_ap_name(content1), // '\n'),
@@ -38,7 +39,7 @@ public:
       /*
       vec_ap_name.sort();
 
-      riga = vec_ap_name.join("\n");
+      riga = vec_ap_name.join('\n');
 
       (void) write(1, U_STRING_TO_PARAM(riga));
 
@@ -76,7 +77,7 @@ public:
 
             (void) write(2, buffer,
                 u__snprintf(buffer, sizeof(buffer),
-                            "NOT FOUND: %.*s %.*s %.*s\n",
+                            U_CONSTANT_TO_PARAM("NOT FOUND: %.*s %.*s %.*s\n"),
                             U_STRING_TO_TRACE(ap_name),
                             U_STRING_TO_TRACE(ap_address1),
                             U_STRING_TO_TRACE(ap_address2)));
@@ -91,7 +92,7 @@ public:
 
                (void) write(2, buffer,
                    u__snprintf(buffer, sizeof(buffer),
-                            "ERROR: %.*s %.*s %.*s\n",
+                            U_CONSTANT_TO_PARAM("ERROR: %.*s %.*s %.*s\n"),
                             U_STRING_TO_TRACE(ap_name),
                             U_STRING_TO_TRACE(ap_address1),
                             U_STRING_TO_TRACE(ap_address2)));
@@ -100,7 +101,7 @@ public:
             vec_entry.replace(2, ap_entry.replace(pos3, len3, ap_address2));
             }
 
-         riga = vec_entry.join(",");
+         riga = vec_entry.join(',');
 
          (void) write(1, U_STRING_TO_PARAM(riga));
          (void) write(1, U_CONSTANT_TO_PARAM("\n"));

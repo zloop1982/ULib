@@ -38,7 +38,7 @@ GeoIPRegion* UGeoIPPlugIn::region;
 
 bool UGeoIPPlugIn::setCountryCode()
 {
-   U_TRACE(1, "UGeoIPPlugIn::setCountryCode()")
+   U_TRACE_NO_PARAM(1, "UGeoIPPlugIn::setCountryCode()")
 
    gir = 0;
    region = 0;
@@ -118,7 +118,7 @@ bool UGeoIPPlugIn::setCountryCode()
 
 bool UGeoIPPlugIn::checkCountryForbidden()
 {
-   U_TRACE(0, "UGeoIPPlugIn::checkCountryForbidden()")
+   U_TRACE_NO_PARAM(0, "UGeoIPPlugIn::checkCountryForbidden()")
 
    if (UServices::dosMatchWithOR(country_code, 2, U_STRING_TO_PARAM(*country_forbidden_mask), 0))
       {
@@ -162,7 +162,7 @@ int UGeoIPPlugIn::handlerConfig(UFileConfig& cfg)
 
       if (x)
          {
-         country_forbidden_mask = U_NEW(UString(x));
+         U_NEW(UString, country_forbidden_mask, UString(x));
 
          U_RETURN(U_PLUGIN_HANDLER_PROCESSED | U_PLUGIN_HANDLER_GO_ON);
          }
@@ -173,7 +173,7 @@ int UGeoIPPlugIn::handlerConfig(UFileConfig& cfg)
 
 int UGeoIPPlugIn::handlerInit()
 {
-   U_TRACE(1, "UGeoIPPlugIn::handlerInit()")
+   U_TRACE_NO_PARAM(1, "UGeoIPPlugIn::handlerInit()")
 
    U_SYSCALL_VOID_NO_PARAM(_GeoIP_setup_dbfilename);
 
@@ -209,7 +209,7 @@ int UGeoIPPlugIn::handlerInit()
 
 int UGeoIPPlugIn::handlerREAD()
 {
-   U_TRACE(0, "UGeoIPPlugIn::handlerREAD()")
+   U_TRACE_NO_PARAM(0, "UGeoIPPlugIn::handlerREAD()")
 
    if (country_id || gir) UHTTP::geoip->setEmpty();
 
@@ -225,7 +225,7 @@ int UGeoIPPlugIn::handlerREAD()
 
 int UGeoIPPlugIn::handlerRequest()
 {
-   U_TRACE(0, "UGeoIPPlugIn::handlerRequest()")
+   U_TRACE_NO_PARAM(0, "UGeoIPPlugIn::handlerRequest()")
 
    if (country_forbidden_mask &&
        setCountryCode()       &&
@@ -236,22 +236,28 @@ int UGeoIPPlugIn::handlerRequest()
 
    if (country_id)
       {
-      UHTTP::geoip->snprintf_add("GEOIP_COUNTRY_CODE=%s\n"  // code international du pays (suivant la norme ISO 3166)
-                                 "GEOIP_COUNTRY_NAME=%s\n", // nom complet du pays (en anglais)
+      UHTTP::geoip->snprintf_add(U_CONSTANT_TO_PARAM("GEOIP_COUNTRY_CODE=%s\n"  // code international du pays (suivant la norme ISO 3166)
+                                 "GEOIP_COUNTRY_NAME=%s\n"),                    // nom complet du pays (en anglais)
                                  country_code, country_name);
       }
 
    if (gir)
       {
-      UHTTP::geoip->snprintf_add(
-         "GEOIP_REGION=%s\n"        // un code indiquant la région
-         "GEOIP_CITY=%s\n",         // la ville
-         "GEOIP_DMA_CODE=%s\n",     // code DMA (Designated Market Area) attribué à une zone où les fréquences (télévision, radio, etc)
-                                    // sont identiques (concerne les Etats Unis, valeur par défaut : 0)
-         "GEOIP_AREA_CODE=%s\n",    // indice téléphonique représentant une zone précise (concerne les Etats Unis, valeur par défaut : 0)
-         "GEOIP_LATITUDE=%f\n",     // la latitude
-         "GEOIP_LONGITUDE=%f\n",    // la longitude
-         "GEOIP_POSTAL_CODE=%s\n",  // le code postal (concerne uniquement les Etats Unis, ne sera pas définie pour tout autre pays)
+      // un code indiquant la région
+      // la ville
+      // code DMA (Designated Market Area) attribut une zone ou les frequences (television, radio, etc) sont identiques (concerne les Etats Unis, valeur par defaut : 0)
+      // indice telephonique representant une zone precise (concerne les Etats Unis, valeur par defaut : 0)
+      // la latitude
+      // la longitude
+      // le code postal (concerne uniquement les Etats Unis, ne sera pas definie pour tout autre pays)
+      UHTTP::geoip->snprintf_add(U_CONSTANT_TO_PARAM(
+         "GEOIP_REGION=%s\n"
+         "GEOIP_CITY=%s\n"
+         "GEOIP_DMA_CODE=%s\n"
+         "GEOIP_AREA_CODE=%s\n"
+         "GEOIP_LATITUDE=%f\n"
+         "GEOIP_LONGITUDE=%f\n"
+         "GEOIP_POSTAL_CODE=%s\n"),
          gir->region,
          gir->city,
          (bGEOIP_CITY_EDITION_REV1 ? gir->metro_code : 0),

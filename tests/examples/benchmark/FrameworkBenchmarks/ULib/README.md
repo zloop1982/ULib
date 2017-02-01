@@ -1,6 +1,6 @@
 #ULib Benchmarking Test
 
-This is the ULib portion of a [benchmarking test suite](https://github.com/TechEmpower/FrameworkBenchmarks) comparing a variety of web development platforms.
+This is the [ULib](http://stefanocasazza.github.io/ULib/) portion of a [benchmarking test suite](https://github.com/TechEmpower/FrameworkBenchmarks) comparing a variety of web development platforms.
 
 ### JSON Encoding Test
 
@@ -8,19 +8,30 @@ This is the ULib portion of a [benchmarking test suite](https://github.com/TechE
 
 ### Data-Store/Database Mapping Test
 
-* [Database test source](src/db.usp)
+* [Database test source (SQL)](src/db.usp)
+* [Database test source (REDIS)](src/rdb.usp)
+* [Database test source (MONGODB)](src/mdb.usp)
+* [Database test source (ELASTICSEARCH)](src/edb.usp)
 
 ### Variable Query Test
 
-* [Variable Query test source](src/query.usp)
+* [Variable Query test source (SQL)](src/query.usp)
+* [Variable Query test source (REDIS)](src/rquery.usp)
+* [Variable Query test source (MONGODB)](src/mquery.usp)
+* [Variable Query test source (ELASTICSEARCH)](src/equery.usp)
 
 ### Fortune Query Test
 
-* [Fortune Query test source](src/fortune.usp)
+* [Fortune Query test source (SQL)](src/fortune.usp)
+* [Fortune Query test source (REDIS)](src/rfortune.usp)
+* [Fortune Query test source (MONGODB)](src/mfortune.usp)
 
 ### Variable Query (update) Test
 
-* [Variable Query (update) test source](src/update.usp)
+* [Variable Query (update) test source (SQL)](src/update.usp)
+* [Variable Query (update) test source (REDIS)](src/rupdate.usp)
+* [Variable Query (update) test source (MONGODB)](src/mupdate.usp)
+* [Variable Query (update) test source (ELASTICSEARCH)](src/eupdate.usp)
 
 ### Plaintext Test
 
@@ -41,7 +52,7 @@ HTTP/1.1 200 OK
 Date: Thu, 03 Jul 2014 10:11:10 GMT
 Server: ULib 
 Content-Length: 27
-Content-Type: application/json; charset=UTF-8
+Content-Type: application/json
 
 {"message":"Hello, World!"}
 ```
@@ -53,7 +64,7 @@ HTTP/1.1 200 OK
 Date: Thu, 03 Jul 2014 10:14:51 GMT
 Server: ULib 
 Content-Length: 31
-Content-Type: application/json; charset=UTF-8
+Content-Type: application/json
 
 {"id":6227,"randomNumber":8489}
 ```
@@ -65,7 +76,7 @@ HTTP/1.1 200 OK
 Date: Thu, 03 Jul 2014 10:14:51 GMT
 Server: ULib 
 Content-Length: 320
-Content-Type: application/json; charset=UTF-8
+Content-Type: application/json
 
 [{"id":6851,"randomNumber":7598},{"id":3968,"randomNumber":7325},{"id":8159,"randomNumber":348},{"id":9560,"randomNumber":7333},{"id":9938,"randomNumber":9080},{"id":1598,"randomNumber":1623},{"id":3280,"randomNumber":8707},{"id":4521,"randomNumber":6063},{"id":8173,"randomNumber":3690},{"id":3648,"randomNumber":8803}]
 ```
@@ -89,7 +100,7 @@ HTTP/1.1 200 OK
 Date: Thu, 03 Jul 2014 10:14:51 GMT
 Server: ULib 
 Content-Length: 319
-Content-Type: application/json; charset=UTF-8
+Content-Type: application/json
 
 [{"id":7171,"randomNumber":351},{"id":6019,"randomNumber":9725},{"id":8118,"randomNumber":4023},{"id":7965,"randomNumber":1388},{"id":7797,"randomNumber":2249},{"id":112,"randomNumber":1108},{"id":6127,"randomNumber":4323},{"id":2597,"randomNumber":7509},{"id":2978,"randomNumber":7883},{"id":1111,"randomNumber":2228}]
 ```
@@ -100,7 +111,7 @@ Content-Type: application/json; charset=UTF-8
 HTTP/1.1 200 OK
 Date: Thu, 03 Jul 2014 10:14:51 GMT
 Server: ULib 
-Content-Type: text/plain; charset=UTF-8
+Content-Type: text/plain
 Content-Length: 13
 
 Hello, World!

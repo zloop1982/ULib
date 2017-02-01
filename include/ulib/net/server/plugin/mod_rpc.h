@@ -24,11 +24,11 @@ public:
    // Check for memory error
    U_MEMORY_TEST
 
-   // COSTRUTTORI
-
    URpcPlugIn()
       {
       U_TRACE_REGISTER_OBJECT(0, URpcPlugIn, "", 0)
+
+      UString::str_allocate(STR_ALLOCATE_SOAP);
       }
 
    virtual ~URpcPlugIn();
@@ -37,13 +37,13 @@ public:
 
    // Server-wide hooks
 
-   virtual int handlerConfig(UFileConfig& cfg) U_DECL_OVERRIDE;
-   virtual int handlerInit() U_DECL_OVERRIDE __pure;
+   virtual int handlerConfig(UFileConfig& cfg) U_DECL_FINAL;
+   virtual int handlerInit() U_DECL_FINAL __pure;
 
    // Connection-wide hooks
 
-   virtual int handlerREAD() U_DECL_OVERRIDE;
-   virtual int handlerRequest() U_DECL_OVERRIDE;
+   virtual int handlerREAD() U_DECL_FINAL;
+   virtual int handlerRequest() U_DECL_FINAL;
 
    // DEBUG
 
@@ -56,13 +56,7 @@ protected:
    static URPCParser* rpc_parser;
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   URpcPlugIn(const URpcPlugIn&) = delete;
-   URpcPlugIn& operator=(const URpcPlugIn&) = delete;
-#else
-   URpcPlugIn(const URpcPlugIn&) : UServerPlugIn() {}
-   URpcPlugIn& operator=(const URpcPlugIn&)        { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(URpcPlugIn)
 };
 
 #endif

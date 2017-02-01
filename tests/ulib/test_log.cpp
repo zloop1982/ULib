@@ -14,13 +14,13 @@ U_EXPORT main (int argc, char* argv[])
 
    ULog y(U_STRING_FROM_CONSTANT("$PWD/test_log.log"), 1024, "tmp");
 
-   y.setPrefix(U_SERVER_LOG_PREFIX);
+   y.setPrefix(U_CONSTANT_TO_PARAM(U_SERVER_LOG_PREFIX));
 
-   int i, n = (argc > 1 ? atoi(argv[1]) : 10);
+   uint32_t i, n = (argc > 1 ? atoi(argv[1]) : 10);
 
-   for (i = 1; i <= n; ++i)
+   for (i = 0; i < n; ++i)
       {
-      y.log("message %6d - %H %U %w", i);
+      y.log(U_CONSTANT_TO_PARAM("message %6d - %H %U %w"), i+1);
 
       y.msync();
       }

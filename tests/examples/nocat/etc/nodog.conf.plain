@@ -230,7 +230,7 @@ nocat {
 ## APACHE_LIKE_LOG            file to write NCSA extended/combined log format: "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-agent}i\""
 ## 
 ## ENABLE_INOTIFY             enable automatic update of cached document root image with inotify
-## CACHE_FILE_MASK            mask (DOS regexp) of pathfile that be cached in memory (default: "*.css|*.js|*.*html|*.png|*.gif|*.jpg")
+## CACHE_FILE_MASK            mask (DOS regexp) of pathfile that be cached in memory
 ##
 ## VIRTUAL_HOST               flag to activate practice of maintaining more than one server on one machine,
 ##                            as differentiated by their apparent hostname 
@@ -258,18 +258,10 @@ http {
    ## Allows you to tell clients about documents that used to exist in your server's namespace, but do not anymore.
    ## The client will make a request for the document at its new location
 
-  	ALIAS	[
-  			/			  /test
-  			/printenv  /cgi-bin/printenv.sh
-# 			/login	  /cgi-bin/index.sh
-  			]
-
-	## vector of URI rewrite rule applied after checks that files do not exist (regex1 -> uri1 ...)
-
-##	REWRITE_RULE_NF [
-##						 ^/.*\.[A-Za-z0-9]+.*?$	$0
-##						 ^/(.*?)(\?|$)(.*)		/sapphire/main.php?url=$1&$3
-##						 ]
+  	ALIAS	"[ \
+  			 /			  /test \
+  			 /printenv  /cgi-bin/printenv.sh \
+  			 ]"
 
 ## VIRTUAL_HOST           yes
 ## ENABLE_INOTIFY         yes

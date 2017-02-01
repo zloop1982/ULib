@@ -15,7 +15,6 @@
 #include <ulib/utility/base64.h>
 #include <ulib/ssl/certificate.h>
 #include <ulib/utility/services.h>
-#include <ulib/container/vector.h>
 #include <ulib/utility/string_ext.h>
 
 #include <openssl/pem.h>
@@ -174,39 +173,38 @@ bool UPKCS7::verify(int flags) const
    BIO* out              = 0;
    STACK_OF(X509)* other = 0;
 
-   /*
-   --------------------------------------------------------------------------------------------------------
-   PKCS7_verify() verifies a PKCS#7 signedData structure. pkcs7 is the PKCS7 structure to verify.
-   other is a set of certificates in which to search for the signer's certificate. store is a trusted
-   certficate store (used for chain verification). indata is the signed data if the content is not present
-   in pkcs7 (that is it is detached). The content is written to out if it is not NULL.
-   If PKCS7_NOVERIFY is set the signer's certificates are not chain verified.
-   --------------------------------------------------------------------------------------------------------
-   VERIFY PROCESS: Normally the verify process proceeds as follows:
-   --------------------------------------------------------------------------------------------------------
-   Initially some sanity checks are performed on p7. The type of p7 must be signedData. There must be at
-   least one signature on the data and if the content is detached indata cannot be NULL.
-   An attempt is made to locate all the signer's certificates, first looking in the certs parameter
-   (if it is not NULL) and then looking in any certificates contained in the p7 structure itself. If any
-   signer's certificates cannot be located the operation fails. Each signer's certificate is chain verified
-   using the smimesign purpose and the supplied trusted certificate store. Any internal certificates in the
-   message are used as untrusted CAs. If any chain verify fails an error code is returned. Finally the signed
-   content is read (and written to out is it is not NULL) and the signature's checked. If all signature's
-   verify correctly then the function is successful. Any of the following flags (ored together) can be passed
-   in the flags parameter to change the default verify behaviour.
-   Only the flag PKCS7_NOINTERN is meaningful to PKCS7_get0_signers().
-   --------------------------------------------------------------------------------------------------------
-   - If PKCS7_NOINTERN is set the certificates in the message itself are not searched when locating the signer's
-                       certificate. This means that all the signers certificates must be in the certs parameter.
-   - If the PKCS7_TEXT flag is set MIME headers for type text/plain are deleted from the content. If the content
-                       is not of type text/plain then an error is returned.
-   - If PKCS7_NOVERIFY is set the signer's certificates are not chain verified.
-   - If PKCS7_NOCHAIN is set then the certificates contained in the message are not used as untrusted CAs.
-                      This means that the whole verify chain (apart from the signer's certificate) must be
-                      contained in the trusted store.
-   - If PKCS7_NOSIGS is set then the signatures on the data are not checked.
-   --------------------------------------------------------------------------------------------------------
-   */
+   /**
+    * PKCS7_verify() verifies a PKCS#7 signedData structure. pkcs7 is the PKCS7 structure to verify.
+    * other is a set of certificates in which to search for the signer's certificate. store is a trusted
+    * certficate store (used for chain verification). indata is the signed data if the content is not present
+    * in pkcs7 (that is it is detached). The content is written to out if it is not NULL.
+    * If PKCS7_NOVERIFY is set the signer's certificates are not chain verified.
+    * --------------------------------------------------------------------------------------------------------
+    * VERIFY PROCESS: Normally the verify process proceeds as follows:
+    * --------------------------------------------------------------------------------------------------------
+    * Initially some sanity checks are performed on p7. The type of p7 must be signedData. There must be at
+    * least one signature on the data and if the content is detached indata cannot be NULL.
+    * An attempt is made to locate all the signer's certificates, first looking in the certs parameter
+    * (if it is not NULL) and then looking in any certificates contained in the p7 structure itself. If any
+    * signer's certificates cannot be located the operation fails. Each signer's certificate is chain verified
+    * using the smimesign purpose and the supplied trusted certificate store. Any internal certificates in the
+    * message are used as untrusted CAs. If any chain verify fails an error code is returned. Finally the signed
+    * content is read (and written to out is it is not NULL) and the signature's checked. If all signature's
+    * verify correctly then the function is successful. Any of the following flags (ored together) can be passed
+    * in the flags parameter to change the default verify behaviour.
+    * Only the flag PKCS7_NOINTERN is meaningful to PKCS7_get0_signers().
+    * --------------------------------------------------------------------------------------------------------
+    * - If PKCS7_NOINTERN is set the certificates in the message itself are not searched when locating the signer's
+    *   certificate. This means that all the signers certificates must be in the certs parameter.
+    * - If the PKCS7_TEXT flag is set MIME headers for type text/plain are deleted from the content. If the content
+    *   is not of type text/plain then an error is returned.
+    * - If PKCS7_NOVERIFY is set the signer's certificates are not chain verified.
+    * - If PKCS7_NOCHAIN is set then the certificates contained in the message are not used as untrusted CAs.
+    *   This means that the whole verify chain (apart from the signer's certificate) must be
+    *   contained in the trusted store.
+    * - If PKCS7_NOSIGS is set then the signatures on the data are not checked
+    *  --------------------------------------------------------------------------------------------------------
+    */
 
    int result = U_SYSCALL(PKCS7_verify, "%p,%p,%p,%p,%p,%d", pkcs7, other, UServices::store, indata, out, flags);
 
@@ -230,9 +228,12 @@ unsigned UPKCS7::getSignerCertificates(UVector<UCertificate*>& vec, int flags) c
 
       for (int i = 0; i < n; ++i)
          {
+         UCertificate* cert;
          X509* x = sk_X509_value(signers, i);
 
-         vec.push_back(U_NEW(UCertificate(x)));
+         U_NEW(UCertificate, cert, UCertificate(x));
+
+         vec.push_back(cert);
          }
 
       U_SYSCALL_VOID(sk_X509_free, "%p", signers);
@@ -245,17 +246,17 @@ unsigned UPKCS7::getSignerCertificates(UVector<UCertificate*>& vec, int flags) c
    U_RETURN(0);
 }
 
-/*
-creates and returns a PKCS#7 signedData structure
-
-data     is the data to be signed
-signcert is the certificate to sign with
-pkey     is the corresponsding private key
-passwd   is the corresponsding password for the private key
-certs    is an optional additional set of certificates to include in the PKCS#7 structure
-         (for example any intermediate CAs in the chain)
-flags    is an optional set of flags (PKCS7_TEXT, PKCS7_NOCERTS, PKCS7_DETACHED, PKCS7_BINARY, ...)
-*/
+/**
+ * creates and returns a PKCS#7 signedData structure
+ *
+ * data     is the data to be signed
+ * signcert is the certificate to sign with
+ * pkey     is the corresponsding private key
+ * passwd   is the corresponsding password for the private key
+ * certs    is an optional additional set of certificates to include in the PKCS#7 structure
+ *          (for example any intermediate CAs in the chain)
+ * flags    is an optional set of flags (PKCS7_TEXT, PKCS7_NOCERTS, PKCS7_DETACHED, PKCS7_BINARY, ...)
+ */
 
 PKCS7* UPKCS7::sign(const UString& data, const UString& signcert, const UString& pkey, const UString& passwd, const UString& certs, int flags)
 {

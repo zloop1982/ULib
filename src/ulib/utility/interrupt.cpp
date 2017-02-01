@@ -14,8 +14,6 @@
 #include <ulib/base/utility.h>
 #include <ulib/utility/interrupt.h>
 
-#include <errno.h>
-
 /*
 const char* UInterrupt::ILL_errlist[] = {
    "ILL_ILLOPC",  "illegal opcode",          // ILL_ILLOPC 1
@@ -182,13 +180,13 @@ RETSIGTYPE UInterrupt::handlerInterrupt(int signo)
 
    U_MESSAGE("(pid %P) program interrupt - %Y", signo);
 
-#ifdef DEBUG
    if (signo == SIGBUS || //  7
        signo == SIGSEGV)  // 11 
       {
+#  ifdef DEBUG
       u_debug_at_exit(); 
+#  endif
       }
-#endif
 
 // U_EXIT(-1);
 
@@ -226,7 +224,7 @@ void UInterrupt::waitForSignal(int signo)
 
 void UInterrupt::callHandlerSignal()
 {
-   U_TRACE(0, "UInterrupt::callHandlerSignal()")
+   U_TRACE_NO_PARAM(0, "UInterrupt::callHandlerSignal()")
 
    int i;
 
@@ -259,8 +257,8 @@ loop:
          }
       }
 
-   // NB: can happen that in manage the signal the calling function produce another signal because the interval is too short (< 10ms)
-   //     in this case the parameter to the calling function is zero...
+   // NB: it can happen that in manage the signal the calling function produce another signal because
+   // the interval is too short (< 10ms) in this case the parameter to the calling function is zero...
 
    if (event_signal_pending) goto loop;
 }
@@ -311,7 +309,7 @@ void UInterrupt::setMaskInterrupt(sigset_t* mask, int signo)
 
 void UInterrupt::init()
 {
-   U_TRACE(1, "UInterrupt::init()")
+   U_TRACE_NO_PARAM(1, "UInterrupt::init()")
 
 #ifdef HAVE_SIGINFO_T
    act.sa_flags     = SA_SIGINFO;
@@ -406,7 +404,7 @@ RETSIGTYPE UInterrupt::handlerSegvWithInfo(int signo, siginfo_t* info, void* con
 #  ifdef DEBUG
       u_flag_test = 0;
 
-      UTrace utr(0, "[SIGSEGV] UInterrupt::handlerSegvWithInfo(%d,%p,%p)", signo, info, context);
+      U_TRACE(0, "[SIGSEGV] UInterrupt::handlerSegvWithInfo(%d,%p,%p)", signo, info, context)
 #  endif
 
       getSignalInfo(signo, info);
@@ -424,8 +422,8 @@ RETSIGTYPE UInterrupt::handlerSegvWithInfo(int signo, siginfo_t* info, void* con
        * If you do catch SIGSEGV and you don't exit, thereby interfering with
        * the normal flow, you must:
        *
-       *  fix things such that the offending operation doesn't restart or
-       *  fix the memory layout such that what was offending will be ok on the next run
+       * fix things such that the offending operation doesn't restart or
+       * fix the memory layout such that what was offending will be ok on the next run
        */
 
       longjmp(jbuf, 1);
@@ -478,10 +476,36 @@ void UInterrupt::getSignalInfo(int signo, siginfo_t* info)
 #  endif
 #endif
 
+#ifndef _MSWINDOWS_
+#  ifdef HAVE_MEMBER_SI_ADDR
+#     define U_MSG_FROMKERNEL \
+      "program interrupt by the kernel - %Y%W\n" \
+           "----------------------------------------" \
+           "----------------------------------------------------\n" \
+           " pid: %W%P%W\n" \
+           " address: %W%p - %s (%d, %s)%W\n" \
+           " rss usage: %W%.2f MBytes%W\n" \
+           " address space usage: %W%.2f MBytes%W\n" \
+           "----------------------------------------" \
+           "----------------------------------------------------"
+#  else
+#     define U_MSG_FROMKERNEL \
+      "program interrupt by the kernel - %Y%W\n" \
+           "----------------------------------------" \
+           "----------------------------------------------------\n" \
+           " pid: %W%P%W\n" \
+           " desc: %W %s (%d, %s)%W\n" \
+           " rss usage: %W%.2f MBytes%W\n" \
+           " address space usage: %W%.2f MBytes%W\n" \
+           "----------------------------------------" \
+           "----------------------------------------------------"
+#  endif
+#endif
+
    if (info == 0 ||
        SI_FROMKERNEL(info) == false)
       {
-      u_buffer_len = u__snprintf(u_buffer, U_BUFFER_SIZE, "program interrupt by kill(), sigsend() or raise() - %Y", signo);
+      u_buffer_len = u__snprintf(u_buffer, U_BUFFER_SIZE, U_CONSTANT_TO_PARAM("program interrupt by kill(), sigsend() or raise() - %Y"), signo);
       }
 #ifndef _MSWINDOWS_
    else
@@ -492,21 +516,9 @@ void UInterrupt::getSignalInfo(int signo, siginfo_t* info)
 
       u_get_memusage(&vsz, &rss);
 
-      u_buffer_len = u__snprintf(u_buffer, U_BUFFER_SIZE, "program interrupt by the kernel - %Y%W\n"
-           "----------------------------------------"
-           "----------------------------------------------------\n"
-           " pid: %W%P%W\n"
-#        ifdef HAVE_MEMBER_SI_ADDR
-           " address: %W%p - %s (%d, %s)%W\n"
-#        else
-           " desc: %W %s (%d, %s)%W\n"
-#        endif
-           " rss usage: %W%.2f MBytes%W\n"
-           " address space usage: %W%.2f MBytes%W\n"
-           "----------------------------------------"
-           "----------------------------------------------------",
+      u_buffer_len = u__snprintf(u_buffer, U_BUFFER_SIZE, U_CONSTANT_TO_PARAM(U_MSG_FROMKERNEL),
            signo, YELLOW,
-           CYAN, YELLOW,
+            CYAN, YELLOW,
 #        ifdef HAVE_MEMBER_SI_ADDR
            CYAN, info->si_addr, errlist[index], info->si_code, errlist[index+1], YELLOW,
 #        else
@@ -525,7 +537,7 @@ __noreturn RETSIGTYPE UInterrupt::handlerInterruptWithInfo(int signo, siginfo_t*
 #  ifdef DEBUG
       u_flag_test = 0;
 
-      UTrace utr(0, "UInterrupt::handlerInterruptWithInfo(%d,%p,%p)", signo, info, context);
+      U_TRACE(0, "UInterrupt::handlerInterruptWithInfo(%d,%p,%p)", signo, info, context)
 #  endif
 
       getSignalInfo(signo, info);

@@ -53,7 +53,6 @@ rm -rf cspclient.log CSP/cspserver.log CSP/CSP/DB_CA/log CSP/CSP/DB_CA/CA CSP/CS
 
 cat <<EOF >inp/webserver.cfg
 userver {
- PORT 443
  LOG_FILE cspserver.log
  LOG_FILE_SZ 1M
  DOCUMENT_ROOT CSP
@@ -108,19 +107,17 @@ EOF
 
 DIR_CMD="../../examples/csp"
 
-#UTRACE="0 50M 0"
  start_prg cspclient -c inp/webclient.cfg --  1 CA   300
-#unset UTRACE
  start_prg cspclient -c inp/webclient.cfg --  1 CA_1 400 '"$CNF"'
  start_prg cspclient -c inp/webclient.cfg --  1 CA   300
-#exit 0
  start_prg cspclient -c inp/webclient.cfg --  2
  start_prg cspclient -c inp/webclient.cfg --  3 CA   '"$P10"' policy_ServerCerts
+#UTRACE="0 50M 0"
  start_prg cspclient -c inp/webclient.cfg --  5 CA 1
+#unset UTRACE
  start_prg cspclient -c inp/webclient.cfg --  6 CA 1
  start_prg cspclient -c inp/webclient.cfg --  3 CA_1 '"$P10"' policy_ServerCerts
  start_prg cspclient -c inp/webclient.cfg --  7 CA
-#exit 0
  start_prg cspclient -c inp/webclient.cfg -- 10 CA
  start_prg cspclient -c inp/webclient.cfg --  4 CA '"$SPKAC"' policy_ServerCerts
  start_prg cspclient -c inp/webclient.cfg --  4 CA '"$SPKAC"' policy_ServerCerts
@@ -134,7 +131,7 @@ DIR_CMD="../../examples/csp"
 $SLEEP
 kill_prg userver_ssl TERM
 
-killall userver_ssl 2>/dev/null
+pkill userver_ssl 2>/dev/null
 
 mv err/userver_ssl.err err/cspserver.err
 

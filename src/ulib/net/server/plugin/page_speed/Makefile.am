@@ -8,8 +8,7 @@ DEFAULT_INCLUDES = -I. -I$(top_srcdir)/include -I..
 
 ulib_la = $(top_builddir)/src/ulib/lib@ULIB@.la
 
-moduledir = $(libexecdir)/ulib
-
+moduledir = @ULIB_MODULEDIR@
 module_LTLIBRARIES = server_plugin_pagespeed.la
 
 # Path to the root of the page speed build tree.
@@ -66,7 +65,7 @@ DEFAULT_INCLUDES += -I@PAGESPEED_ROOT_DIR@/third_party/chromium/src \
 DEFS = -DGOOGLE_PROTOBUF_NO_RTTI -DPAGESPEED_PNG_OPTIMIZER_GIF_READER -D__STDC_FORMAT_MACROS -DNDEBUG @DEFS@
 
 server_plugin_pagespeed_la_SOURCES = mod_pagespeed.cpp
-server_plugin_pagespeed_la_LDFLAGS = -Wl,--start-group $(PAGESPEED_LIBS) -Wl,--end-group -module $(MODULE_LIBTOOL_OPTIONS)
+server_plugin_pagespeed_la_LDFLAGS = -Wl,--start-group $(PAGESPEED_LIBS) -Wl,--end-group -module @MODULE_LIBTOOL_OPTIONS@
 server_plugin_pagespeed_la_LIBADD  = $(ulib_la) @ULIB_LIBS@
 
 clean-local:

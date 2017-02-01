@@ -33,8 +33,6 @@ public:
    U_MEMORY_ALLOCATOR
    U_MEMORY_DEALLOCATOR
 
-   // COSTRUTTORI
-
    UMagic(int flags)
       {
       U_TRACE_REGISTER_OBJECT(0, UMagic, "%d", flags)
@@ -46,20 +44,14 @@ public:
       (void) setFlags(flags);
       }
 
-   /**
-   * Deletes this object
-   */
-
    ~UMagic()
       {
       U_TRACE_UNREGISTER_OBJECT(0, UMagic)
       }
 
-   // VARIE
-
    static void clear()
       {
-      U_TRACE(1, "UMagic::clear()")
+      U_TRACE_NO_PARAM(1, "UMagic::clear()")
 
       if (magic)
          {
@@ -71,7 +63,7 @@ public:
 
    static const char* getError()
       {
-      U_TRACE(1, "UMagic::getError()")
+      U_TRACE_NO_PARAM(1, "UMagic::getError()")
 
       U_INTERNAL_ASSERT_POINTER(magic)
 
@@ -107,13 +99,7 @@ protected:
    static magic_t magic; /* pointer to magic :-) */
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UMagic(const UMagic&) = delete;
-   UMagic& operator=(const UMagic&) = delete;
-#else
-   UMagic(const UMagic&)            {}
-   UMagic& operator=(const UMagic&) { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UMagic)
 
    friend class UHttpClient_Base;
    friend class UMimeMultipartMsg;

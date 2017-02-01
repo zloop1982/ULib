@@ -53,7 +53,7 @@ UClient_Base::UClient_Base(UFileConfig* pcfg) : response(U_CAPACITY), buffer(U_C
 
 void UClient_Base::closeLog()
 {
-   U_TRACE(0, "UClient_Base::closeLog()")
+   U_TRACE_NO_PARAM(0, "UClient_Base::closeLog()")
 
    if (log &&
        log_shared_with_server == false)
@@ -93,9 +93,9 @@ UClient_Base::~UClient_Base()
 #ifdef USE_LIBSSL
 void UClient_Base::setSSLContext()
 {
-   U_TRACE(0, "UClient_Base::setSSLContext()")
+   U_TRACE_NO_PARAM(0, "UClient_Base::setSSLContext()")
 
-   socket = U_NEW(USSLSocket(bIPv6, 0, false));
+   U_NEW(USSLSocket, socket, USSLSocket(bIPv6, 0, false));
 
    U_ASSERT(((USSLSocket*)socket)->isSSL())
 
@@ -121,7 +121,7 @@ void UClient_Base::setSSLContext()
 
 void UClient_Base::clearData()
 {
-   U_TRACE(0, "UClient_Base::clearData()")
+   U_TRACE_NO_PARAM(0, "UClient_Base::clearData()")
 
      buffer.setEmpty();
    response.setEmpty();
@@ -166,7 +166,9 @@ bool UClient_Base::setHostPort(const UString& host, unsigned int _port)
 
          uint32_t sz = host_port.size();
 
-         host_port.size_adjust(sz + u_num2str32(host_port.c_pointer(sz), _port));
+         char* ptr = host_port.c_pointer(sz);
+
+         host_port.size_adjust(sz + u_num2str32(_port, ptr) - ptr);
          }
 
       U_INTERNAL_DUMP("host_port = %V", host_port.rep)
@@ -179,7 +181,7 @@ bool UClient_Base::setHostPort(const UString& host, unsigned int _port)
 
 void UClient_Base::setLogShared()
 {
-   U_TRACE(0, "UClient_Base::setLogShared()")
+   U_TRACE_NO_PARAM(0, "UClient_Base::setLogShared()")
 
    U_INTERNAL_ASSERT_POINTER(UServer_Base::log)
 
@@ -189,11 +191,10 @@ void UClient_Base::setLogShared()
 
 void UClient_Base::loadConfigParam()
 {
-   U_TRACE(0, "UClient_Base::loadConfigParam()")
+   U_TRACE_NO_PARAM(0, "UClient_Base::loadConfigParam()")
 
    U_INTERNAL_ASSERT_POINTER(cfg)
 
-   // --------------------------------------------------------------------------------------------------------------------------------------
    // client - configuration parameters
    // --------------------------------------------------------------------------------------------------------------------------------------
    // SOCKET_NAME   name file for the listening socket
@@ -217,20 +218,20 @@ void UClient_Base::loadConfigParam()
    // CIPHER_SUITE  cipher suite model (Intermediate=0, Modern=1, Old=2)
    // --------------------------------------------------------------------------------------------------------------------------------------
 
-   ca_file   = (*cfg)[*UString::str_CA_FILE];
-   ca_path   = (*cfg)[*UString::str_CA_PATH];
-   key_file  = (*cfg)[*UString::str_KEY_FILE];
-   password  = (*cfg)[*UString::str_PASSWORD];
-   cert_file = (*cfg)[*UString::str_CERT_FILE];
+   ca_file   = cfg->at(U_CONSTANT_TO_PARAM("CA_FILE"));
+   ca_path   = cfg->at(U_CONSTANT_TO_PARAM("CA_PATH"));
+   key_file  = cfg->at(U_CONSTANT_TO_PARAM("KEY_FILE"));
+   password  = cfg->at(U_CONSTANT_TO_PARAM("PASSWORD"));
+   cert_file = cfg->at(U_CONSTANT_TO_PARAM("CERT_FILE"));
 
    // write pid on file...
 
-   UString x = (*cfg)[*UString::str_PID_FILE];
+   UString x = cfg->at(U_CONSTANT_TO_PARAM("PID_FILE"));
 
    if (x) (void) UFile::writeTo(x, UString(u_pid_str, u_pid_str_len));
 
-#ifdef U_LOG_ENABLE
-   x = (*cfg)[*UString::str_LOG_FILE];
+#ifndef U_LOG_DISABLE
+   x = cfg->at(U_CONSTANT_TO_PARAM("LOG_FILE"));
 
    if (x)
       {
@@ -242,11 +243,11 @@ void UClient_Base::loadConfigParam()
          }
       else
          {
-         log = U_NEW(ULog(x, cfg->readLong(*UString::str_LOG_FILE_SZ)));
+         U_NEW(ULog, log, ULog(x, cfg->readLong(U_CONSTANT_TO_PARAM("LOG_FILE_SZ"))));
 
          u_atexit(&ULog::close); // register function of close at exit()...
 
-         log->setPrefix(U_SERVER_LOG_PREFIX);
+         log->setPrefix(U_CONSTANT_TO_PARAM(U_SERVER_LOG_PREFIX));
          }
       }
 
@@ -261,22 +262,22 @@ void UClient_Base::loadConfigParam()
 #ifdef ENABLE_IPV6
    bIPv6       = cfg->readBoolean(U_CONSTANT_TO_PARAM("ENABLE_IPV6"));
 #endif
-   verify_mode = cfg->readLong(*UString::str_VERIFY_MODE);
+   verify_mode = cfg->readLong(U_CONSTANT_TO_PARAM("VERIFY_MODE"));
 
-   UString host      = (*cfg)[*UString::str_SERVER],
-           name_sock = (*cfg)[*UString::str_SOCKET_NAME];
+   UString host      = cfg->at(U_CONSTANT_TO_PARAM("SERVER")),
+           name_sock = cfg->at(U_CONSTANT_TO_PARAM("SOCKET_NAME"));
 
    if (host ||
        name_sock)
       {
-      (void) setHostPort(name_sock.empty() ? host : name_sock, cfg->readLong(*UString::str_PORT));
+      (void) setHostPort(name_sock.empty() ? host : name_sock, cfg->readLong(U_CONSTANT_TO_PARAM("PORT")));
       }
 
    UString value = cfg->at(U_CONSTANT_TO_PARAM("RES_TIMEOUT"));
 
    if (value)
       {
-      timeoutMS = value.strtol();
+      timeoutMS = value.strtoul();
 
       if (timeoutMS) timeoutMS *= 1000;
       else           timeoutMS  = -1;
@@ -287,7 +288,7 @@ void UClient_Base::loadConfigParam()
 
 bool UClient_Base::connect()
 {
-   U_TRACE(0, "UClient_Base::connect()")
+   U_TRACE_NO_PARAM(0, "UClient_Base::connect()")
 
    response.setBuffer(U_CAPACITY);
 
@@ -297,9 +298,9 @@ bool UClient_Base::connect()
 
    if (socket->connectServer(server, port, timeoutMS)) U_RETURN(true);
 
-   response.snprintf("Sorry, couldn't connect to server %V%R", host_port.rep, 0); // NB: the last argument (0) is necessary...
+   response.snprintf(U_CONSTANT_TO_PARAM("Sorry, couldn't connect to server %v%R"), host_port.rep, 0); // NB: the last argument (0) is necessary...
 
-   if (log) ULog::log("%s%v", log_shared_with_server ? UServer_Base::mod_name[0] : "", response.rep);
+   if (log) ULog::log(U_CONSTANT_TO_PARAM("%s%v"), log_shared_with_server ? UServer_Base::mod_name[0] : "", response.rep);
 
    U_RETURN(false);
 }
@@ -312,6 +313,8 @@ bool UClient_Base::connectServer(const UString& _url)
 
    if (setUrl(_url)) close(); // NB: is changed server and/or port to connect...
 
+   iovcnt = 0;
+
    // QUEUE MODE
 
    if (queue_dir)
@@ -320,16 +323,14 @@ bool UClient_Base::connectServer(const UString& _url)
 
       char _buffer[U_PATH_MAX];
 
-      (void) u__snprintf(_buffer, sizeof(_buffer), "%v/%v.%4D", queue_dir->rep, host_port.rep);
+      (void) u__snprintf(_buffer, sizeof(_buffer), U_CONSTANT_TO_PARAM("%v/%v.%4D"), queue_dir->rep, host_port.rep); // 4D => _millisec
 
-      queue_fd = UFile::creat(_buffer);
+      queue_fd = UFile::creat(_buffer, O_RDWR | O_EXCL, PERM_FILE);
 
-      if (queue_fd == -1) U_RETURN(false);
+      if (queue_fd != -1) U_RETURN(true);
 
-      U_RETURN(true);
+      U_RETURN(false);
       }
-
-   iovcnt = 0;
 
    if (connect()) U_RETURN(true);
 
@@ -350,57 +351,59 @@ bool UClient_Base::remoteIPAddress(UIPAddress& addr)
    U_RETURN(false);
 }
 
-bool UClient_Base::setUrl(const UString& location)
+bool UClient_Base::setUrl(const char* str, uint32_t len)
 {
-   U_TRACE(0, "UClient_Base::setUrl(%V)", location.rep)
+   U_TRACE(0, "UClient_Base::setUrl(%.*S,%u)", len, str, len)
 
-   U_INTERNAL_ASSERT(location)
+   U_INTERNAL_ASSERT_POINTER(str)
+   U_INTERNAL_ASSERT_MAJOR(len, 0)
 
-   // check we've been passed a absolute URL
+   // we check we've been passed an absolute URL
 
-   if (u_isUrlScheme(U_STRING_TO_PARAM(location)) == 0)
+   if (u_isUrlScheme(str, len) == 0)
       {
-      char* p;
-      char* ptr;
-      char* dest;
-      uint32_t len;
-      char buf[U_PATH_MAX];
-
-      const char*  src =       uri.data();
-      const char* _end = src + uri.size();
-
       U_INTERNAL_DUMP("uri = %V", uri.rep)
 
-      ptr = dest = buf;
-
-      while (src < _end)
+      if (uri.empty()) (void) uri.replace(str, len);
+      else
          {
-         p = (char*) memchr(src, '/', _end - src);
+         char* p;
+         char* ptr;
+         char* dest;
+         char buf[U_PATH_MAX];
 
-         if (p == 0) break;
+         const char*  src =       uri.data();
+         const char* _end = src + uri.size();
 
-         len = p - src + 1;
+         ptr = dest = buf;
 
-         U_INTERNAL_DUMP("segment = %.*S", len, src)
+         while (src < _end)
+            {
+            p = (char*) memchr(src, '/', _end - src);
 
-         U_MEMCPY(dest, src, len);
+            if (p == 0) break;
 
-         src   = p + 1;
-         dest += len;
+            uint32_t sz = p - src + 1;
+
+            U_INTERNAL_DUMP("segment = %.*S", sz, src)
+
+            U_MEMCPY(dest, src, sz);
+
+            src   = p + 1;
+            dest += sz;
+            }
+
+         U_MEMCPY(dest, str, len);
+
+         (void) uri.replace(buf, dest - ptr + len);
          }
-
-      len = location.size();
-
-      U_MEMCPY(dest, location.data(), len);
-
-      (void) uri.replace(buf, dest - ptr + len);
 
       U_INTERNAL_DUMP("uri = %V", uri.rep)
 
       U_RETURN(false);
       }
 
-   url.set(location);
+   url.set(str, len);
 
    if (socket->isSSL()) socket->setSSLActive(url.isHTTPS());
 
@@ -415,30 +418,13 @@ bool UClient_Base::setUrl(const UString& location)
    U_RETURN(false);
 }
 
-void UClient_Base::prepareRequest(const UString& req)
-{
-   U_TRACE(0, "UClient_Base::prepareRequest(%V)", req.rep)
-
-   iovcnt  = 1;
-   request = req;
-
-   iov[0].iov_base = (caddr_t)req.data();
-   iov[0].iov_len  =          req.size();
-
-   (void) U_SYSCALL(memset, "%p,%d,%u", iov+1, 0, sizeof(struct iovec) * 5);
-
-   U_INTERNAL_ASSERT_EQUALS(iov[1].iov_len, 0)
-   U_INTERNAL_ASSERT_EQUALS(iov[2].iov_len, 0)
-   U_INTERNAL_ASSERT_EQUALS(iov[3].iov_len, 0)
-   U_INTERNAL_ASSERT_EQUALS(iov[4].iov_len, 0)
-   U_INTERNAL_ASSERT_EQUALS(iov[5].iov_len, 0)
-}
-
 bool UClient_Base::sendRequest(bool bread_response)
 {
    U_TRACE(0, "UClient_Base::sendRequest(%b)", bread_response)
 
    U_INTERNAL_ASSERT_RANGE(1,iovcnt,6)
+
+   U_DUMP_IOVEC(iov,iovcnt)
 
    // QUEUE MODE
 
@@ -470,7 +456,7 @@ resend:
 
          if (++counter <= 2) goto resend;
 
-         if (log) ULog::log("%serror on sending data to %V%R", name, host_port.rep, 0); // NB: the last argument (0) is necessary...
+         if (log) ULog::log(U_CONSTANT_TO_PARAM("%serror on sending data to %V%R"), name, host_port.rep, 0); // NB: the last argument (0) is necessary...
 
          goto end;
          }
@@ -490,8 +476,8 @@ resend:
 
          if (log)
             {
-            ULog::log(iov,                                 name, "request", ncount, "", 0, " to %v", host_port.rep);
-            ULog::log("%serror on reading data from %V%R", name,                                     host_port.rep, 0); // 0 is necessary
+            ULog::log(iov,                                                      name, "request", ncount, "", 0, U_CONSTANT_TO_PARAM(" to %v"), host_port.rep);
+            ULog::log(U_CONSTANT_TO_PARAM("%serror on reading data from %V%R"), name,                                                          host_port.rep, 0); // 0 is necessary
             }
 
          goto end;
@@ -499,8 +485,8 @@ resend:
 
       if (log)
          {
-                       ULog::log(iov,              name, "request", ncount, "", 0, " to %v",   host_port.rep);
-         if (response) ULog::logResponse(response, name,                           " from %v", host_port.rep);
+                       ULog::log(iov,              name, "request", ncount, "", 0, U_CONSTANT_TO_PARAM(" to %v"),   host_port.rep);
+         if (response) ULog::logResponse(response, name,                           U_CONSTANT_TO_PARAM(" from %v"), host_port.rep);
          }
 
       reset();
@@ -524,12 +510,14 @@ bool UClient_Base::readResponse(uint32_t count)
 {
    U_TRACE(0, "UClient_Base::readResponse(%u)", count)
 
+   U_ASSERT(response.uniq())
+
    if (USocketExt::read(socket, response, count, timeoutMS))
       {
       if (log &&
           response)
          {
-         ULog::logResponse(response, (log_shared_with_server ? UServer_Base::mod_name[0] : ""), " from %V", host_port.rep);
+         ULog::logResponse(response, (log_shared_with_server ? UServer_Base::mod_name[0] : ""), U_CONSTANT_TO_PARAM(" from %V"), host_port.rep);
          }
 
       U_RETURN(true);
@@ -540,7 +528,7 @@ bool UClient_Base::readResponse(uint32_t count)
 
 bool UClient_Base::readHTTPResponse()
 {
-   U_TRACE(0, "UClient_Base::readHTTPResponse()")
+   U_TRACE_NO_PARAM(0, "UClient_Base::readHTTPResponse()")
 
    clearData();
 
@@ -548,20 +536,27 @@ bool UClient_Base::readHTTPResponse()
 
    if (UHTTP::readHeaderResponse(socket, buffer))
       {
-      uint32_t pos = buffer.find(*UString::str_content_length, U_http_info.startHeader, U_http_info.endHeader - U_CONSTANT_SIZE(U_CRLF2) - U_http_info.startHeader);
+      uint32_t pos = U_STRING_FIND_EXT(buffer, U_http_info.startHeader, "Content-Length", U_http_info.endHeader - U_CONSTANT_SIZE(U_CRLF2) - U_http_info.startHeader);
 
       if (pos != U_NOT_FOUND)
          {
-         U_http_info.clength = (uint32_t) strtoul(buffer.c_pointer(pos + UString::str_content_length->size() + 2), 0, 0);
+         uint32_t end = buffer.findWhiteSpace(pos += U_CONSTANT_SIZE("Content-Length") + 2);
 
-         if (U_http_info.clength == 0) U_http_data_chunked = false;
+         U_http_info.clength = (end != U_NOT_FOUND ? u_strtoul(buffer.c_pointer(pos), buffer.c_pointer(end)) : 0);
+
+         if (U_http_info.clength == 0)
+            {
+            U_http_flag &= ~HTTP_IS_DATA_CHUNKED;
+
+            U_INTERNAL_DUMP("U_http_data_chunked = %b", U_http_data_chunked)
+            }
 
          if (UHTTP::readBodyResponse(socket, &buffer, response))
             {
             if (log &&
                 response)
                {
-               ULog::logResponse(response, (log_shared_with_server ? UServer_Base::mod_name[0] : ""), " from %V", host_port.rep);
+               ULog::logResponse(response, (log_shared_with_server ? UServer_Base::mod_name[0] : ""), U_CONSTANT_TO_PARAM(" from %V"), host_port.rep);
                }
 
             U_RETURN(true);

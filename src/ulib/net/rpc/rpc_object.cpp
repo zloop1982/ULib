@@ -26,23 +26,23 @@ void URPCObject::loadGenericMethod(UFileConfig* file_method)
    U_INTERNAL_ASSERT_EQUALS(dispatcher, 0)
    U_INTERNAL_ASSERT_EQUALS(URPCMethod::encoder, 0)
 
-   dispatcher          = U_NEW(URPCObject);
-   URPCMethod::encoder = U_NEW(URPCEncoder);
+   U_NEW(URPCObject, dispatcher, URPCObject);
+   U_NEW(URPCEncoder, URPCMethod::encoder, URPCEncoder);
 
    if (file_method) readGenericMethod(*file_method);
 }
 
 void URPCObject::readFileMethod(UFileConfig& file_method)
 {
-// U_TRACE(0, "URPCObject::readFileMethod(%p)", &file_method) // problem with sanitize address
+   U_TRACE(0, "URPCObject::readFileMethod(%p)", &file_method) // problem with sanitize address
 
    UString method_name, method_ns, response_type;
 
    while (file_method.loadSection(0,0))
       {
       method_ns     = file_method.at(U_CONSTANT_TO_PARAM("NAMESPACE"));
-      method_name   = file_method[*UString::str_METHOD_NAME];
-      response_type = file_method[*UString::str_RESPONSE_TYPE];
+      method_name   = file_method.at(U_CONSTANT_TO_PARAM("METHOD_NAME"));
+      response_type = file_method.at(U_CONSTANT_TO_PARAM("RESPONSE_TYPE"));
 
       int rtype  = (response_type.equal(U_CONSTANT_TO_PARAM("success_or_failure"))       ?       success_or_failure :
                     response_type.equal(U_CONSTANT_TO_PARAM("stdin_success_or_failure")) ? stdin_success_or_failure :

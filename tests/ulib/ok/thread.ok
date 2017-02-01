@@ -39,10 +39,17 @@ Testing resuspend
 starting father thread
 starting child thread
 child start
+child end
 father end
 
 starting thread
-created auto object on stack
-ending thread
+thread delete
+
+starting thread pool
+Hello World!
+Hello World!
+Hello World!
+Hello World!
+thread pool finished
 
 Now program should finish... :)

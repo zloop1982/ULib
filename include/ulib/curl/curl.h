@@ -14,7 +14,7 @@
 #ifndef ULIB_CURL_H
 #define ULIB_CURL_H 1
 
-#include <ulib/string.h>
+#include <ulib/container/vector.h>
 
 extern "C" {
 #include <curl/curl.h>
@@ -23,7 +23,7 @@ extern "C" {
 /**
  * @class UCURL
  *
- * @brief This class is a wrapper around the cURL library.
+ * @brief This class is a wrapper around the cURL library
  */
 
 class U_EXPORT UCURL {
@@ -36,12 +36,34 @@ public:
    U_MEMORY_ALLOCATOR
    U_MEMORY_DEALLOCATOR
 
-   // COSTRUTTORI
-
     UCURL();
    ~UCURL();
 
-   // VARIE
+   static const char* apple_cert;    // the path to the certificate
+   static const char* http2_server;  // the Apple server url
+   static const char* app_bundle_id; // the app bundle id
+
+   /**
+    * @param http2_server  the Apple server url
+    * @param apple_cert    the path to the certificate
+    * @param app_bundle_id the app bundle id
+    */
+
+   static void initHTTP2Push(const char* _http2_server = 0, const char* _apple_cert = 0, const char* _app_bundle_id = 0)
+      {
+      U_TRACE(0, "UCURL::initHTTP2Push(%S,%S,%S)", _http2_server, _apple_cert, _app_bundle_id)
+
+      if (_http2_server)   http2_server = _http2_server;  
+      if (_apple_cert)       apple_cert = _apple_cert;  
+      if (_app_bundle_id) app_bundle_id = _app_bundle_id;  
+      }
+
+   /**
+    * @param token   the token of the device
+    * @param message the payload to send (JSON)
+    */
+
+   static bool sendHTTP2Push(const UString& token, const UString& message);
 
    UString& getResponse() { return response; }
 
@@ -66,6 +88,13 @@ public:
       U_INTERNAL_ASSERT_EQUALS(result, CURLE_OK)
       }
 
+   void setHTTP2()
+      {
+      U_TRACE_NO_PARAM(0, "UCURL::setHTTP2()")
+
+      setOption(CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2_0);
+      }
+
    void setInterface(const char* interfaceIP)
       {
       U_TRACE(0, "UCURL::setInterface(%S)", interfaceIP)
@@ -80,6 +109,20 @@ public:
       U_INTERNAL_ASSERT(u_isURL(url, u__strlen(url, __PRETTY_FUNCTION__)))
 
       setOption(CURLOPT_URL, (long)url);
+      }
+
+   void setCertificate(const char* cert) // the string should be the file name of your client certificate
+      {
+      U_TRACE(0, "UCURL::setCertificate(%S)", cert)
+
+      setOption(CURLOPT_SSLCERT, (long)cert);
+      }
+
+   void setPort(int port)
+      {
+      U_TRACE(0, "UCURL::setPort(%d)", port)
+
+      setOption(CURLOPT_PORT, (long)port);
       }
 
    void setTimeout(long timeout)
@@ -102,33 +145,26 @@ public:
 
    void setInsecure()
       {
-      U_TRACE(0, "UCURL::setInsecure()")
+      U_TRACE_NO_PARAM(0, "UCURL::setInsecure()")
 
-      /* new stuff needed for libcurl 7.10 */
+      // new stuff needed for libcurl 7.10
 
       setOption(CURLOPT_SSL_VERIFYPEER, 0);
-      setOption(CURLOPT_SSL_VERIFYHOST, 1);
+      setOption(CURLOPT_SSL_VERIFYHOST, 0);
       }
 
    void setNoBody()
       {
-      U_TRACE(0, "UCURL::setNoBody()")
+      U_TRACE_NO_PARAM(0, "UCURL::setNoBody()")
 
       setOption(CURLOPT_NOBODY, 1L);
       }
 
    void setGetMode()
       {
-      U_TRACE(0, "UCURL::setGetMode()")
+      U_TRACE_NO_PARAM(0, "UCURL::setGetMode()")
 
       setOption(CURLOPT_HTTPGET, 1L);
-      }
-
-   void setUserAgent(const char* userAgent)
-      {
-      U_TRACE(0, "UCURL::setUserAgent(%S)", userAgent)
-
-      setOption(CURLOPT_USERAGENT, (long)userAgent);
       }
 
    void setDNSCachingTime(int time)
@@ -142,15 +178,12 @@ public:
       {
       U_TRACE(0, "UCURL::setProgressFunction(%p,%p)", func, data)
 
-      if (func)
-         {
-         setOption(CURLOPT_PROGRESSFUNCTION, (long)func);
-         setOption(CURLOPT_PROGRESSDATA,     (long)data);
-         setOption(CURLOPT_NOPROGRESS,       0L);
-         }
+      if (func == 0) setOption(CURLOPT_NOPROGRESS, 1L);
       else
          {
-         setOption(CURLOPT_NOPROGRESS,       1L);
+         setOption(CURLOPT_PROGRESSFUNCTION, (long)func);
+         setOption(CURLOPT_PROGRESSDATA, (long)data);
+         setOption(CURLOPT_NOPROGRESS, 0L);
          }
       }
 
@@ -165,22 +198,58 @@ public:
       {
       U_TRACE(0, "UCURL::setTimeCondition(%b,%ld)", modified_since, t)
 
-      if (modified_since)
-         {
-         setOption(CURLOPT_TIMECONDITION, CURL_TIMECOND_IFMODSINCE);
-         setOption(CURLOPT_TIMEVALUE,     (long)t);
-         }
+      if (modified_since == false) setOption(CURLOPT_TIMECONDITION, CURL_TIMECOND_NONE);
       else
          {
-         setOption(CURLOPT_TIMECONDITION, CURL_TIMECOND_NONE);
+         setOption(CURLOPT_TIMECONDITION, CURL_TIMECOND_IFMODSINCE);
+         setOption(CURLOPT_TIMEVALUE, (long)t);
          }
+      }
+
+   // HEADER
+
+   void addHeader(const char* value)
+      {
+      U_TRACE(0, "UCURL::addHeader(%S)", value)
+
+      headerlist = (struct curl_slist*) U_SYSCALL(curl_slist_append, "%p,%S", headerlist, value);
+      }
+
+   void addHeader(UVector<UString>& vec)
+      {
+      U_TRACE(0, "UCURL::addHeader(%p)", &vec)
+
+      for (uint32_t i = 0, n = vec.size(); i < n; ++i) addHeader(vec[i].c_str());
+      }
+
+   void setUserAgent(const char* userAgent)
+      {
+      U_TRACE(0, "UCURL::setUserAgent(%S)", userAgent)
+
+      setOption(CURLOPT_USERAGENT, (long)userAgent);
+      }
+
+   void setHeaderList()
+      {
+      U_TRACE_NO_PARAM(0, "UCURL::setHeaderList()")
+
+      U_INTERNAL_ASSERT_POINTER(headerlist)
+
+      setOption(CURLOPT_HTTPHEADER, (long)headerlist);
+      }
+
+   void setHeader() // pass headers to the data stream
+      {
+      U_TRACE_NO_PARAM(0, "UCURL::setHeader()")
+
+      setOption(CURLOPT_HEADER, 1L);
       }
 
    // POST - FORM
 
    void setHTTPPostMode()
       {
-      U_TRACE(0, "UCURL::setHTTPPostMode()")
+      U_TRACE_NO_PARAM(0, "UCURL::setHTTPPostMode()")
 
       setOption(CURLOPT_HTTPPOST, (long)formPost);
       }
@@ -191,16 +260,19 @@ public:
 
       U_INTERNAL_ASSERT_POINTER(postData)
 
-      setOption(CURLOPT_POSTFIELDS,    (long)postData);
-      setOption(CURLOPT_POSTFIELDSIZE, (long)size);
-      setOption(CURLOPT_POST,          1L);
+      setOption(CURLOPT_POSTFIELDSIZE_LARGE, (long)size); // size of the data to copy from the buffer and send in the request
+      setOption(CURLOPT_POSTFIELDS, (long)postData);      // send data from the local stack
+      setOption(CURLOPT_POST, 1L);
       }
+
+   void setPostMode(const UString& postData) { setPostMode(U_STRING_TO_PARAM(postData)); }
 
    void addFormData(const char* key, const char* value)
       {
       U_TRACE(0, "UCURL::addFormData(%S,%S)", key, value)
 
-      CURLFORMcode res = (CURLFORMcode) U_SYSCALL(curl_formadd, "%p,%p,%d,%S,%d,%S,%d,%d,%d",
+      CURLFORMcode res = (CURLFORMcode)
+                           U_SYSCALL(curl_formadd, "%p,%p,%d,%S,%d,%S,%d,%d,%d",
                               &formPost, &formLast,
                               CURLFORM_COPYNAME, key,
                               CURLFORM_COPYCONTENTS, value,
@@ -226,7 +298,7 @@ public:
 
    bool performWait()
       {
-      U_TRACE(1, "UCURL::performWait()")
+      U_TRACE_NO_PARAM(1, "UCURL::performWait()")
 
       U_CHECK_MEMORY
 
@@ -234,7 +306,7 @@ public:
 
       response.setEmpty();
 
-      result = U_SYSCALL(curl_easy_perform, "%p", easyHandle);
+      result = U_SYSCALL(curl_easy_perform, "%p", easyHandle); // perform, then store the expected code in 'result'
 
       infoComplete();
 
@@ -273,7 +345,7 @@ public:
 
    void addHandle()
       {
-      U_TRACE(1, "UCURL::addHandle()", 0)
+      U_TRACE_NO_PARAM(1, "UCURL::addHandle()")
 
       U_CHECK_MEMORY
 
@@ -292,7 +364,7 @@ public:
 
    void removeHandle()
       {
-      U_TRACE(1, "UCURL::removeHandle()", 0)
+      U_TRACE_NO_PARAM(1, "UCURL::removeHandle()")
 
       U_CHECK_MEMORY
 
@@ -340,6 +412,7 @@ public:
 protected:
    UCURL* next;
    CURL* easyHandle;
+   struct curl_slist* headerlist;
    struct curl_httppost* formPost;
    struct curl_httppost* formLast;
    UString response;
@@ -357,13 +430,7 @@ private:
    static void   setup()                                                           U_NO_EXPORT;
    static size_t writeFunction(void* ptr, size_t size, size_t nmemb, void* stream) U_NO_EXPORT;
 
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UCURL(const UCURL&) = delete;
-   UCURL& operator=(const UCURL&) = delete;
-#else
-   UCURL(const UCURL&)            {}
-   UCURL& operator=(const UCURL&) { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UCURL)
 };
 
 #endif

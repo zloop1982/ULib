@@ -15,7 +15,7 @@
 #include <ulib/utility/uhttp.h>
 #include <ulib/ssl/net/ssl_session.h>
 
-/*
+/**
  * Forward secrecy
  *
  * You should consider forward secrecy. Forward secrecy means that the keys for a connection aren't stored on disk.
@@ -29,7 +29,7 @@
  * a random number and both sides store the session information, of the server can encrypt the session information with a
  * secret, local key and send that to the client. The former is called Session IDs and the latter is called Session Tickets.
  * But Session Tickets are transmitted over the wire and so the server's Session Ticket encryption key is capable of decrypting
- * past connections. Most servers will generate a random Session Ticket key at startup unless otherwise configured, but you should check.
+ * past connections. Most servers will generate a random Session Ticket key at startup unless otherwise configured, but you should check
  */
 
 SSL_SESSION* USSLSession::sess;
@@ -38,7 +38,7 @@ SSL_SESSION* USSLSession::sess;
 
 char* USSLSession::toBuffer()
 {
-   U_TRACE(0, "USSLSession::toBuffer()")
+   U_TRACE_NO_PARAM(0, "USSLSession::toBuffer()")
 
    U_INTERNAL_ASSERT_POINTER(sess)
 
@@ -49,6 +49,8 @@ char* USSLSession::toBuffer()
    u_buffer_len = U_SYSCALL(i2d_SSL_SESSION, "%p,%p", sess, &p);
 
    U_INTERNAL_ASSERT_MAJOR(u_buffer_len, 0)
+
+   buffer_len = u_buffer_len;
 
    U_RETURN(u_buffer);
 }
@@ -77,14 +79,20 @@ int USSLSession::newSession(SSL* ssl, SSL_SESSION* _sess)
 /*
 #ifdef DEBUG
    static FILE* fp = (FILE*) U_SYSCALL(fopen, "%S,%S", "/tmp/ssl_session.new", "a");
-
    if (fp) (void) U_SYSCALL(SSL_SESSION_print_fp, "%p,%p", fp, _sess);
 #endif
 */
 
    sess = _sess;
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
    UHTTP::db_session_ssl->insertDataStorage((const char*)sess->session_id, sess->session_id_length);
+#else
+   unsigned int idlen;
+   const unsigned char* id = (const unsigned char*) U_SYSCALL(SSL_SESSION_get_id, "", sess, &idlen);
+
+   UHTTP::db_session_ssl->insertDataStorage((const char*)id, idlen);
+#endif
 
    U_RETURN(0);
 }
@@ -101,7 +109,6 @@ SSL_SESSION* USSLSession::getSession(SSL* ssl, unsigned char* id, int len, int* 
 /*
 #ifdef DEBUG
    static FILE* fp = (FILE*) U_SYSCALL(fopen, "%S,%S", "/tmp/ssl_session.get", "a");
-
    if (fp) (void) U_SYSCALL(SSL_SESSION_print_fp, "%p,%p", fp, sess);
 #endif
 */
@@ -116,20 +123,28 @@ void USSLSession::removeSession(SSL_CTX* ctx, SSL_SESSION* _sess)
 /*
 #ifdef DEBUG
    static FILE* fp = (FILE*) U_SYSCALL(fopen, "%S,%S", "/tmp/ssl_session.del", "a");
-
    if (fp) (void) U_SYSCALL(SSL_SESSION_print_fp, "%p,%p", fp, _sess);
 #endif
 */
 
    U_INTERNAL_ASSERT_POINTER(UHTTP::db_session_ssl)
 
-   int result = UHTTP::db_session_ssl->remove((const char*)_sess->session_id, (uint32_t)_sess->session_id_length);
+   int result;
+
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+   result = UHTTP::db_session_ssl->remove((const char*)_sess->session_id, (uint32_t)_sess->session_id_length);
+#else
+   unsigned int idlen;
+   const unsigned char* id = (const unsigned char*) U_SYSCALL(SSL_SESSION_get_id, "", sess, &idlen);
+
+   result = UHTTP::db_session_ssl->remove((const char*)id, (uint32_t)idlen);
+#endif
 
    // -2: The entry was already marked deleted in the hash-tree
 
    if (result &&
        result != -2)
       {
-      U_WARNING("remove of SSL session on db failed with error %d", result);
+      U_WARNING("Remove of SSL session on db failed with error %d", result);
       }
 }

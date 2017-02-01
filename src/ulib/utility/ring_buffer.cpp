@@ -30,12 +30,16 @@ URingBuffer::~URingBuffer()
 {
    U_TRACE_UNREGISTER_OBJECT(0, URingBuffer)
 
-   if (ptr && map_size) UFile::munmap(ptr, map_size);
+   if (ptr &&
+       map_size)
+      {
+      UFile::munmap(ptr, map_size);
+      }
 }
 
 U_NO_EXPORT void URingBuffer::checkLocking()
 {
-   U_TRACE(0, "URingBuffer::checkLocking()")
+   U_TRACE_NO_PARAM(0, "URingBuffer::checkLocking()")
 
    U_CHECK_MEMORY
 
@@ -53,7 +57,7 @@ U_NO_EXPORT void URingBuffer::checkLocking()
 
 int URingBuffer::open()
 {
-   U_TRACE(0, "URingBuffer::open()")
+   U_TRACE_NO_PARAM(0, "URingBuffer::open()")
 
    U_CHECK_MEMORY
 
@@ -99,7 +103,7 @@ void URingBuffer::close(int readd)
 
 U_NO_EXPORT __pure int URingBuffer::min_pread()
 {
-   U_TRACE(0, "URingBuffer::min_pread()")
+   U_TRACE_NO_PARAM(0, "URingBuffer::min_pread()")
 
    U_CHECK_MEMORY
 

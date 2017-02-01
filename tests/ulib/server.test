@@ -7,7 +7,7 @@
 start_msg server
 
 #UTRACE="0 50M 0"
-#UTRACE_SIGNAL="0 100M 0"
+#UTRACE_SIGNAL="0 10M 0"
 #UOBJDUMP="0 50M 1000"
 #USIMERR="error.sim"
  export UTRACE UOBJDUMP USIMERR UTRACE_SIGNAL
@@ -36,7 +36,7 @@ $SLEEP
 
 kill_prg test_server TERM
 $SLEEP
-killall -9 test_server 2>/dev/null
+pkill -9 test_server 2>/dev/null
 
 rm -rf /tmp/form*
 

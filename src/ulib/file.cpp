@@ -13,7 +13,6 @@
 
 #include <ulib/file.h>
 #include <ulib/tokenizer.h>
-#include <ulib/container/vector.h>
 #include <ulib/utility/services.h>
 #include <ulib/utility/dir_walk.h>
 #include <ulib/utility/string_ext.h>
@@ -24,13 +23,19 @@
 
 char*    UFile::cwd_save;
 char*    UFile::pfree;
+long     UFile::nr_hugepages;
 uint32_t UFile::nfree;
 uint32_t UFile::cwd_save_len;
-uint32_t UFile::rlimit_memfree  =  16U * 1024U;
-uint32_t UFile::rlimit_memalloc = 256U * 1024U * 1024U;
+
+#if defined(U_LINUX) && (defined(MAP_HUGE_1GB) || defined(MAP_HUGE_2MB)) // (since Linux 3.8)
+uint32_t UFile::rlimit_memfree  = U_2M;
+#else
+uint32_t UFile::rlimit_memfree  = 16U*1024U;
+#endif
+uint32_t UFile::rlimit_memalloc = 256U*1024U*1024U;
 
 #ifdef DEBUG
-int      UFile::num_file_object;
+int UFile::num_file_object;
 
 void UFile::inc_num_file_object(UFile* pthis)
 {
@@ -50,17 +55,13 @@ void UFile::dec_num_file_object(int fd)
 {
    --num_file_object;
 
-   if (fd != -1) U_WARNING("file descriptor %d not closed...", fd);
+   if (fd != -1) U_WARNING("File descriptor %d not closed...", fd);
 }
 
 void UFile::chk_num_file_object()
 {
    if (num_file_object) U_WARNING("UFile::chdir() with num file object = %d", num_file_object);
 }
-#endif
-
-#ifndef MAP_POPULATE // (since Linux 2.5.46)
-#define MAP_POPULATE 0
 #endif
 
 #ifndef MREMAP_MAYMOVE
@@ -118,7 +119,7 @@ void UFile::setPathRelativ(const UString* environment)
 
 void UFile::setRoot()
 {
-   U_TRACE(0, "UFile::setRoot()")
+   U_TRACE_NO_PARAM(0, "UFile::setRoot()")
 
    reset();
 
@@ -205,7 +206,7 @@ bool UFile::creat(const UString& path, int flags, mode_t mode)
 
 bool UFile::stat()
 {
-   U_TRACE(1, "UFile::stat()")
+   U_TRACE_NO_PARAM(1, "UFile::stat()")
 
    U_CHECK_MEMORY
 
@@ -335,7 +336,7 @@ void UFile::setPath(const UFile& file, char* buffer_path, const char* suffix, ui
 
 UString UFile::getName() const
 {
-   U_TRACE(0, "UFile::getName()")
+   U_TRACE_NO_PARAM(0, "UFile::getName()")
 
    U_INTERNAL_DUMP("path_relativ(%u) = %.*S", path_relativ_len, path_relativ_len, path_relativ)
 
@@ -375,7 +376,7 @@ bool UFile::isNameDosMatch(const char* mask, uint32_t mask_len) const
 
 UString UFile::getDirName() const
 {
-   U_TRACE(0, "UFile::getDirName()")
+   U_TRACE_NO_PARAM(0, "UFile::getDirName()")
 
    U_INTERNAL_DUMP("path_relativ(%u) = %.*S", path_relativ_len, path_relativ_len, path_relativ)
 
@@ -425,15 +426,14 @@ char* UFile::shm_open(const char* name, uint32_t length)
 
    int _fd;
 
-   // open file in read-write mode and create it if its not there
-   // create the shared object with permissions for only the user to read and write
+   // open file in read-write mode and create it if its not there, create the shared object with permissions for only the user to read and write
 
 #ifdef HAVE_SHM_OPEN
    _fd = U_SYSCALL(shm_open, "%S,%d,%d", name, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
 #else
    char shm_buffer_path[MAX_FILENAME_LEN];
 
-   (void) u__snprintf(shm_buffer_path, sizeof(shm_buffer_path), "/tmp%s", name);
+   (void) u__snprintf(shm_buffer_path, sizeof(shm_buffer_path), U_CONSTANT_TO_PARAM("/tmp%s"), name);
 
    _fd = U_SYSCALL(open, "%S,%d,%d", shm_buffer_path, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
 #endif
@@ -465,7 +465,80 @@ void UFile::shm_unlink(const char* name)
 #endif
 }
 
-// On 64-bit platforms maps (but not reserves) 256+ Megabytes of virtual address space
+// On linux platforms maps (but not reserves) 256+ Megabytes of virtual address space
+
+char* UFile::mmap_anon_huge(uint32_t* plength, int flags)
+{
+   U_TRACE(1, "UFile::mmap_anon_huge(%p,%d,%u)", plength, flags)
+
+#ifdef U_LINUX
+   if (nr_hugepages)
+      {
+      U_INTERNAL_DUMP("nr_hugepages = %ld rlimit_memfree = %u", nr_hugepages, rlimit_memfree)
+
+      U_INTERNAL_ASSERT_EQUALS(rlimit_memfree, U_2M)
+
+#  ifdef MAP_HUGE_1GB /* (since Linux 3.8) */
+      if (*plength >= U_1G)
+         {
+         uint32_t length = (*plength + U_1G_MASK) & ~U_1G_MASK; // NB: munmap() length of MAP_HUGETLB memory must be hugepage aligned...
+
+         U_INTERNAL_ASSERT_EQUALS(length & U_1G_MASK, 0)
+
+         U_DEBUG("We are going to allocate (%u GB - %u bytes) MAP_HUGE_1GB - nfree = %u flags = %B", length / U_1G, length, nfree, flags | U_MAP_ANON_HUGE | MAP_HUGE_1GB)
+
+         char* ptr = (char*) U_SYSCALL(mmap, "%d,%u,%d,%d,%d,%u", U_MAP_ANON_HUGE_ADDR, length, PROT_READ | PROT_WRITE, flags | U_MAP_ANON_HUGE | MAP_HUGE_1GB, -1, 0);
+
+         if (ptr != (char*)MAP_FAILED)
+            {
+            *plength = length;
+
+            return ptr;
+            }
+         }
+#  endif
+#  ifdef MAP_HUGE_2MB /* (since Linux 3.8) */
+      uint32_t length = (*plength + U_2M_MASK) & ~U_2M_MASK; // NB: munmap() length of MAP_HUGETLB memory must be hugepage aligned...
+
+      U_INTERNAL_ASSERT_EQUALS(length & U_2M_MASK, 0)
+
+      U_DEBUG("We are going to allocate (%u MB - %u bytes) MAP_HUGE_2MB - nfree = %u flags = %B", length / (1024U*1024U), length, nfree, flags | U_MAP_ANON_HUGE | MAP_HUGE_2MB)
+
+      char* ptr = (char*) U_SYSCALL(mmap, "%d,%u,%d,%d,%d,%u", U_MAP_ANON_HUGE_ADDR, length, PROT_READ | PROT_WRITE, flags | U_MAP_ANON_HUGE | MAP_HUGE_2MB, -1, 0);
+
+      if (ptr != (char*)MAP_FAILED)
+         {
+         *plength = length;
+
+         return ptr;
+         }
+
+      if (*plength < U_1G)
+         {
+         unsigned long vsz, rss;
+
+         u_get_memusage(&vsz, &rss);
+
+         U_WARNING("Cannot allocate %u bytes (%u MB) of memory MAP_HUGE_2MB - "
+                   "address space usage: %.2f MBytes - "
+                             "rss usage: %.2f MBytes",
+                   *plength, *plength / (1024U*1024U), (double)vsz / (1024.0 * 1024.0),
+                                                       (double)rss / (1024.0 * 1024.0));
+
+         nr_hugepages = 0;
+         }
+#  endif
+      }
+#endif
+
+   *plength = (*plength + U_PAGEMASK) & ~U_PAGEMASK;
+
+   U_INTERNAL_ASSERT_EQUALS(*plength & U_PAGEMASK, 0)
+
+   U_DEBUG("We are going to allocate (%u KB - %u bytes) - nfree = %u flags = %B", *plength / 1024U, *plength, nfree, flags)
+
+   return (char*) U_SYSCALL(mmap, "%d,%u,%d,%d,%d,%u", 0, *plength, PROT_READ | PROT_WRITE, flags, -1, 0);
+}
 
 char* UFile::mmap(uint32_t* plength, int _fd, int prot, int flags, uint32_t offset)
 {
@@ -473,48 +546,51 @@ char* UFile::mmap(uint32_t* plength, int _fd, int prot, int flags, uint32_t offs
 
    U_INTERNAL_ASSERT_POINTER(plength)
 
-#ifndef _MSWINDOWS_
-#  ifndef HAVE_ARCH64
+#ifdef U_LINUX
+# ifndef HAVE_ARCH64
    U_INTERNAL_ASSERT_RANGE(1U, *plength, 3U * 1024U * 1024U * 1024U) // limit of linux system on 32bit
-#  endif
+# endif
    if (_fd != -1)
 #endif
    return (char*) U_SYSCALL(mmap, "%d,%u,%d,%d,%d,%u", 0, *plength, prot, flags, _fd, offset);
 
-   *plength = (*plength + U_PAGEMASK) & ~U_PAGEMASK;
+   U_INTERNAL_ASSERT_EQUALS(prot, PROT_READ | PROT_WRITE)
 
-   U_INTERNAL_ASSERT_EQUALS(*plength & U_PAGEMASK, 0)
+   if ((flags & MAP_SHARED) != 0)
+      {
+      U_INTERNAL_ASSERT_DIFFERS(flags & MAP_ANONYMOUS, 0)
 
-   if ((flags & MAP_SHARED) != 0) return (char*) U_SYSCALL(mmap, "%d,%u,%d,%d,%d,%u", 0, *plength, prot, flags, -1, 0);
+      return mmap_anon_huge(plength, flags);
+      }
+
+   U_INTERNAL_ASSERT_DIFFERS(flags & MAP_PRIVATE, 0)
 
    char* _ptr;
    bool _abort = false;
 
-   if (*plength >= rlimit_memalloc) // NB: we try to save some swap pressure...
+   if (*plength >= rlimit_memalloc) // NB: we try to avoid strong swap pressure...
       {
-#if !defined(U_SERVER_CAPTIVE_PORTAL)
+#ifndef U_SERVER_CAPTIVE_PORTAL
 try_from_file_system:
 #endif
-      UFile tmp;
-      char _template[32];
+      *plength = (*plength + U_PAGEMASK) & ~U_PAGEMASK;
 
-#  ifdef DEBUG
-      U_WARNING("we are going to allocate from file system (%u KB - %u bytes) (pid %P)", *plength / 1024, *plength);
-#  endif
+      U_INTERNAL_ASSERT_EQUALS(*plength & U_PAGEMASK, 0)
 
-      // By default, /tmp on Fedora 18 will be on a tmpfs. Storage of large temporary files should be done in /var/tmp.
-      // This will reduce the I/O generated on disks, increase SSD lifetime, save power, and improve performance of the /tmp filesystem 
+      int fd = mkTemp();
 
-      (void) strcpy(_template, "/var/tmp/mapXXXXXX");
+      if (fd != -1)
+         {
+         U_DEBUG("We are going to allocate from file system (%u KB - %u bytes)", *plength / 1024, *plength)
 
-      _ptr = (tmp.mkTemp(_template)   == false ||
-              tmp.fallocate(*plength) == false
-                  ? (char*)MAP_FAILED
-                  : (char*)U_SYSCALL(mmap, "%d,%u,%d,%d,%d,%u", 0, tmp.st_size, prot, MAP_PRIVATE | MAP_NORESERVE, tmp.fd, 0));
+         _ptr = (fallocate(fd, *plength)
+                     ? (char*)U_SYSCALL(mmap, "%d,%u,%d,%d,%d,%u", 0, *plength, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_NORESERVE, fd, 0)
+                     : (char*)MAP_FAILED);
 
-      if (tmp.isOpen()) tmp.close();
+         close(fd);
 
-      if (_ptr != (char*)MAP_FAILED) return _ptr;
+         if (_ptr != (char*)MAP_FAILED) return _ptr;
+         }
 
       if (_abort)
          {
@@ -522,19 +598,18 @@ try_from_file_system:
 
          u_get_memusage(&vsz, &rss);
 
-         U_ERROR("cannot allocate %u bytes (%u KB) of memory - "
-                  "address space usage: %.2f MBytes - "
-                            "rss usage: %.2f MBytes",
+         U_ERROR("Cannot allocate %u bytes (%u KB) of memory - "
+                 "address space usage: %.2f MBytes - "
+                           "rss usage: %.2f MBytes",
                   *plength, *plength / 1024, (double)vsz / (1024.0 * 1024.0),
                                              (double)rss / (1024.0 * 1024.0));
          }
       }
 
-#if defined(U_SERVER_CAPTIVE_PORTAL)
-#  ifdef DEBUG
-   U_WARNING("we are going to malloc %u bytes (%u KB) (pid %P)", *plength, *plength / 1024);
-#  endif
+#ifdef U_SERVER_CAPTIVE_PORTAL
    _ptr = (char*) U_SYSCALL(malloc, "%u", *plength);
+
+   return _ptr;
 #else
    U_INTERNAL_DUMP("plength = %u nfree = %u pfree = %p", *plength, nfree, pfree)
 
@@ -545,16 +620,20 @@ try_from_file_system:
 
       u_get_memusage(&vsz, &rss);
 
-      U_WARNING("we are going to allocate %u MB (pid %P) - "
+      U_DEBUG("We are going to allocate %u MB - "
                  "address space usage: %.2f MBytes - "
                            "rss usage: %.2f MBytes",
                         rlimit_memalloc / (1024 * 1024),
-                        (double)vsz / (1024.0 * 1024.0),
-                        (double)rss / (1024.0 * 1024.0));
+                            (double)vsz / (1024.0 * 1024.0),
+                            (double)rss / (1024.0 * 1024.0))
 #  endif
 
       nfree = rlimit_memalloc;
-      pfree = (char*) U_SYSCALL(mmap, "%d,%u,%d,%d,%d,%u", 0, nfree, prot, U_MAP_ANON, -1, 0);
+#  ifdef U_MEMALLOC_WITH_HUGE_PAGE
+      pfree = mmap_anon_huge(&nfree, MAP_PRIVATE | U_MAP_ANON);
+#  else
+      pfree = (char*) U_SYSCALL(mmap, "%d,%u,%d,%d,%d,%u", 0, nfree, PROT_READ | PROT_WRITE, MAP_PRIVATE | U_MAP_ANON, -1, 0);
+#  endif
 
       if (pfree == (char*)MAP_FAILED)
          {
@@ -565,11 +644,7 @@ try_from_file_system:
 
    if (*plength > nfree)
       {
-#  ifdef DEBUG
-      U_WARNING("we are going to allocate (%u KB - %u bytes) (pid %P) - nfree = %u", *plength / 1024, *plength, nfree);
-#  endif
-
-      _ptr = (char*) U_SYSCALL(mmap, "%d,%u,%d,%d,%d,%u", 0, *plength, prot, U_MAP_ANON, -1, 0);
+      _ptr = mmap_anon_huge(plength, MAP_PRIVATE | U_MAP_ANON);
 
       if (_ptr == (char*)MAP_FAILED)
          {
@@ -580,6 +655,34 @@ try_from_file_system:
 
       return _ptr;
       }
+
+# ifdef U_MEMALLOC_WITH_HUGE_PAGE
+   if (nr_hugepages)
+      {
+#  ifdef MAP_HUGE_1GB
+      if (*plength >= U_1G)
+         {
+         *plength = (*plength + U_1G_MASK) & ~U_1G_MASK;
+
+         U_INTERNAL_ASSERT_EQUALS(*plength & U_1G_MASK, 0)
+         }
+      else
+#  endif
+#  ifdef MAP_HUGE_2MB
+      {
+      *plength = (*plength + U_2M_MASK) & ~U_2M_MASK;
+
+      U_INTERNAL_ASSERT_EQUALS(*plength & U_2M_MASK, 0)
+      }
+#  endif
+      }
+   else
+# endif
+   {
+   *plength = (*plength + U_PAGEMASK) & ~U_PAGEMASK;
+
+   U_INTERNAL_ASSERT_EQUALS(*plength & U_PAGEMASK, 0)
+   }
 
    _ptr   = pfree;
    nfree -= *plength;
@@ -592,9 +695,9 @@ try_from_file_system:
       }
 
    U_INTERNAL_DUMP("plength = %u nfree = %u pfree = %p", *plength, nfree, pfree)
-#endif
 
    return _ptr;
+#endif
 }
 
 bool UFile::memmap(int prot, UString* str, uint32_t offset, uint32_t length)
@@ -607,8 +710,8 @@ bool UFile::memmap(int prot, UString* str, uint32_t offset, uint32_t length)
 
    U_INTERNAL_DUMP("path_relativ(%u) = %.*S", path_relativ_len, path_relativ_len, path_relativ)
 
-   U_INTERNAL_ASSERT_DIFFERS(fd,-1)
-   U_INTERNAL_ASSERT_MAJOR(st_size,0)
+   U_INTERNAL_ASSERT_DIFFERS(fd, -1)
+   U_INTERNAL_ASSERT_MAJOR(st_size, 0)
 
 #ifdef _MSWINDOWS_
    U_INTERNAL_ASSERT((off_t)length <= st_size) // NB: don't allow mappings beyond EOF since Windows can't handle that POSIX like...
@@ -629,10 +732,10 @@ bool UFile::memmap(int prot, UString* str, uint32_t offset, uint32_t length)
    U_INTERNAL_DUMP("resto = %u", resto)
 
 #ifdef HAVE_ARCH64
-   U_INTERNAL_ASSERT_MINOR_MSG(length, U_STRING_MAX_SIZE, "we can't manage file bigger than 4G...") // limit of UString
+   U_INTERNAL_ASSERT_MINOR_MSG(length, U_STRING_MAX_SIZE, "we can't manage file size bigger than 4G...") // limit of UString
 #endif
 
-   U_INTERNAL_ASSERT_EQUALS((offset % PAGESIZE),0) // offset should be a multiple of the page size as returned by getpagesize(2)
+   U_INTERNAL_ASSERT_EQUALS((offset % PAGESIZE), 0) // offset should be a multiple of the page size as returned by getpagesize(2)
 
    if (map != (char*)MAP_FAILED)
       {
@@ -641,13 +744,30 @@ bool UFile::memmap(int prot, UString* str, uint32_t offset, uint32_t length)
       map_size = 0;
       }
 
-   map = (char*) U_SYSCALL(mmap, "%d,%u,%d,%d,%d,%u", 0, length, prot, MAP_SHARED | MAP_POPULATE, fd, offset);
+   int flags = MAP_SHARED;
+
+#if defined(U_LINUX) && defined(MAP_POPULATE) // (since Linux 2.5.46)
+   if (prot == PROT_READ) flags |= MAP_POPULATE;
+#endif
+
+   map = (char*) U_SYSCALL(mmap, "%d,%u,%d,%d,%d,%u", 0, length, prot, flags, fd, offset);
 
    if (map != (char*)MAP_FAILED)
       {
       map_size = length;
 
-      if (str) str->mmap(map + resto, length - resto);
+      if (str)
+         {
+         str->mmap(map + resto, length - resto);
+
+#     if defined(U_LINUX) && defined(MADV_SEQUENTIAL)
+         if (prot == PROT_READ &&
+             length > (32 * PAGESIZE))
+            {
+            (void) U_SYSCALL(madvise, "%p,%u,%d", (void*)map, length, MADV_SEQUENTIAL);
+            }
+#     endif
+         }
 
       U_RETURN(true);
       }
@@ -657,7 +777,7 @@ bool UFile::memmap(int prot, UString* str, uint32_t offset, uint32_t length)
 
 void UFile::munmap()
 {
-   U_TRACE(0, "UFile::munmap()")
+   U_TRACE_NO_PARAM(0, "UFile::munmap()")
 
    U_CHECK_MEMORY
 
@@ -699,11 +819,16 @@ UString UFile::_getContent(bool bsize, bool brdonly, bool bmap)
    U_INTERNAL_DUMP("fd = %d map = %p map_size = %u st_size = %I", fd, map, map_size, st_size)
 
    U_INTERNAL_ASSERT_DIFFERS(fd, -1)
+
+#if defined(DEBUG) && !defined(U_LINUX) && !defined(O_TMPFILE)
    U_INTERNAL_ASSERT_POINTER(path_relativ)
 
-#  ifdef U_COVERITY_FALSE_POSITIVE
+   U_INTERNAL_DUMP("path_relativ(%u) = %.*S", path_relativ_len, path_relativ_len, path_relativ)
+#endif
+
+# ifdef U_COVERITY_FALSE_POSITIVE
    if (fd <= 0) return UString::getStringNull();
-#  endif
+# endif
 
    if (bsize) readSize();
 
@@ -763,39 +888,50 @@ UString UFile::getContent(bool brdonly, bool bstat, bool bmap)
    U_RETURN_STRING(fileContent);
 }
 
-UString UFile::contentOf(const UString& _pathname, int flags, bool bstat)
+UString UFile::contentOf(const UString& _pathname, int flags, bool bstat, const UString* environment)
 {
-   U_TRACE(0, "UFile::contentOf(%V,%d,%b)", _pathname.rep, flags, bstat)
+   U_TRACE(0, "UFile::contentOf(%V,%d,%b,%p)", _pathname.rep, flags, bstat, environment)
+
+   U_INTERNAL_ASSERT(_pathname)
 
    UFile file;
    UString content;
 
    file.reset();
-
-   if (file.open(_pathname, flags)) content = file.getContent((((flags & O_RDWR) | (flags & O_WRONLY)) == 0), bstat);
-
-   U_RETURN_STRING(content);
-}
-
-UString UFile::contentOf(const char* _pathname, int flags, bool bstat, const UString* environment)
-{
-   U_TRACE(0, "UFile::contentOf(%S,%d,%b,%p)", _pathname, flags, bstat, environment)
-
-   UFile file;
-   UString path(_pathname), content;
-
-   file.reset();
-
-   file.setPath(path, environment);
+   file.setPath(_pathname, environment);
 
    if (file.open(flags)) content = file.getContent((((flags & O_RDWR) | (flags & O_WRONLY)) == 0), bstat);
 
    U_RETURN_STRING(content);
 }
 
-bool UFile::creatForWrite(bool append, bool bmkdirs)
+void UFile::printf(const char* format, uint32_t fmt_size, ...)
 {
-   U_TRACE(1, "UFile::creatForWrite(%b,%b)", append, bmkdirs)
+   U_TRACE(0, "UFile::printf(%.*S,%u)", fmt_size, format, fmt_size)
+
+   char buffer[8196];
+   uint32_t bytes_to_write;
+
+   va_list argp;
+   va_start(argp, fmt_size);
+
+   bytes_to_write = u__vsnprintf(buffer, sizeof(buffer)-1, format, fmt_size, argp);
+
+   va_end(argp);
+
+   buffer[bytes_to_write++] = '\n';
+
+   ssize_t bytes_written = U_SYSCALL(write, "%d,%p,%u", fd, buffer, bytes_to_write);
+
+   if (bytes_written != (ssize_t)bytes_to_write)
+      {
+      U_WARNING("write data of size %u is %s", bytes_to_write, (bytes_written == -1 ? "failed" : "partial"));
+      }
+}
+
+bool UFile::creatForWrite(int flags, bool bmkdirs)
+{
+   U_TRACE(1, "UFile::creatForWrite(%d,%b)", flags, bmkdirs)
 
    U_INTERNAL_ASSERT_POINTER(path_relativ)
 
@@ -805,11 +941,10 @@ bool UFile::creatForWrite(bool append, bool bmkdirs)
 
    if (esito == false)
       {
-      int flags = O_RDWR | (append ? O_APPEND : O_TRUNC);
-
       esito = creat(flags, PERM_FILE);
 
-      if (esito == false && bmkdirs)
+      if (esito == false &&
+          bmkdirs)
          {
          // Make any missing parent directories for each directory argument
 
@@ -835,19 +970,19 @@ bool UFile::creatForWrite(bool append, bool bmkdirs)
    U_RETURN(esito);
 }
 
-bool UFile::write(const char* data, uint32_t sz, bool append, bool bmkdirs)
+bool UFile::write(const char* data, uint32_t sz, int flags, bool bmkdirs)
 {
-   U_TRACE(0, "UFile::write(%.*S,%u,%b,%b)", sz, data, sz, append, bmkdirs)
+   U_TRACE(0, "UFile::write(%.*S,%u,%d,%b)", sz, data, sz, flags, bmkdirs)
 
    bool esito = false;
 
-   if (sz &&
-       creatForWrite(append, bmkdirs))
+   if (creatForWrite(flags, bmkdirs) &&
+       sz)
       {
       if (sz <= PAGESIZE) esito = UFile::write(fd, data, sz);
       else
          {
-         uint32_t offset = (append ? size() : 0);
+         uint32_t offset = ((flags & O_APPEND) != 0 ? size() : 0);
 
          esito = fallocate(offset + sz);
 
@@ -855,7 +990,7 @@ bool UFile::write(const char* data, uint32_t sz, bool append, bool bmkdirs)
             {
             readSize();
 
-            U_WARNING("no more space on disk for requested size %u - acquired only %u bytes", offset + sz, st_size);
+            U_WARNING("No more space on disk for requested size %u - acquired only %u bytes", offset + sz, st_size);
 
             sz = (st_size > offset ? st_size - offset : 0);
             }
@@ -873,12 +1008,12 @@ bool UFile::write(const char* data, uint32_t sz, bool append, bool bmkdirs)
    U_RETURN(esito);
 }
 
-bool UFile::write(const struct iovec* iov, int n, bool append, bool bmkdirs)
+bool UFile::write(const struct iovec* iov, int n, int flags, bool bmkdirs)
 {
-   U_TRACE(0, "UFile::write(%p,%d,%b,%b)", iov, n, append, bmkdirs)
+   U_TRACE(0, "UFile::write(%p,%d,%d,%b)", iov, n, flags, bmkdirs)
 
-   if (creatForWrite(append, bmkdirs) &&
-       UFile::writev(iov, n))
+   if (creatForWrite(flags, bmkdirs) &&
+       writev(iov, n))
       {
       U_RETURN(true);
       }
@@ -886,107 +1021,115 @@ bool UFile::write(const struct iovec* iov, int n, bool append, bool bmkdirs)
    U_RETURN(false);
 }
 
-bool UFile::writeTo(const UString& path, const char* data, uint32_t sz, bool append, bool bmkdirs)
+bool UFile::writeTo(const UString& path, const char* data, uint32_t sz, int flags, bool bmkdirs)
 {
-   U_TRACE(0, "UFile::writeTo(%V,%.*S,%u,%b,%b)", path.rep, sz, data, sz, append, bmkdirs)
+   U_TRACE(0, "UFile::writeTo(%V,%.*S,%u,%d,%b)", path.rep, sz, data, sz, flags, bmkdirs)
 
    UFile tmp(path);
 
-   bool result = tmp.write(data, sz, append, bmkdirs);
+   bool result = tmp.write(data, sz, flags, bmkdirs);
 
    if (tmp.isOpen()) tmp.close();
 
    U_RETURN(result);
 }
 
-bool UFile::writeTo(const UString& path, const struct iovec* iov, int n, bool append, bool bmkdirs)
+bool UFile::writeTo(const UString& path, const struct iovec* iov, int n, int flags, bool bmkdirs)
 {
-   U_TRACE(0, "UFile::writeTo(%V,%p,%d,%b,%b)", path.rep, iov, n, append, bmkdirs)
+   U_TRACE(0, "UFile::writeTo(%V,%p,%d,%d,%b)", path.rep, iov, n, flags, bmkdirs)
 
    UFile tmp(path);
 
-   bool result = tmp.write(iov, n, append, bmkdirs);
+   bool result = tmp.write(iov, n, flags, bmkdirs);
 
    if (tmp.isOpen()) tmp.close();
 
    U_RETURN(result);
 }
 
-bool UFile::writeToTmp(const char* data, uint32_t sz, bool append, const char* format, ...)
+bool UFile::writeToTmp(const char* data, uint32_t sz, int flags, const char* format, uint32_t fmt_size, ...)
 {
-   U_TRACE(0+256, "UFile::writeToTmp(%.*S,%u,%b,%S)", sz, data, sz, append, format)
+   U_TRACE(0+256, "UFile::writeToTmp(%.*S,%u,%d,%.*S,%u)", sz, data, sz, flags, fmt_size, format, fmt_size)
 
    bool result = false;
 
    if (sz)
       {
-      UString path(U_PATH_MAX);
-
-      path.snprintf("%s/", u_tmpdir);
+      UString path((unsigned char*)U_CONSTANT_TO_PARAM("/tmp/"), 200U);
 
       va_list argp;
-      va_start(argp, format);
+      va_start(argp, fmt_size);
 
-      path.vsnprintf_add(format, argp);
+      path.vsnprintf_add(format, fmt_size, argp);
 
       va_end(argp);
 
-      result = UFile::writeTo(path, data, sz, append, false);
+      result = writeTo(path, data, sz, flags, false);
       }
 
    U_RETURN(result);
 }
 
-bool UFile::writeToTmp(const struct iovec* iov, int n, bool append, const char* format, ...)
+bool UFile::writeToTmp(const struct iovec* iov, int n, int flags, const char* format, uint32_t fmt_size, ...)
 {
-   U_TRACE(0+256, "UFile::writeToTmp(%p,%d,%b,%S)", iov, n, append, format)
+   U_TRACE(0+256, "UFile::writeToTmp(%p,%d,%d,%.*S,%u)", iov, n, flags, fmt_size, format, fmt_size)
 
    bool result = false;
 
    if (n)
       {
-      UString path(U_PATH_MAX);
-
-      path.snprintf("%s/", u_tmpdir);
+      UString path((unsigned char*)U_CONSTANT_TO_PARAM("/tmp/"), 200U);
 
       va_list argp;
-      va_start(argp, format);
+      va_start(argp, fmt_size);
 
-      path.vsnprintf_add(format, argp);
+      path.vsnprintf_add(format, fmt_size, argp);
 
       va_end(argp);
 
-      result = UFile::writeTo(path, iov, n, append, false);
+      result = writeTo(path, iov, n, flags, false);
       }
 
    U_RETURN(result);
 }
 
-bool UFile::lock(short l_type, uint32_t start, uint32_t len) const
+bool UFile::lock(int fd, short l_type, uint32_t start, uint32_t len)
 {
-   U_TRACE(1, "UFile::lock(%d,%u,%u)", l_type, start, len)
-
-   U_CHECK_MEMORY
+   U_TRACE(1, "UFile::lock(%d,%d,%u,%u)", fd, l_type, start, len)
 
    U_INTERNAL_ASSERT_DIFFERS(fd, -1)
-   U_INTERNAL_ASSERT_POINTER(path_relativ)
-
-   U_INTERNAL_DUMP("path_relativ(%u) = %.*S", path_relativ_len, path_relativ_len, path_relativ)
-
-   /*
-   struct flock {
-      short l_type;    // Type of lock: F_RDLCK, F_WRLCK, F_UNLCK
-      short l_whence;  // How to interpret l_start: SEEK_SET, SEEK_CUR, SEEK_END
-      off_t l_start;   // Starting offset for lock
-      off_t l_len;     // Number of bytes to lock
-      pid_t l_pid;     // PID of process blocking our lock (F_GETLK only)
-   };
-   */
-
-   struct flock flock = { l_type, SEEK_SET, start, len, u_pid };
 
    /**
-    * ---------------------------------------------------------------------------------------------------------------------
+    * Advisory file segment locking data type - information passed to system by user
+    */
+
+#if defined(__NetBSD__) || defined(__UNIKERNEL__) || defined(__OSX__)
+   /**
+    * struct flock {
+    *    off_t l_start;  // starting offset
+    *    off_t l_len;    // len = 0 means until end of file
+    *    pid_t l_pid;    // lock owner
+    *    short l_type;   // lock type: read/write, etc.
+    *    short l_whence; // type of l_start
+    * };
+    */
+
+   struct flock flock = { start, len, u_pid, SEEK_SET, l_type };
+#else
+   /**
+    * struct flock {
+    *    short l_type;   // Type of lock: F_RDLCK, F_WRLCK, F_UNLCK
+    *    short l_whence; // How to interpret l_start: SEEK_SET, SEEK_CUR, SEEK_END
+    *    off_t l_start;  // Starting offset for lock
+    *    off_t l_len;    // Number of bytes to lock
+    *    pid_t l_pid;    // PID of process blocking our lock (F_GETLK only)
+    * };
+    */
+
+   struct flock flock = { l_type, SEEK_SET, start, len, u_pid };
+#endif
+
+   /**
     *  F_SETLK: Acquire a lock (when l_type is F_RDLCK or F_WRLCK) or release a lock (when l_type is F_UNLCK) on the
     *           bytes specified by the l_whence, l_start, and l_len fields of lock. If a conflicting lock is held by another
     *           process, this call returns -1 and sets errno to EACCES or EAGAIN.
@@ -1007,9 +1150,9 @@ bool UFile::lock(short l_type, uint32_t start, uint32_t len) const
     * ---------------------------------------------------------------------------------------------------------------------
     */
 
-   bool result = (U_SYSCALL(fcntl, "%d,%d,%p", fd, F_SETLK, &flock) != -1); // F_SETLKW
+   if (U_SYSCALL(fcntl, "%d,%d,%p", fd, F_SETLK, &flock) != -1) U_RETURN(true); // F_SETLKW
 
-   U_RETURN(result);
+   U_RETURN(false);
 }
 
 bool UFile::ftruncate(uint32_t n)
@@ -1035,7 +1178,7 @@ bool UFile::ftruncate(uint32_t n)
        map_size < (uint32_t)n)
       {
       uint32_t _map_size = n * 2;
-      char* _map         = (char*) mremap(map, map_size, _map_size, MREMAP_MAYMOVE);
+         char* _map      = UFile::mremap(map, map_size, _map_size, MREMAP_MAYMOVE);
 
       if (_map == (char*)MAP_FAILED) U_RETURN(false);
 
@@ -1053,38 +1196,25 @@ bool UFile::ftruncate(uint32_t n)
    U_RETURN(false);
 }
 
-bool UFile::fallocate(uint32_t n)
+bool UFile::fallocate(int fd, uint32_t n)
 {
-   U_TRACE(1, "UFile::fallocate(%u)", n)
-
-   U_CHECK_MEMORY
+   U_TRACE(1, "UFile::fallocate(%d,%u)", fd, n)
 
    U_INTERNAL_ASSERT_DIFFERS(fd, -1)
-   U_INTERNAL_ASSERT_POINTER(path_relativ)
-
-   U_INTERNAL_DUMP("path_relativ(%u) = %.*S", path_relativ_len, path_relativ_len, path_relativ)
 
 #ifdef U_COVERITY_FALSE_POSITIVE
    if (fd <= 0) U_RETURN(false);
 #endif
 
 #ifdef FALLOCATE_IS_SUPPORTED
-   if (U_SYSCALL(fallocate, "%d,%d,%u,%u", fd, 0, 0, n) == 0) goto next;
+   if (U_SYSCALL(fallocate, "%d,%d,%u,%u", fd, 0, 0, n) == 0) U_RETURN(true);
 
    U_INTERNAL_DUMP("errno = %d", errno)
 
    if (errno != EOPNOTSUPP) U_RETURN(false);
 #endif
 
-   if (U_SYSCALL(ftruncate, "%d,%u", fd, n) == 0)
-      {
-#ifdef FALLOCATE_IS_SUPPORTED
-next:
-#endif
-      st_size = n;
-
-      U_RETURN(true);
-      }
+   if (U_SYSCALL(ftruncate, "%d,%u", fd, n) == 0) U_RETURN(true);
 
    U_RETURN(false);
 }
@@ -1095,7 +1225,7 @@ UString UFile::getSysContent(const char* name)
 
    UString fileContent(U_CAPACITY);
 
-   int fd = open(name, O_RDWR, PERM_FILE);
+   int fd = open(name, O_RDONLY, PERM_FILE);
 
    if (fd != -1)
       {
@@ -1109,22 +1239,26 @@ UString UFile::getSysContent(const char* name)
    U_RETURN_STRING(fileContent);
 }
 
-int UFile::getSysParam(const char* name)
+long UFile::getSysParam(const char* name)
 {
    U_TRACE(0, "UFile::getSysParam(%S)", name)
 
-   int value = -1, fd = open(name, O_RDWR, PERM_FILE);
+   long value = -1;
+   int fd = open(name, O_RDONLY, PERM_FILE);
 
    if (fd != -1)
       {
       char buffer[32];
-      ssize_t n = U_SYSCALL(read, "%d,%p,%u", fd, buffer, sizeof(buffer)-1);
 
-      if (n > 0)
+      ssize_t bytes_read = U_SYSCALL(read, "%d,%p,%u", fd, buffer, sizeof(buffer)-1);
+
+      if (bytes_read > 0)
          {
-         buffer[n] = '\0';
+         U_INTERNAL_ASSERT_MINOR((uint32_t)bytes_read, sizeof(buffer))
 
-         value = atoi(buffer);
+         buffer[bytes_read] = '\0';
+
+         value = strtol(buffer, 0, 10);
          }
 
       close(fd);
@@ -1133,29 +1267,37 @@ int UFile::getSysParam(const char* name)
    U_RETURN(value);
 }
 
-int UFile::setSysParam(const char* name, int value, bool force)
+long UFile::setSysParam(const char* name, long value, bool force)
 {
-   U_TRACE(0, "UFile::setSysParam(%S,%u,%b)", name, value, force)
+   U_TRACE(0, "UFile::setSysParam(%S,%ld,%b)", name, value, force)
 
-   int old_value = -1, fd = open(name, O_RDWR, PERM_FILE);
+   long old_value = -1;
+   int fd = open(name, O_RDWR, PERM_FILE);
 
    if (fd != -1)
       {
       char buffer[32];
-      ssize_t n = U_SYSCALL(read, "%d,%p,%u", fd, buffer, sizeof(buffer)-1);
 
-      if (n > 0)
+      ssize_t bytes_read = U_SYSCALL(read, "%d,%p,%u", fd, buffer, sizeof(buffer)-1);
+
+      if (bytes_read > 0)
          {
-         buffer[n] = '\0';
+         U_INTERNAL_ASSERT_MINOR((uint32_t)bytes_read, sizeof(buffer))
 
-         old_value = atoi(buffer);
+         buffer[bytes_read] = '\0';
+
+         old_value = strtol(buffer, 0, 10);
 
          if (force ||
              old_value < value)
             {
             char* ptr = buffer;
 
-            (void) pwrite(fd, buffer, u_num2str32s(ptr, value), 0);
+#        if SIZEOF_LONG == 4
+            if (pwrite(fd, buffer, u_num2str32s(value, ptr) - ptr, 0) > 0) old_value = value;
+#        elif !defined(U_COVERITY_FALSE_POSITIVE) // (INTEGER_OVERFLOW)
+            if (pwrite(fd, buffer, u_num2str64s(value, ptr) - ptr, 0) > 0) old_value = value;
+#        endif
             }
          }
 
@@ -1172,9 +1314,12 @@ bool UFile::pread(void* buf, uint32_t count, uint32_t offset)
    U_CHECK_MEMORY
 
    U_INTERNAL_ASSERT_DIFFERS(fd, -1)
+
+#if defined(DEBUG) && !defined(U_LINUX) && !defined(O_TMPFILE)
    U_INTERNAL_ASSERT_POINTER(path_relativ)
 
    U_INTERNAL_DUMP("path_relativ(%u) = %.*S", path_relativ_len, path_relativ_len, path_relativ)
+#endif
 
 #ifdef U_COVERITY_FALSE_POSITIVE
    if (fd <= 0) U_RETURN(false);
@@ -1192,9 +1337,12 @@ bool UFile::pwrite(const void* _buf, uint32_t count, uint32_t offset)
    U_CHECK_MEMORY
 
    U_INTERNAL_ASSERT_DIFFERS(fd, -1)
+
+#if defined(DEBUG) && !defined(U_LINUX) && !defined(O_TMPFILE)
    U_INTERNAL_ASSERT_POINTER(path_relativ)
 
    U_INTERNAL_DUMP("path_relativ(%u) = %.*S", path_relativ_len, path_relativ_len, path_relativ)
+#endif
 
 #ifdef U_COVERITY_FALSE_POSITIVE
    if (fd <= 0) U_RETURN(false);
@@ -1211,7 +1359,8 @@ int UFile::setBlocking(int _fd, int flags, bool block)
 
    U_INTERNAL_ASSERT_DIFFERS(_fd, -1)
 
-   /* ------------------------------------------------------
+   /**
+    * ------------------------------------------------------
     * #define O_RDONLY           00
     * #define O_WRONLY           01
     * #define O_RDWR             02
@@ -1238,10 +1387,8 @@ int UFile::setBlocking(int _fd, int flags, bool block)
    bool blocking = isBlocking(_fd, flags); // actual state is blocking...?
 
    // ----------------------------------------------------------------------------------------
-   // determina se le operazioni I/O sul descrittore indicato sono di tipo bloccante o meno...
-   // ----------------------------------------------------------------------------------------
-   // flags & ~O_NONBLOCK: read() e write() bloccanti     (casi normali)
-   // flags |  O_NONBLOCK: read() e write() non bloccanti (casi speciali)
+   // flags & ~O_NONBLOCK: read() and write()     block ( normal case)
+   // flags |  O_NONBLOCK: read() and write() NOT block (special case)
    // ----------------------------------------------------------------------------------------
 
    if (block != blocking)
@@ -1257,7 +1404,7 @@ int UFile::setBlocking(int _fd, int flags, bool block)
    U_RETURN(flags);
 }
 
-// risolve link simbolici e/o riferimenti a "./" and "../"
+// resolv simbolic link and/or reference to "./" and "../"
 
 UString UFile::getRealPath(const char* path, bool brelativ)
 {
@@ -1284,44 +1431,49 @@ UString UFile::getRealPath(const char* path, bool brelativ)
    return UString::getStringNull();
 }
 
-// ----------------------------------------------------------------------------------------------------------------------
 // create a unique temporary file
-// ----------------------------------------------------------------------------------------------------------------------
-// char pathname[] = "/tmp/dataXXXXXX"
-// The last six characters of template must be XXXXXX and these are replaced with a string that makes the filename unique
-// ----------------------------------------------------------------------------------------------------------------------
 
-bool UFile::mkTemp(char* _template)
+int UFile::mkTemp()
 {
-   U_TRACE(1, "UFile::mkTemp(%S)", _template)
+   U_TRACE(1, "UFile::mkTemp()")
 
-#ifdef O_TMPFILE
-   fd = U_SYSCALL(open, "%S,%d,%d", "", O_TMPFILE | O_RDWR, PERM_FILE);
+   /**
+    * O_TMPFILE is a new open(2)/openat(2) flag that makes easier the creation of secure temporary files. Files opened with the O_TMPFILE
+    * flag are created but they are not visible in the filesystem. And as soon as they are closed, they get deleted - just as a file you
+    * would have opened and unlinked
+    *
+    * http://kernelnewbies.org/Linux_3.11#head-8be09d59438b31c2a724547838f234cb33c40357
+    */
+
+#if defined(U_LINUX) && defined(O_TMPFILE)
+   int fd = U_SYSCALL(open, "%S,%d,%d", u_tmpdir, O_TMPFILE | O_RDWR, PERM_FILE);
 #else
-   if (_template) setPath(_template);
-   else
-      {
-      UString path(U_PATH_MAX);
+   char _pathname[U_PATH_MAX];
 
-      path.snprintf("%s/lockXXXXXX", u_tmpdir);
+   // The last six characters of template must be XXXXXX and these are replaced with a string that makes the filename unique
 
-      setPath(path);
-      }
-
-   U_INTERNAL_DUMP("path_relativ(%u) = %.*S", path_relativ_len, path_relativ_len, path_relativ)
+   (void) u__snprintf(_pathname, sizeof(_pathname), U_CONSTANT_TO_PARAM("%s/tmpXXXXXX"), u_tmpdir);
 
    mode_t old_mode = U_SYSCALL(umask, "%d", 077);  // Create file with restrictive permissions
 
    errno = 0; // mkstemp may not set it on error
 
-   fd = U_SYSCALL(mkstemp, "%S", U_PATH_CONV((char*)path_relativ));
+   int fd = U_SYSCALL(mkstemp, "%S", U_PATH_CONV(_pathname));
+
+   (void) U_SYSCALL(unlink, "%S", U_PATH_CONV(_pathname));
 
    (void) U_SYSCALL(umask, "%d", old_mode);
 #endif
 
-   if (isOpen()) U_RETURN(true);
+#ifdef DEBUG
+   if (fd != -1)
+      {
+      U_ASSERT(  lock(fd) &&
+               unlock(fd))
+      }
+#endif
 
-   U_RETURN(false);
+   U_RETURN(fd);
 }
 
 // mkdtemp - create a unique temporary directory
@@ -1515,7 +1667,7 @@ void UFile::substitute(UFile& file)
 
 UString UFile::getSuffix() const
 {
-   U_TRACE(0, "UFile::getSuffix()")
+   U_TRACE_NO_PARAM(0, "UFile::getSuffix()")
 
    U_INTERNAL_ASSERT_POINTER(path_relativ)
 
@@ -1546,7 +1698,10 @@ const char* UFile::getMimeType(const char* suffix, int* pmime_index)
    if (suffix) content_type = u_get_mimetype(suffix, pmime_index);
    else
       {
-      suffix       = u_getsuffix(path_relativ, path_relativ_len);
+      suffix = u_getsuffix(path_relativ, path_relativ_len);
+
+      U_INTERNAL_DUMP("suffix = %.*S", suffix ? (path_relativ_len-(suffix-path_relativ)-1) : 0, suffix+1)
+
       content_type = (suffix ? u_get_mimetype(suffix+1, pmime_index) : 0);
       }
 

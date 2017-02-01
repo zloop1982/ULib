@@ -19,6 +19,11 @@
 
 #include <openssl/x509.h>
 
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+#  define X509_get_notBefore X509_getm_notBefore
+#  define X509_get_notAfter  X509_getm_notAfter
+#endif
+
 template <class T> class UVector;
 template <class T> class UHashMap;
 
@@ -69,7 +74,7 @@ public:
 
    void clear()
       {
-      U_TRACE(0, "UCertificate::clear()")
+      U_TRACE_NO_PARAM(0, "UCertificate::clear()")
 
       U_INTERNAL_ASSERT_POINTER(x509)
 
@@ -85,11 +90,9 @@ public:
       if (x509) clear();
       }
 
-   // VARIE
-
    bool isValid() const
       {
-      U_TRACE(0, "UCertificate::isValid()")
+      U_TRACE_NO_PARAM(0, "UCertificate::isValid()")
 
       U_RETURN(x509 != 0);
       }
@@ -122,7 +125,7 @@ public:
 
    void duplicate()
       {
-      U_TRACE(0, "UCertificate::duplicate()")
+      U_TRACE_NO_PARAM(0, "UCertificate::duplicate()")
 
       x509 = X509_dup(x509);
       }
@@ -255,49 +258,6 @@ public:
    long hashCode() { return hashCode(x509); }
 
    /**
-    * Returns the <i>signature</i> of this certificate
-    */
-
-   static UString getSignature(X509* a)
-      {
-      U_TRACE(0, "UCertificate::getSignature(%a)")
-
-      U_INTERNAL_ASSERT_POINTER(a)
-
-      UString signature( (const char*) a->signature->data,
-                                       a->signature->length );
-
-      U_RETURN_STRING(signature);
-      }
-
-   UString getSignature() const { return getSignature(x509); }
-
-   /**
-    * Returns <i>signatureAlgorithm</i> of this certificate
-    */ 
-
-   static UString getSignatureAlgorithm(X509* a)
-      {
-      U_TRACE(0, "UCertificate::getSignatureAlgorithm(%p)")
-
-      U_INTERNAL_ASSERT_POINTER(a)
-
-      UString signature_algorithm( OBJ_nid2sn( OBJ_obj2nid(a->sig_alg->algorithm) ) );
-
-      U_RETURN_STRING(signature_algorithm);
-      }
-
-   UString getSignatureAlgorithm() const { return getSignatureAlgorithm(x509); }
-
-   /**
-    * Returns the part of this certificate that is signed
-    */ 
-
-   static UString getSignable(X509* x509);
-
-   UString getSignable() const { return getSignable(x509); }
-
-   /**
     * Returns <i>publicKey</i> of this certificate
     */
 
@@ -341,7 +301,7 @@ public:
 
    const char* getNotBefore() const __pure
       {
-      U_TRACE(0, "UCertificate::getNotBefore()")
+      U_TRACE_NO_PARAM(0, "UCertificate::getNotBefore()")
 
       U_INTERNAL_ASSERT_POINTER(x509)
 
@@ -356,7 +316,7 @@ public:
 
    const char* getNotAfter() const __pure
       {
-      U_TRACE(0, "UCertificate::getNotAfter()")
+      U_TRACE_NO_PARAM(0, "UCertificate::getNotAfter()")
 
       U_INTERNAL_ASSERT_POINTER(x509)
 
@@ -371,9 +331,9 @@ public:
 
    bool checkValidity() const
       {
-      U_TRACE(0, "UCertificate::checkValidity()")
+      U_TRACE_NO_PARAM(0, "UCertificate::checkValidity()")
 
-      U_gettimeofday; // NB: optimization if it is enough a time resolution of one second...
+      U_gettimeofday // NB: optimization if it is enough a time resolution of one second...
 
       bool result = checkValidity(u_now->tv_sec);
 
@@ -446,13 +406,6 @@ public:
    UString getExponent() const;
 
    /**
-    * Gets X509v3 extensions as array of X509Ext objects
-    */
-
-   int getExtensions(UHashMap<UString>& table) const;
-
-
-   /**
     * parse cert's \c authorityInfoAccess extension and find all the
     * instances of the \c id-ad-caIssuers access method which can be:
     * HTTP uri: pointer to a cert file or pointer to a certs-only CMS msg ie. a .p7[bc] file
@@ -477,7 +430,7 @@ public:
 
       UString issuer = getIssuer(a, true);
 
-      buffer.snprintf(fmt, issuer.rep, getSerialNumber(a));
+      buffer.snprintf(fmt, strlen(fmt), issuer.rep, getSerialNumber(a));
       }
 
    void setForLog(UString& buffer, const char* fmt = " (\"%v\",\"%ld\")") const { setForLog(x509, buffer, fmt); }
@@ -503,9 +456,9 @@ public:
 #ifdef U_STDCPP_ENABLE
    friend U_EXPORT ostream& operator<<(ostream& os, const UCertificate& c);
 
-#  ifdef DEBUG
+# ifdef DEBUG
    const char* dump(bool reset) const;
-#  endif
+# endif
 #endif
 
 protected:
@@ -518,11 +471,7 @@ protected:
 private:
    static UString getRevocationURI(const void* gens) U_NO_EXPORT;
 
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UCertificate& operator=(const UCertificate&) = delete;
-#else
-   UCertificate& operator=(const UCertificate&) { return *this; }
-#endif      
+   U_DISALLOW_ASSIGN(UCertificate)
 };
 
 #endif

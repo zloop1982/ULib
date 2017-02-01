@@ -16,9 +16,12 @@ public:
    Prima() { a = "io_sono_la_classe_Prima"; }
 
    bool operator==(const Prima& l) { return (memcmp(a, l.a, strlen(a)) == 0); }
+
+   friend istream& operator>>(istream& is,       Prima& l);
+   friend ostream& operator<<(ostream& os, const Prima& l);
 };
 
-std::istream& operator>>(std::istream& is, Prima& l)
+istream& operator>>(istream& is, Prima& l)
 {
    static char buffer1[128];
 
@@ -29,14 +32,11 @@ std::istream& operator>>(std::istream& is, Prima& l)
    return is;
 }
 
-std::ostream& operator<<(std::ostream& os, const Prima& l) 
+ostream& operator<<(ostream& os, const Prima& l) 
 {
-   // per simulare ricorsione in U_OBJECT_TO_TRACE()
-
    U_TRACE(5, "Prima::operator<<()")
 
-// U_INTERNAL_DUMP("this=%O", U_OBJECT_TO_TRACE(l))
-   U_INTERNAL_DUMP("this=%O", 0)
+   U_DUMP_OBJECT(l) // per simulare ricorsione in U_OBJECT_TO_TRACE()
 
    os << l.a;
 
@@ -52,9 +52,12 @@ public:
    Seconda() { b = "io_sono_la_classe_Seconda"; }
 
    bool operator==(const Seconda& l) { return (memcmp(b, l.b, strlen(b)) == 0); }
+
+   friend istream& operator>>(istream& is,       Seconda& l);
+   friend ostream& operator<<(ostream& os, const Seconda& l);
 };
 
-std::istream& operator>>(std::istream& is, Seconda& l)
+istream& operator>>(istream& is, Seconda& l)
 {
    static char buffer2[128];
 
@@ -65,16 +68,13 @@ std::istream& operator>>(std::istream& is, Seconda& l)
    return is;
 }
 
-std::ostream& operator<<(std::ostream& os, const Seconda& l)
+ostream& operator<<(ostream& os, const Seconda& l)
 {
-   // per simulare ricorsione in U_OBJECT_TO_TRACE()
-
    U_TRACE(5+256, "Seconda::operator<<()")
 
    Prima a1;
 
-// U_INTERNAL_DUMP("a1=%O", U_OBJECT_TO_TRACE(a1))
-   U_INTERNAL_DUMP("a1=%O", 0)
+   U_DUMP_OBJECT(a1) // per simulare ricorsione in U_OBJECT_TO_TRACE()
 
    os << l.b;
 
@@ -99,13 +99,14 @@ int U_EXPORT main(int argc, char** argv)
    U_SET_LOCATION_INFO;
    Seconda b, b1;
 
-   U_INTERNAL_DUMP("Prima=%O",            U_OBJECT_TO_TRACE(a))
-   U_INTERNAL_DUMP("Seconda=%O",                                  U_OBJECT_TO_TRACE(b))
-   U_INTERNAL_DUMP("Prima=%O Seconda=%O", U_OBJECT_TO_TRACE(a),   U_OBJECT_TO_TRACE(b))
+   U_DUMP_OBJECT(a)
+   U_DUMP_OBJECT(b)
+
+   U_INTERNAL_DUMP("Prima = %O Seconda = %O", U_OBJECT_TO_TRACE(a), U_OBJECT_TO_TRACE(b))
 
    U_SET_LOCATION_INFO;
 
-   char* a_str = UObject2String(a);
+   const char* a_str = UObject2String(a);
 
    U_SET_LOCATION_INFO;
 
@@ -115,7 +116,7 @@ int U_EXPORT main(int argc, char** argv)
 
    if (!(a == a1)) U_ERROR("Error on UString2Object()...", 0);
 
-   char* b_str = UObject2String(b);
+   const char* b_str = UObject2String(b);
 
    if (memcmp(b_str, U_CONSTANT_TO_PARAM("io_sono_la_classe_Seconda"))) U_ERROR("Error on UObject2String()...", 0);
 

@@ -40,7 +40,7 @@ public:
 
    static UString getNodeName()
       {
-      U_TRACE(0, "USocketExt::getNodeName()")
+      U_TRACE_NO_PARAM(0, "USocketExt::getNodeName()")
 
       U_INTERNAL_ASSERT_MAJOR(u_hostname_len, 0)
 
@@ -51,7 +51,17 @@ public:
       U_RETURN_STRING(result);
       }
 
-   static void setRemoteInfo(USocket* sk, UString& logbuf);
+   static void setRemoteInfo(USocket* sk, UString& logbuf)
+      {
+      U_TRACE(0, "USocketExt::setRemoteInfo(%p,%V)", sk, logbuf.rep)
+
+      UString x(100U);
+
+      x.snprintf(U_CONSTANT_TO_PARAM("%2d '%s:%u'"), sk->iSockDesc, sk->cRemoteAddress.pcStrAddress, sk->iRemotePort);
+
+      (void) logbuf.insert(0, x);
+      }
+
    static bool getARPCache(UString& cache, UVector<UString>& vec);
 
    static UString getNetworkDevice(const char* exclude); // eth0
@@ -69,16 +79,16 @@ public:
 
    // Send a command to a server and wait for a response (single line)
 
-   static int vsyncCommand(USocket* sk, const char* format, va_list argp)
+   static int vsyncCommand(USocket* sk, const char* format, uint32_t fmt_size, va_list argp)
       {
-      U_TRACE(0, "USocketExt::vsyncCommand(%p,%S)", sk, format)
+      U_TRACE(0, "USocketExt::vsyncCommand(%p,%.*S,%u)", sk, fmt_size, format, fmt_size)
 
       U_INTERNAL_ASSERT_EQUALS(u_buffer_len, 0)
 
-      return vsyncCommand(sk, u_buffer, U_BUFFER_SIZE, format, argp);
+      return vsyncCommand(sk, u_buffer, U_BUFFER_SIZE, format, fmt_size, argp);
       }
 
-   static int vsyncCommand(USocket* sk, char* buffer, uint32_t buffer_size, const char* format, va_list argp);
+   static int vsyncCommand(USocket* sk, char* buffer, uint32_t buffer_size, const char* format, uint32_t fmt_size, va_list argp);
 
    // response from server (single line)
 
@@ -104,16 +114,16 @@ public:
 
    // Send a command to a server and wait for a response (multi line)
 
-   static int vsyncCommandML(USocket* sk, const char* format, va_list argp)
+   static int vsyncCommandML(USocket* sk, const char* format, uint32_t fmt_size, va_list argp)
       {
-      U_TRACE(0, "USocketExt::vsyncCommandML(%p,%S)", sk, format)
+      U_TRACE(0, "USocketExt::vsyncCommandML(%p,%.*S,%u)", sk, fmt_size, format, fmt_size)
 
       U_INTERNAL_ASSERT_EQUALS(u_buffer_len, 0)
 
-      return vsyncCommandML(sk, u_buffer, U_BUFFER_SIZE, format, argp);
+      return vsyncCommandML(sk, u_buffer, U_BUFFER_SIZE, format, fmt_size, argp);
       }
 
-   static int vsyncCommandML(USocket* sk, char* buffer, uint32_t buffer_size, const char* format, va_list argp);
+   static int vsyncCommandML(USocket* sk, char* buffer, uint32_t buffer_size, const char* format, uint32_t fmt_size, va_list argp);
 
    // response from server (multi line)
 
@@ -130,13 +140,12 @@ public:
 
    // Send a command to a server and wait for a response (check for token line)
 
-   static int vsyncCommandToken(USocket* sk, UString& buffer, const char* format, va_list argp);
-   // -----------------------------------------------------------------------------------------------------------------------------
+   static int vsyncCommandToken(USocket* sk, UString& buffer, const char* format, uint32_t fmt_size, va_list argp);
 
 #ifdef USE_C_ARES
    static char* endResolv()
       {
-      U_TRACE(0, "USocketExt::endResolv()")
+      U_TRACE_NO_PARAM(0, "USocketExt::endResolv()")
 
       U_INTERNAL_ASSERT_POINTER(resolv_channel)
 
@@ -165,9 +174,7 @@ private:
     * @param time_limit specified the maximum execution time, in seconds. If set to zero, no time limit is imposed
     */
 
-   // read while not received almost count data
-
-   static bool read(USocket* sk, UString& buffer, uint32_t count = U_SINGLE_READ, int timeoutMS = -1, uint32_t time_limit = 0);
+   static bool read(USocket* sk, UString& buffer, uint32_t count = U_SINGLE_READ, int timeoutMS = -1, uint32_t time_limit = 0); // read while not received almost count data
 
    // read while received data
 

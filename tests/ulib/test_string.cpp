@@ -3,16 +3,20 @@
 #include <ulib/file.h>
 #include <ulib/debug/crono.h>
 #include <ulib/utility/escape.h>
+#include <ulib/utility/services.h>
 #include <ulib/utility/string_ext.h>
+#include <ulib/utility/xml_escape.h>
 
 #ifdef __MINGW32__
-#define _GLIBCXX_USE_C99_DYNAMIC 1
+#  define _GLIBCXX_USE_C99_DYNAMIC 1
 #endif
 
+#ifdef U_STDCPP_ENABLE
 #undef min
 using std::min;
 #include <fstream>
 #include <iomanip>
+#endif
 
 #define TEST_MEMMOVE
 #define TEST_ASSIGN
@@ -42,60 +46,58 @@ static void test_memmove_01()
    const char str_lit1[] = "montara and ocean beach";
    char array2[sizeof(str_lit1) + sizeof(array1) - 1] = { '\0', '\0' };
 
-   U_ASSERT( str_lit1[0] == 'm' );
+   U_ASSERT( str_lit1[0] == 'm' )
 
    char c1 = array2[0];
    char c2 = str_lit1[0];
    char c3 = array2[1];
    char c4 = str_lit1[1];
 
-// memmove(array2, str_lit1, 0);
+   U_ASSERT( array2[0] == c1 )
+   U_ASSERT( str_lit1[0] == c2 )
 
-   U_ASSERT( array2[0] == c1 );
-   U_ASSERT( str_lit1[0] == c2 );
+   apex_memmove(array2, str_lit1, 1);
 
-   memmove(array2, str_lit1, 1);
+   U_ASSERT( array2[0] == c2 )
+   U_ASSERT( str_lit1[0] == c2 )
+   U_ASSERT( array2[1] == c3 )
+   U_ASSERT( str_lit1[1] == c4 )
 
-   U_ASSERT( array2[0] == c2 );
-   U_ASSERT( str_lit1[0] == c2 );
-   U_ASSERT( array2[1] == c3 );
-   U_ASSERT( str_lit1[1] == c4 );
+   apex_memmove(array2, str_lit1, 2);
 
-   memmove(array2, str_lit1, 2);
-
-   U_ASSERT( array2[0] == c2 );
-   U_ASSERT( str_lit1[0] == c2 );
-   U_ASSERT( array2[1] == c4 );
-   U_ASSERT( str_lit1[1] == c4 );
+   U_ASSERT( array2[0] == c2 )
+   U_ASSERT( str_lit1[0] == c2 )
+   U_ASSERT( array2[1] == c4 )
+   U_ASSERT( str_lit1[1] == c4 )
 
    char* pc1 = array1 + 1;
    c1 = pc1[0];
    c2 = array1[0];
-   U_ASSERT( c1 != c2 );
+   U_ASSERT( c1 != c2 )
 
-   char* pc2 = (char*)memmove(array1, pc1, 0);
+   char* pc2 = (char*)apex_memmove(array1, pc1, 0);
 
    c3 = pc1[0];
    c4 = array1[0];
-   U_ASSERT( c1 == c3 );
-   U_ASSERT( c2 == c4 );
-   U_ASSERT( pc2 == array1 );
+   U_ASSERT( c1 == c3 )
+   U_ASSERT( c2 == c4 )
+   U_ASSERT( pc2 == array1 )
 
    c1 = pc1[0];
    c2 = array1[0];
    char* pc3 = pc1;
 
-   pc2 = (char*)memmove(array1, pc1, 10);
+   pc2 = (char*)apex_memmove(array1, pc1, 10);
 
    c3 = pc1[0];
    c4 = array1[0];
-   U_ASSERT( c1 != c3 ); // underlying char array changed.
-   U_ASSERT( c4 != c3 );
-   U_ASSERT( pc2 == array1 );
-   U_ASSERT( pc3 == pc1 ); // but pointers o-tay
+   U_ASSERT( c1 != c3 ) // underlying char array changed.
+   U_ASSERT( c4 != c3 )
+   U_ASSERT( pc2 == array1 )
+   U_ASSERT( pc3 == pc1 ) // but pointers o-tay
    c1 = *(str_01.data());
    c2 = array1[0];
-   U_ASSERT( c1 != c2 );
+   U_ASSERT( c1 != c2 )
 }
 #endif
 
@@ -118,14 +120,14 @@ static void test_assign_01()
    // UString& append(const UString&)
    str05 = str02;
    str05.append(str05);
-   U_ASSERT( str05 == "corpus, corpus, " );
+   U_ASSERT( str05 == "corpus, corpus, " )
    str05.append(str01);
-   U_ASSERT( str05 == "corpus, corpus, point bolivar, texas" );
+   U_ASSERT( str05 == "corpus, corpus, point bolivar, texas" )
    str05.append(str03);
-   U_ASSERT( str05 == "corpus, corpus, point bolivar, texas" );
+   U_ASSERT( str05 == "corpus, corpus, point bolivar, texas" )
    UString str06;
    str06.append(str05);
-   U_ASSERT( str06 == str05 );
+   U_ASSERT( str06 == str05 )
 
    // UString& append(const UString&, unsigned pos, unsigned n)
    str05.erase();
@@ -134,67 +136,67 @@ static void test_assign_01()
    str05 = str02;
    str05.append(str01, 0, npos);
    U_ASSERT( str05 == "corpus, point bolivar, texas" );
-   U_ASSERT( str05 != str02 );
+   U_ASSERT( str05 != str02 )
 
    str06 = str02;
    str06.append(str01, 15, npos);
-   U_ASSERT( str06 == "corpus, texas" );
-   U_ASSERT( str02 != str06 );
+   U_ASSERT( str06 == "corpus, texas" )
+   U_ASSERT( str02 != str06 )
 
    // UString& append(const char* s)
    str05.erase();
    str06.erase();
    str05.append("");
-   U_ASSERT( str05 == str03 );
+   U_ASSERT( str05 == str03 )
 
    str05.append(str_lit01);
-   U_ASSERT( str05 == str01 );
+   U_ASSERT( str05 == str01 )
 
    str06 = str02;
    str06.append("corpus, ");
-   U_ASSERT( str06 == "corpus, corpus, " );
+   U_ASSERT( str06 == "corpus, corpus, " )
 
    // UString& append(const char* s, unsigned n)
    str05.erase();
    str06.erase();
    str05.append("", 0);
-   U_ASSERT( str05.size() == 0 );
-   U_ASSERT( str05 == str03 );
+   U_ASSERT( str05.size() == 0 )
+   U_ASSERT( str05 == str03 )
 
    str05.append(str_lit01, sizeof(str_lit01) - 1);
-   U_ASSERT( str05 == str01 );
+   U_ASSERT( str05 == str01 )
 
    str06 = str02;
    str06.append("corpus, ", 6);
-   U_ASSERT( str06 == "corpus, corpus" );
+   U_ASSERT( str06 == "corpus, corpus" )
 
    str06 = str02;
    str06.append(U_CONSTANT_TO_PARAM("corpus, "));
-   U_ASSERT( str06 == "corpus, corpus, " );
+   U_ASSERT( str06 == "corpus, corpus, " )
 
    // UString& append(unsigned n, char c)
    str05.erase();
    str06.erase();
    str05.append(0, 'a');
-   U_ASSERT( str05 == str03 );
+   U_ASSERT( str05 == str03 )
    str06.append(8, '.');
-   U_ASSERT( str06 == "........" );
+   U_ASSERT( str06 == "........" )
 
    str05.erase();
    str06.erase();
    str05.append(str03);
-   U_ASSERT( str05 == str03 );
+   U_ASSERT( str05 == str03 )
 
    str06 = str02;
    str06.append(str01.data(), str01.find('r')); 
-   U_ASSERT( str06 == "corpus, point boliva" );
-   U_ASSERT( str06 != str01 );
-   U_ASSERT( str06 != str02 );
+   U_ASSERT( str06 == "corpus, point boliva" )
+   U_ASSERT( str06 != str01 )
+   U_ASSERT( str06 != str02 )
 
    str05 = str01;
    str05.append(str05.data(), str05.find('r')); 
-   U_ASSERT( str05 ==  "point bolivar, texaspoint boliva" );
-   U_ASSERT( str05 != str01 );
+   U_ASSERT( str05 ==  "point bolivar, texaspoint boliva" )
+   U_ASSERT( str05 != str01 )
 }
 #endif
 
@@ -210,27 +212,27 @@ static void test_capacity_01()
    unsigned sz01 = str01.capacity();
    str01.reserve(100);
    unsigned sz02 = str01.capacity();
-   U_ASSERT( sz02 >= sz01 );
-   U_ASSERT( sz02 >= 100 );
+   U_ASSERT( sz02 >= sz01 )
+   U_ASSERT( sz02 >= 100 )
    str01.reserve(1);
    sz01 = str01.capacity();
-   U_ASSERT( sz01 > 0 );
+   U_ASSERT( sz01 > 0 )
 
    sz01 = str01.size() + 5;
    str01.resize(sz01);
    sz02 = str01.size();
-   U_ASSERT( sz01 == sz02 );
+   U_ASSERT( sz01 == sz02 )
 
    sz01 = str01.size() - 5;
    str01.resize(sz01);
    sz02 = str01.size();
-   U_ASSERT( sz01 == sz02 );
+   U_ASSERT( sz01 == sz02 )
 
    UString str05(30, 'q');
    UString str06 = str05;
    str05 = str06 + str05;
-   U_ASSERT( str05.capacity() >= str05.size() );
-   U_ASSERT( str06.capacity() >= str06.size() );
+   U_ASSERT( str05.capacity() >= str05.size() )
+   U_ASSERT( str06.capacity() >= str06.size() )
 
    UString str02;
    unsigned sz03;
@@ -239,52 +241,54 @@ static void test_capacity_01()
    sz03 = str02.capacity();
    str02.reserve(100);
    sz04 = str02.capacity();
-   U_ASSERT( sz04 >= sz03 );
-   U_ASSERT( sz04 >= 100 );
+   U_ASSERT( sz04 >= sz03 )
+   U_ASSERT( sz04 >= 100 )
    str02.reserve(1);
    sz03 = str02.capacity();
-   U_ASSERT( sz03 > 0 );
+   U_ASSERT( sz03 > 0 )
 
    sz03 = str02.size() + 5;
    str02.resize(sz03);
    sz04 = str02.size();
-   U_ASSERT( sz03 == sz04 );
+   U_ASSERT( sz03 == sz04 )
 
    sz03 = str02.size() - 5;
    str02.resize(sz03);
    sz04 = str02.size();
-   U_ASSERT( sz03 == sz04 );
+   U_ASSERT( sz03 == sz04 )
 
    char inst_obj = '\0';
    UString str07(30, inst_obj);
    UString str08 = str07;
    str07 = str08 + str07;
-   U_ASSERT( str07.capacity() >= str07.size() );
-   U_ASSERT( str08.capacity() >= str08.size() );
+   U_ASSERT( str07.capacity() >= str07.size() )
+   U_ASSERT( str08.capacity() >= str08.size() )
 
    // 3 POD types: size, length, max_size, clear(), empty()
    bool b01;
    UString str011;
    b01 = str01.empty();  
-   U_ASSERT( b01 == true );
+   U_ASSERT( b01 )
    sz01 = str01.size();
    sz02 = str01.length();
-   U_ASSERT( sz01 == sz02 );
+   U_ASSERT( sz01 == sz02 )
    str01.c_str();
    sz01 = str01.size();
    sz02 = str01.length();
-   U_ASSERT( sz01 == sz02 );
+   U_ASSERT( sz01 == sz02 )
 
    sz01 = str01.length();
    str01.c_str();
+
+   U_INTERNAL_DUMP("_LINE_ = %u __PRETTY_FUNCTION__ = %S", __LINE__, __PRETTY_FUNCTION__)
+
    str011 = str01 +  "_addendum_";
    str01.c_str();
    sz02 = str01.length();    
-   U_ASSERT( sz01 == sz02 );
+   U_ASSERT( sz01 == sz02 )
    sz02 = str011.length();
-   U_ASSERT( sz02 > sz01 );
+   U_ASSERT( sz02 > sz01 )
 
-   // trickster allocator (__USE_MALLOC, luke) issues involved with these:
    UString str3 = U_STRING_FROM_CONSTANT("8-chars_8-chars_");
    (void) str3.c_str();
    UString str4 = str3 + U_STRING_FROM_CONSTANT("7-chars");
@@ -292,34 +296,34 @@ static void test_capacity_01()
 
    sz01 = str01.size();
    sz02 = str01.max_size();  
-   U_ASSERT( sz02 >= sz01 );
+   U_ASSERT( sz02 >= sz01 )
 
    sz01 = str01.size();
    str01.clear();  
    b01 = str01.empty(); 
-   U_ASSERT( b01 == true );
+   U_ASSERT( b01 )
    sz02 = str01.size();  
-   U_ASSERT( sz01 >= sz02 );
+   U_ASSERT( sz01 >= sz02 )
 
    b01 = str02.empty();  
-   U_ASSERT( b01 == true );
+   U_ASSERT( b01 )
    sz03 = str02.size();
    sz04 = str02.length();
-   U_ASSERT( sz03 == sz04 );
+   U_ASSERT( sz03 == sz04 )
    str02.c_str();
    sz03 = str02.size();
    sz04 = str02.length();
-   U_ASSERT( sz03 == sz04 );
+   U_ASSERT( sz03 == sz04 )
 
    sz03 = str02.max_size();  
-   U_ASSERT( sz03 >= sz04 );
+   U_ASSERT( sz03 >= sz04 )
 
    sz03 = str02.size();
    str02.clear();  
    b01 = str02.empty(); 
-   U_ASSERT( b01 == true );
+   U_ASSERT( b01 )
    sz04 = str02.size();  
-   U_ASSERT( sz03 >= sz04 );
+   U_ASSERT( sz03 >= sz04 )
 }
 
 static void test_capacity_02()
@@ -330,7 +334,7 @@ static void test_capacity_02()
    // str01 becomes shared
    UString str02 = str01;
    str01.reserve(1);
-   U_ASSERT( str01.capacity() >= 12 );
+   U_ASSERT( str01.capacity() >= 12 )
 }
 #endif
 
@@ -357,7 +361,7 @@ static void test_value(int result, want_value expected)
       default: pass = false; // should not get here
       }
 
-   U_ASSERT( pass == true )
+   U_ASSERT( pass )
 }
  
 static void test_compare_01()
@@ -431,30 +435,30 @@ static void test_constructors_01()
    // UString(const UString&, unsigned pos = 0, unsigned n = npos)
    csz01 = str01.size();
    UString str03(str01, csz01);
-   U_ASSERT( str03.size() == 0 );
-   U_ASSERT( str03.size() <= str03.capacity() );
+   U_ASSERT( str03.size() == 0 )
+   U_ASSERT( str03.size() <= str03.capacity() )
 
    // UString(const char* s)
    UString str04(str_lit01);
-   U_ASSERT( str01 == str04 );
+   U_ASSERT( str01 == str04 )
 
    // UString(unsigned n, char c)
    csz01 = str01.max_size() / 1024;
 
    UString str05(csz01 - 1, 'z');
-   U_ASSERT( str05.size() != 0 );
-   U_ASSERT( str05.size() <= str05.capacity() );
+   U_ASSERT( str05.size() != 0 )
+   U_ASSERT( str05.size() <= str05.capacity() )
 
    UString str06(str01.data(), str01.size());
-   U_ASSERT( str06 == str01 );
+   U_ASSERT( str06 == str01 )
 }
 
 static void test_constructors_02()
 {
    U_TRACE(5, "test_constructors_02()")
 
-   UString s(10,0);
-   U_ASSERT( s.size() == 10 );
+   UString s(10U,(unsigned char)'\0');
+   U_ASSERT( s.size() == 10 )
 }
 
 static void test_constructors_03()
@@ -467,9 +471,9 @@ static void test_constructors_03()
    // bytes.  Obviously UString(char*) will halt at the first one, but
    // nothing else should.
    UString s1 (with_nulls, 28);
-   U_ASSERT( s1.size() == 28 );
+   U_ASSERT( s1.size() == 28 )
    UString s2 (s1);
-   U_ASSERT( s2.size() == 28 );
+   U_ASSERT( s2.size() == 28 )
 }
 #endif
 
@@ -485,22 +489,22 @@ static void test_access_01()
    // char operator[] (unsigned pos) const;
    csz01 = str01.size();
    char ref1 = str01[csz01 - 1];
-   U_ASSERT( ref1 == 'a' );
+   U_ASSERT( ref1 == 'a' )
    ref1 = str01[csz01 - 2];
-   U_ASSERT( ref1 == 'c' );
+   U_ASSERT( ref1 == 'c' )
 
    csz02 = str02.size();
    char ref2 = str02[csz02 - 1];
-   U_ASSERT( ref2 == 'a' );
+   U_ASSERT( ref2 == 'a' )
    ref2 = str02[1];
-   U_ASSERT( ref2 == '4' );
+   U_ASSERT( ref2 == '4' )
 
    // char at(unsigned pos) const;
    ref1 = str01.at(csz01 - 1);
-   U_ASSERT( ref1 == 'a' );
+   U_ASSERT( ref1 == 'a' )
 
    ref2 = str02.at(csz02 - 1);
-   U_ASSERT( ref2 == 'a' );
+   U_ASSERT( ref2 == 'a' )
 }
 #endif
 
@@ -519,73 +523,72 @@ static void test_find_01()
 
    // unsigned find(const UString&, unsigned pos = 0) const;
    csz01 = str01.find(str01);
-   U_ASSERT( csz01 == 0 );
+   U_ASSERT( csz01 == 0 )
    csz01 = str01.find(str01, 4);
-   U_ASSERT( csz01 == npos );
+   U_ASSERT( csz01 == npos )
    csz01 = str01.find(str02, 0);
-   U_ASSERT( csz01 == 0 );
+   U_ASSERT( csz01 == 0 )
    csz01 = str01.find(str02, 3);
-   U_ASSERT( csz01 == npos );
+   U_ASSERT( csz01 == npos )
    csz01 = str01.find(str03, 0);
-   U_ASSERT( csz01 == 8 );
+   U_ASSERT( csz01 == 8 )
    csz01 = str01.find(str03, 3);
-   U_ASSERT( csz01 == 8 );
+   U_ASSERT( csz01 == 8 )
    csz01 = str01.find(str03, 12);
-   U_ASSERT( csz01 == npos );
+   U_ASSERT( csz01 == npos )
 
    // An empty UString consists of no characters
    // therefore it should be found at every point in a UString,
    // except beyond the end
    /*
    csz01 = str01.find(str04, 0);
-   U_ASSERT( csz01 == 0 );
+   U_ASSERT( csz01 == 0 )
    csz01 = str01.find(str04, 5);
-   U_ASSERT( csz01 == 5 );
+   U_ASSERT( csz01 == 5 )
    csz01 = str01.find(str04, str01.size());
-   U_ASSERT( csz01 == str01.size() ); 
+   U_ASSERT( csz01 == str01.size() );
    csz01 = str01.find(str04, str01.size()+1);
-   U_ASSERT( csz01 == npos ); 
+   U_ASSERT( csz01 == npos )
    */
 
    // unsigned find(const char* s, unsigned pos, unsigned n) const;
    csz01 = str01.find(str_lit01, 0, 3);
-   U_ASSERT( csz01 == 0 );
+   U_ASSERT( csz01 == 0 )
 // csz01 = str01.find(str_lit01.c_str(), 3, 0);
-// U_ASSERT( csz01 == 3 );
+// U_ASSERT( csz01 == 3 )
 
-   // unsigned find(const char* s, unsigned pos = 0) const;
-   csz01 = str01.find(str_lit01);
-   U_ASSERT( csz01 == 0 );
-   csz01 = str01.find(str_lit01, 3);
-   U_ASSERT( csz01 == npos );
+   csz01 = str01.find(str_lit01, 0, strlen(str_lit01));
+   U_ASSERT( csz01 == 0 )
+   csz01 = str01.find(str_lit01, 3, strlen(str_lit01));
+   U_ASSERT( csz01 == npos )
 
    // unsigned find(char c, unsigned pos = 0) const;
    csz01 = str01.find('z');
    csz02 = str01.size() - 1;
-   U_ASSERT( csz01 == csz02 );
+   U_ASSERT( csz01 == csz02 )
    csz01 = str01.find('/');
    U_ASSERT( csz01 == npos );
 
    // unsigned find_first_of(const UString&, unsigned pos = 0) const;
    UString str05("xena rulez");
    csz01 = str01.find_first_of(str01);
-   U_ASSERT( csz01 == 0 );
+   U_ASSERT( csz01 == 0 )
    csz01 = str01.find_first_of(str01, 4);
-   U_ASSERT( csz01 == 4 );
+   U_ASSERT( csz01 == 4 )
    csz01 = str01.find_first_of(str02, 0);
-   U_ASSERT( csz01 == 0 );
+   U_ASSERT( csz01 == 0 )
    csz01 = str01.find_first_of(str02, 3);
-   U_ASSERT( csz01 == 3 );
+   U_ASSERT( csz01 == 3 )
    csz01 = str01.find_first_of(str03, 0);
-   U_ASSERT( csz01 == 8 );
+   U_ASSERT( csz01 == 8 )
    csz01 = str01.find_first_of(str03, 3);
-   U_ASSERT( csz01 == 8 );
+   U_ASSERT( csz01 == 8 )
    csz01 = str01.find_first_of(str03, 12);
-   U_ASSERT( csz01 == 16 );
+   U_ASSERT( csz01 == 16 )
    csz01 = str01.find_first_of(str05, 0);
-   U_ASSERT( csz01 == 1 );
+   U_ASSERT( csz01 == 1 )
    csz01 = str01.find_first_of(str05, 4);
-   U_ASSERT( csz01 == 4 );
+   U_ASSERT( csz01 == 4 )
 
    // An empty UString consists of no characters
    // therefore it should be found at every point in a UString,
@@ -594,27 +597,26 @@ static void test_find_01()
    // str1 (starting at pos) that exists in str2, which is none for empty str2
    /*
    csz01 = str01.find_first_of(str04, 0);
-   U_ASSERT( csz01 == npos );
+   U_ASSERT( csz01 == npos )
    csz01 = str01.find_first_of(str04, 5);
-   U_ASSERT( csz01 == npos );
+   U_ASSERT( csz01 == npos )
    */
 
    // unsigned find_first_of(const char* s, unsigned pos, unsigned n) const;
    csz01 = str01.find_first_of(str_lit01, 0, 3);
-   U_ASSERT( csz01 == 0 );
+   U_ASSERT( csz01 == 0 )
    csz01 = str01.find_first_of(str_lit01, 3, 0);
-   U_ASSERT( csz01 == npos );
+   U_ASSERT( csz01 == npos )
 
-   // unsigned find_first_of(const char* s, unsigned pos = 0) const;
-   csz01 = str01.find_first_of(str_lit01);
-   U_ASSERT( csz01 == 0 );
-   csz01 = str01.find_first_of(str_lit01, 3);
-   U_ASSERT( csz01 == 3 );
+   csz01 = str01.find_first_of(str_lit01, 0, strlen(str_lit01));
+   U_ASSERT( csz01 == 0 )
+   csz01 = str01.find_first_of(str_lit01, 3, strlen(str_lit01));
+   U_ASSERT( csz01 == 3 )
 
    // unsigned find_first_of(char c, unsigned pos = 0) const;
    csz01 = str01.find_first_of('z');
    csz02 = str01.size() - 1;
-   U_ASSERT( csz01 == csz02 );
+   U_ASSERT( csz01 == csz02 )
 
    // unsigned find_last_of(const UString& str, unsigned pos = 0) const;
    // unsigned find_last_of(const char* s, unsigned pos, unsigned n) const;
@@ -624,45 +626,45 @@ static void test_find_01()
    unsigned pos;
    UString x("X");
    pos = x.find_last_not_of('X');
-   U_ASSERT( pos == npos );
-   pos = x.find_last_not_of("XYZ");
-   U_ASSERT( pos == npos );
+   U_ASSERT( pos == npos )
+   pos = x.find_last_not_of("XYZ", 0, 3);
+   U_ASSERT( pos == npos )
 
    UString y("a");
    pos = y.find_last_not_of('X');
-   U_ASSERT( pos == 0 );
+   U_ASSERT( pos == 0 )
    pos = y.find_last_not_of('a');
-   U_ASSERT( pos == npos );
-   pos = y.find_last_not_of("XYZ");
-   U_ASSERT( pos == 0 );
-   pos = y.find_last_not_of("a");
-   U_ASSERT( pos == npos );
+   U_ASSERT( pos == npos )
+   pos = y.find_last_not_of("XYZ", 0, 3);
+   U_ASSERT( pos == 0 )
+   pos = y.find_last_not_of("a", 0, 1);
+   U_ASSERT( pos == npos )
 
    UString z("ab");
    pos = z.find_last_not_of('X');
-   U_ASSERT( pos == 1 );
-   pos = z.find_last_not_of("XYZ");
-   U_ASSERT( pos == 1 );
+   U_ASSERT( pos == 1 )
+   pos = z.find_last_not_of("XYZ", U_NOT_FOUND, 3);
+   U_ASSERT( pos == 1 )
    pos = z.find_last_not_of('b');
-   U_ASSERT( pos == 0 );
-   pos = z.find_last_not_of("Xb");
-   U_ASSERT( pos == 0 );
-   pos = z.find_last_not_of("Xa");
-   U_ASSERT( pos == 1 );
-   pos = z.find_last_of("ab");
-   U_ASSERT( pos == 1 );
-   pos = z.find_last_of("Xa");
-   U_ASSERT( pos == 0 );
-   pos = z.find_last_of("Xb");
-   U_ASSERT( pos == 1 );
-   pos = z.find_last_of("XYZ");
+   U_ASSERT( pos == 0 )
+   pos = z.find_last_not_of("Xb", U_NOT_FOUND, 2);
+   U_ASSERT( pos == 0 )
+   pos = z.find_last_not_of("Xa", U_NOT_FOUND, 2);
+   U_ASSERT( pos == 1 )
+   pos = z.find_last_of("ab", U_NOT_FOUND, 2);
+   U_ASSERT( pos == 1 )
+   pos = z.find_last_of("Xa", U_NOT_FOUND, 2);
+   U_ASSERT( pos == 0 )
+   pos = z.find_last_of("Xb", U_NOT_FOUND, 2);
+   U_ASSERT( pos == 1 )
+   pos = z.find_last_of("XYZ", U_NOT_FOUND, 3);
    U_ASSERT( pos == npos );
    pos = z.find_last_of('a');
-   U_ASSERT( pos == 0 );
+   U_ASSERT( pos == 0 )
    pos = z.find_last_of('b');
-   U_ASSERT( pos == 1 );
+   U_ASSERT( pos == 1 )
    pos = z.find_last_of('X');
-   U_ASSERT( pos == npos );
+   U_ASSERT( pos == npos )
 }
 
 // UString rfind
@@ -679,50 +681,49 @@ static void test_rfind_01()
 
    // unsigned rfind(const UString&, unsigned pos = 0) const;
    csz01 = str01.rfind(str01);
-   U_ASSERT( csz01 == 0 );
+   U_ASSERT( csz01 == 0 )
    csz01 = str01.rfind(str01, 4);
-   U_ASSERT( csz01 == 0 );
+   U_ASSERT( csz01 == 0 )
    csz01 = str01.rfind(str02,3);
-   U_ASSERT( csz01 == 0 );
+   U_ASSERT( csz01 == 0 )
    csz01 = str01.rfind(str02);
-   U_ASSERT( csz01 == 0 );
+   U_ASSERT( csz01 == 0 )
    csz01 = str01.rfind(str03);
-   U_ASSERT( csz01 == 8 );
+   U_ASSERT( csz01 == 8 )
    csz01 = str01.rfind(str03, 3);
-   U_ASSERT( csz01 == npos );
+   U_ASSERT( csz01 == npos )
    csz01 = str01.rfind(str03, 12);
-   U_ASSERT( csz01 == 8 );
+   U_ASSERT( csz01 == 8 )
 
    // An empty UString consists of no characters
    // therefore it should be found at every point in a UString,
    // except beyond the end
    csz01 = str01.rfind(str04, 0);
-   U_ASSERT( csz01 == 0 );
+   U_ASSERT( csz01 == 0 )
    csz01 = str01.rfind(str04, 5);
-   U_ASSERT( csz01 == 5 );
+   U_ASSERT( csz01 == 5 )
    csz01 = str01.rfind(str04, str01.size());
-   U_ASSERT( csz01 == str01.size() );
+   U_ASSERT( csz01 == str01.size() )
    csz01 = str01.rfind(str04, str01.size()+1);
-   U_ASSERT( csz01 == str01.size() );
+   U_ASSERT( csz01 == str01.size() )
 
    // unsigned rfind(const char* s, unsigned pos, unsigned n) const;
    csz01 = str01.rfind(str_lit01, 0, 3);
-   U_ASSERT( csz01 == 0 );
+   U_ASSERT( csz01 == 0 )
    csz01 = str01.rfind(str_lit01, 3, 0);
-   U_ASSERT( csz01 == 3 );
+   U_ASSERT( csz01 == 3 )
 
-   // unsigned rfind(const char* s, unsigned pos = 0) const;
-   csz01 = str01.rfind(str_lit01);
-   U_ASSERT( csz01 == 0 );
-   csz01 = str01.rfind(str_lit01, 3);
-   U_ASSERT( csz01 == 0 );
+   csz01 = str01.rfind(str_lit01, 0, strlen(str_lit01));
+   U_ASSERT( csz01 == 0 )
+   csz01 = str01.rfind(str_lit01, 3, strlen(str_lit01));
+   U_ASSERT( csz01 == 0 )
 
    // unsigned rfind(char c, unsigned pos = 0) const;
    csz01 = str01.rfind('z');
    csz02 = str01.size() - 1;
-   U_ASSERT( csz01 == csz02 );
+   U_ASSERT( csz01 == csz02 )
    csz01 = str01.rfind('/');
-   U_ASSERT( csz01 == npos );
+   U_ASSERT( csz01 == npos )
 }
 #endif
 
@@ -754,19 +755,19 @@ static void test_insert_01()
    csz02 = str02.size();
 
    str03.insert(13, str02, 0, 12); 
-   U_ASSERT( str03 == "rodeo beach, baker beach,marin" );
+   U_ASSERT( str03 == "rodeo beach, baker beach,marin" )
 
    str03 = str01; 
    csz01 = str03.size();
    csz02 = str02.size();
-   str03.insert(0, str02, 0, 12); 
-   U_ASSERT( str03 == "baker beach,rodeo beach, marin" );
+   str03.insert(0, str02, 0, 12);
+   U_ASSERT( str03 == "baker beach,rodeo beach, marin" )
 
    str03 = str01;
    csz01 = str03.size();
    csz02 = str02.size();
    str03.insert(csz01, str02, 0, csz02); 
-   U_ASSERT( str03 == "rodeo beach, marinbaker beach, san francisco" );
+   U_ASSERT( str03 == "rodeo beach, marinbaker beach, san francisco" )
 
    // UString& insert(unsigned p, const UString& str);
    // insert(p1, str, 0, npos)
@@ -774,53 +775,53 @@ static void test_insert_01()
    csz01 = str03.size();
    csz02 = str02.size();
    str03.insert(csz01, str02); 
-   U_ASSERT( str03 == "rodeo beach, marinbaker beach, san francisco" );
+   U_ASSERT( str03 == "rodeo beach, marinbaker beach, san francisco" )
 
    str03 = str01;
    csz01 = str03.size();
    csz02 = str02.size();
    str03.insert(0, str02); 
-   U_ASSERT( str03 == "baker beach, san franciscorodeo beach, marin" );
+   U_ASSERT( str03 == "baker beach, san franciscorodeo beach, marin" )
 
    // UString& insert(unsigned p, const char* s, unsigned n);
    // insert(p1, UString(s,n))
    str03 = str02;
    csz01 = str03.size();
    str03.insert(0, "-break at the bridge", 20); 
-   U_ASSERT( str03 == "-break at the bridgebaker beach, san francisco" );
+   U_ASSERT( str03 == "-break at the bridgebaker beach, san francisco" )
 
    // UString& insert(unsigned p, const char* s);
    // insert(p1, UString(s))
    str03 = str02;
    str03.insert(0, "-break at the bridge"); 
-   U_ASSERT( str03 == "-break at the bridgebaker beach, san francisco" );
+   U_ASSERT( str03 == "-break at the bridgebaker beach, san francisco" )
 
    // UString& insert(unsigned p, unsigned n, char c)
    // insert(p1, UString(n,c))
    str03 = str02;
    csz01 = str03.size();
    str03.insert(csz01, 5, 'z');
-   U_ASSERT( str03 == "baker beach, san franciscozzzzz" );
+   U_ASSERT( str03 == "baker beach, san franciscozzzzz" )
 
    // iterator insert(unsigned p, unsigned n, char c)
    // inserts n copies of c before the character referred to by p
    str03 = str02; 
    str03.insert(0, 1, 'u'); 
-   U_ASSERT( str03 == "ubaker beach, san francisco" );
+   U_ASSERT( str03 == "ubaker beach, san francisco" )
 
    str03 = str02; 
    str03.insert(0, 5, 'u'); 
-   U_ASSERT( str03 == "uuuuubaker beach, san francisco" );
+   U_ASSERT( str03 == "uuuuubaker beach, san francisco" )
 
    str03 = str02; 
    csz01 = str03.size();
    str03.insert(0, str01);
-   U_ASSERT( str03 == "rodeo beach, marinbaker beach, san francisco" );
+   U_ASSERT( str03 == "rodeo beach, marinbaker beach, san francisco" )
 
    str03 = str02;
    csz01 = str03.size();
    str03.insert(str03.size(), str01);
-   U_ASSERT( str03 == "baker beach, san franciscorodeo beach, marin" );
+   U_ASSERT( str03 == "baker beach, san franciscorodeo beach, marin" )
 }
 #endif
 
@@ -848,21 +849,21 @@ static void test_replace_01()
    UString x = X;
 
    char ch = x[0];
-   U_ASSERT( ch == 'H' );
+   U_ASSERT( ch == 'H' )
 
    UString z = x.substr(2U, 3U);
-   U_ASSERT( z == U_STRING_FROM_CONSTANT("llo") );
+   U_ASSERT( z == U_STRING_FROM_CONSTANT("llo") )
 
    x.replace(2, 2, "r");
-   U_ASSERT( x == U_STRING_FROM_CONSTANT("Hero") );
+   U_ASSERT( x == U_STRING_FROM_CONSTANT("Hero") )
 
    x = X;
    x.replace(0, 1, "j");
-   U_ASSERT( x == U_STRING_FROM_CONSTANT("jello") );
+   U_ASSERT( x == U_STRING_FROM_CONSTANT("jello") )
 
    const char ar[] = { 'H', 'e', 'l', 'l', 'o', '\0' };
    x.replace(x.find('l'), 2, ar, (sizeof(ar) / sizeof(ar[0])) - 1);
-   U_ASSERT( x == U_STRING_FROM_CONSTANT("jeHelloo") );
+   U_ASSERT( x == U_STRING_FROM_CONSTANT("jeHelloo") )
 }
 #endif
 
@@ -880,125 +881,125 @@ static void test_not_member_01()
 
    str_4 = str_0;
    //comparisons between UString objects
-   U_ASSERT( !(str_0 == str_1) );
-   U_ASSERT( !(str_0 == str_2) );
-   U_ASSERT( !(str_0 == str_3) );
-   U_ASSERT( !(str_1 == str_0) );
-   U_ASSERT( !(str_2 == str_0) );
-   U_ASSERT( !(str_3 == str_0) );
-   U_ASSERT( str_4 == str_0 );
-   U_ASSERT( str_0 == str_4 );
+   U_ASSERT( !(str_0 == str_1) )
+   U_ASSERT( !(str_0 == str_2) )
+   U_ASSERT( !(str_0 == str_3) )
+   U_ASSERT( !(str_1 == str_0) )
+   U_ASSERT( !(str_2 == str_0) )
+   U_ASSERT( !(str_3 == str_0) )
+   U_ASSERT( str_4 == str_0 )
+   U_ASSERT( str_0 == str_4 )
 
-   U_ASSERT( str_0 != str_1 );
-   U_ASSERT( str_0 != str_2 );
-   U_ASSERT( str_0 != str_3 );
-   U_ASSERT( str_1 != str_0 );
-   U_ASSERT( str_2 != str_0 );
-   U_ASSERT( str_3 != str_0 );
-   U_ASSERT( !(str_0 != str_4) );
-   U_ASSERT( !(str_4 != str_0) );
+   U_ASSERT( str_0 != str_1 )
+   U_ASSERT( str_0 != str_2 )
+   U_ASSERT( str_0 != str_3 )
+   U_ASSERT( str_1 != str_0 )
+   U_ASSERT( str_2 != str_0 )
+   U_ASSERT( str_3 != str_0 )
+   U_ASSERT( !(str_0 != str_4) )
+   U_ASSERT( !(str_4 != str_0) )
 
-   U_ASSERT( str_0 > str_1 ); //true cuz r>m
-   U_ASSERT( str_0 > str_2 );
-   U_ASSERT( !(str_0 > str_3) );
-   U_ASSERT( !(str_1 > str_0) ); //false cuz m<r
-   U_ASSERT( !(str_2 > str_0) );
-   U_ASSERT( str_3 > str_0 );
-   U_ASSERT( !(str_0 > str_4) );
-   U_ASSERT( !(str_4 > str_0) );
+   U_ASSERT( str_0 > str_1 ) //true cuz r>m
+   U_ASSERT( str_0 > str_2 )
+   U_ASSERT( !(str_0 > str_3) )
+   U_ASSERT( !(str_1 > str_0) ) //false cuz m<r
+   U_ASSERT( !(str_2 > str_0) )
+   U_ASSERT( str_3 > str_0 )
+   U_ASSERT( !(str_0 > str_4) )
+   U_ASSERT( !(str_4 > str_0) )
 
-   U_ASSERT( !(str_0 < str_1) ); //false cuz r>m
-   U_ASSERT( !(str_0 < str_2) );
-   U_ASSERT( str_0 < str_3 );
-   U_ASSERT( str_1 < str_0 ); //true cuz m<r
-   U_ASSERT( str_2 < str_0 );
-   U_ASSERT( !(str_3 < str_0) );
-   U_ASSERT( !(str_0 < str_4) );
-   U_ASSERT( !(str_4 < str_0) );
+   U_ASSERT( !(str_0 < str_1) ) //false cuz r>m
+   U_ASSERT( !(str_0 < str_2) )
+   U_ASSERT( str_0 < str_3 )
+   U_ASSERT( str_1 < str_0 ) //true cuz m<r
+   U_ASSERT( str_2 < str_0 )
+   U_ASSERT( !(str_3 < str_0) )
+   U_ASSERT( !(str_0 < str_4) )
+   U_ASSERT( !(str_4 < str_0) )
 
-   U_ASSERT( str_0 >= str_1 ); //true cuz r>m
-   U_ASSERT( str_0 >= str_2 );
-   U_ASSERT( !(str_0 >= str_3) );
-   U_ASSERT( !(str_1 >= str_0) );//false cuz m<r
-   U_ASSERT( !(str_2 >= str_0) );
-   U_ASSERT( str_3 >= str_0 );
-   U_ASSERT( str_0 >= str_4 );
-   U_ASSERT( str_4 >= str_0 );
+   U_ASSERT( str_0 >= str_1 ) //true cuz r>m
+   U_ASSERT( str_0 >= str_2 )
+   U_ASSERT( !(str_0 >= str_3) )
+   U_ASSERT( !(str_1 >= str_0) ) //false cuz m<r
+   U_ASSERT( !(str_2 >= str_0) )
+   U_ASSERT( str_3 >= str_0 )
+   U_ASSERT( str_0 >= str_4 )
+   U_ASSERT( str_4 >= str_0 )
 
-   U_ASSERT( !(str_0 <= str_1) );//false cuz r>m
-   U_ASSERT( !(str_0 <= str_2) );
-   U_ASSERT( str_0 <= str_3 );
-   U_ASSERT( str_1 <= str_0 );//true cuz m<r
-   U_ASSERT( str_2 <= str_0 );
-   U_ASSERT( !(str_3 <= str_0) );
-   U_ASSERT( str_0 <= str_4 );
-   U_ASSERT( str_4 <= str_0 );
+   U_ASSERT( !(str_0 <= str_1) ) //false cuz r>m
+   U_ASSERT( !(str_0 <= str_2) )
+   U_ASSERT( str_0 <= str_3 )
+   U_ASSERT( str_1 <= str_0 ) //true cuz m<r
+   U_ASSERT( str_2 <= str_0 )
+   U_ASSERT( !(str_3 <= str_0) )
+   U_ASSERT( str_0 <= str_4 )
+   U_ASSERT( str_4 <= str_0 )
 
    //comparisons between UString object and UString literal
-   U_ASSERT( !(str_0 == "costa marbella") );
-   U_ASSERT( !(str_0 == "cost") );
-   U_ASSERT( !(str_0 == "costa ricans") );
-   U_ASSERT( !("costa marbella" == str_0) );
-   U_ASSERT( !("cost" == str_0) );
-   U_ASSERT( !("costa ricans" == str_0) );
-   U_ASSERT( "costa rica" == str_0 );
-   U_ASSERT( str_0 == "costa rica" );
+   U_ASSERT( !(str_0 == "costa marbella") )
+   U_ASSERT( !(str_0 == "cost") )
+   U_ASSERT( !(str_0 == "costa ricans") )
+   U_ASSERT( !("costa marbella" == str_0) )
+   U_ASSERT( !("cost" == str_0) )
+   U_ASSERT( !("costa ricans" == str_0) )
+   U_ASSERT( "costa rica" == str_0 )
+   U_ASSERT( str_0 == "costa rica" )
 
-   U_ASSERT( str_0 != "costa marbella" );
-   U_ASSERT( str_0 != "cost" );
-   U_ASSERT( str_0 != "costa ricans" );
-   U_ASSERT( "costa marbella" != str_0 );
-   U_ASSERT( "cost" != str_0 );
-   U_ASSERT( "costa ricans" != str_0 );
-   U_ASSERT( !("costa rica" != str_0) );
-   U_ASSERT( !(str_0 != "costa rica") );
+   U_ASSERT( str_0 != "costa marbella" )
+   U_ASSERT( str_0 != "cost" )
+   U_ASSERT( str_0 != "costa ricans" )
+   U_ASSERT( "costa marbella" != str_0 )
+   U_ASSERT( "cost" != str_0 )
+   U_ASSERT( "costa ricans" != str_0 )
+   U_ASSERT( !("costa rica" != str_0) )
+   U_ASSERT( !(str_0 != "costa rica") )
 
-   U_ASSERT( str_0 > "costa marbella" ); //true cuz r>m
-   U_ASSERT( str_0 > "cost" );
-   U_ASSERT( !(str_0 > "costa ricans") );
-   U_ASSERT( !("costa marbella" > str_0) );//false cuz m<r
-   U_ASSERT( !("cost" > str_0) );
-   U_ASSERT( "costa ricans" > str_0 );
-   U_ASSERT( !("costa rica" > str_0) );
-   U_ASSERT( !(str_0 > "costa rica") );
+   U_ASSERT( str_0 > "costa marbella" ) //true cuz r>m
+   U_ASSERT( str_0 > "cost" )
+   U_ASSERT( !(str_0 > "costa ricans") )
+   U_ASSERT( !("costa marbella" > str_0) ) //false cuz m<r
+   U_ASSERT( !("cost" > str_0) )
+   U_ASSERT( "costa ricans" > str_0 )
+   U_ASSERT( !("costa rica" > str_0) )
+   U_ASSERT( !(str_0 > "costa rica") )
 
-   U_ASSERT( !(str_0 < "costa marbella") );//false cuz r>m
-   U_ASSERT( !(str_0 < "cost") );
-   U_ASSERT( str_0 < "costa ricans" );
-   U_ASSERT( "costa marbella" < str_0 );//true cuz m<r
-   U_ASSERT( "cost" < str_0 );
-   U_ASSERT( !("costa ricans" < str_0) );
-   U_ASSERT( !("costa rica" < str_0) );
-   U_ASSERT( !(str_0 < "costa rica") );
+   U_ASSERT( !(str_0 < "costa marbella") ) //false cuz r>m
+   U_ASSERT( !(str_0 < "cost") )
+   U_ASSERT( str_0 < "costa ricans" )
+   U_ASSERT( "costa marbella" < str_0 ) //true cuz m<r
+   U_ASSERT( "cost" < str_0 )
+   U_ASSERT( !("costa ricans" < str_0) )
+   U_ASSERT( !("costa rica" < str_0) )
+   U_ASSERT( !(str_0 < "costa rica") )
 
-   U_ASSERT( str_0 >= "costa marbella" );//true cuz r>m
-   U_ASSERT( str_0 >= "cost" );
-   U_ASSERT( !(str_0 >= "costa ricans") );
-   U_ASSERT( !("costa marbella" >= str_0) );//false cuz m<r
-   U_ASSERT( !("cost" >= str_0) );
-   U_ASSERT( "costa ricans" >= str_0 );
-   U_ASSERT( "costa rica" >= str_0 );
-   U_ASSERT( str_0 >= "costa rica" );
+   U_ASSERT( str_0 >= "costa marbella" )//true cuz r>m
+   U_ASSERT( str_0 >= "cost" )
+   U_ASSERT( !(str_0 >= "costa ricans") )
+   U_ASSERT( !("costa marbella" >= str_0) )//false cuz m<r
+   U_ASSERT( !("cost" >= str_0) )
+   U_ASSERT( "costa ricans" >= str_0 )
+   U_ASSERT( "costa rica" >= str_0 )
+   U_ASSERT( str_0 >= "costa rica" )
 
-   U_ASSERT( !(str_0 <= "costa marbella") );//false cuz r>m
-   U_ASSERT( !(str_0 <= "cost") );
-   U_ASSERT( str_0 <= "costa ricans" );
-   U_ASSERT( "costa marbella" <= str_0 );//true cuz m<r
-   U_ASSERT( "cost" <= str_0 );
-   U_ASSERT( !("costa ricans" <= str_0) );
-   U_ASSERT( "costa rica" <= str_0 );
-   U_ASSERT( str_0 <= "costa rica" );
+   U_ASSERT( !(str_0 <= "costa marbella") )//false cuz r>m
+   U_ASSERT( !(str_0 <= "cost") )
+   U_ASSERT( str_0 <= "costa ricans" )
+   U_ASSERT( "costa marbella" <= str_0 )//true cuz m<r
+   U_ASSERT( "cost" <= str_0 )
+   U_ASSERT( !("costa ricans" <= str_0) )
+   U_ASSERT( "costa rica" <= str_0 )
+   U_ASSERT( str_0 <= "costa rica" )
 
    str_4 = str_0 + "ns";
    U_ASSERT( str_4 == str_3 );
 
    const UString str_5(" marbella");
    str_4 = "costa" + str_5;
-   U_ASSERT( str_4 == str_1 );
+   U_ASSERT( str_4 == str_1 )
 
    UString str_6("ns");
    str_4 = str_0 + str_6;
-   U_ASSERT( str_4 == str_3 );
+   U_ASSERT( str_4 == str_3 )
 
    str_4 = str_0 + 'n';
    str_4 = str_4 + 's';
@@ -1014,7 +1015,7 @@ static void test_not_member_01()
    str_4 = 's' + str_4;
    str_4 = 'o' + str_4;
    str_4 = 'c' + str_4;
-   U_ASSERT( str_4 == str_3 );
+   U_ASSERT( str_4 == str_3 )
 }
 #endif
 
@@ -1053,16 +1054,16 @@ static void test_substr_01()
    // UString substr(unsigned pos = 0, unsigned n = npos) const;
    csz01 = str01.size();
    str02 = str01.substr(0U, 1U);
-   U_ASSERT( str02 == "r" );
+   U_ASSERT( str02 == "r" )
    str02 = str01.substr(10U);
-   U_ASSERT( str02 == "pacifica" );
+   U_ASSERT( str02 == "pacifica" )
 
    str02 = str01.substr(csz01);
-   U_ASSERT( str02.size() == 0 );
+   U_ASSERT( str02.size() == 0 )
 }
 #endif
 
-#ifdef TEST_CLASS
+#if defined(TEST_CLASS) && defined(U_STD_STRING)
 // class UString
 // Do a quick sanity check on known problems with element access and
 // ref-counted UStrings. These should all pass, regardless of the
@@ -1077,81 +1078,60 @@ static void test_class_01()
 
    str03 = str01;
 
-#ifdef U_STD_STRING
    typedef std::string::size_type csize_type;
    typedef std::string::iterator siterator;
    typedef std::string::reverse_iterator sriterator;
-   siterator it1 =
-#else
-   char* it1 =
-#endif
-      str01._begin();
+   siterator it1 = str01._begin();
 
    *it1 = 'x';
-   U_ASSERT( str01[0] == 'x' );
-   U_ASSERT( str03[0] == 'm' );
+   U_ASSERT( str01[0] == 'x' )
+   U_ASSERT( str03[0] == 'm' )
 
    str03 = str01; 
    csz01 = str01.size();
 
-#ifdef U_STD_STRING
-   sriterator rit1 =
-#else
-   char* rit1 =
-#endif
-      str01._rbegin();
+   sriterator rit1 = str01._rbegin();
 
    *rit1 = 'z';
-   U_ASSERT( str01[csz01 - 1] == 'z' );
-   U_ASSERT( str03[csz01 - 1] == 'y' );
+   U_ASSERT( str01[csz01 - 1] == 'z' )
+   U_ASSERT( str03[csz01 - 1] == 'y' )
 
    str03 = str01;
    csz01 = str01.size();
 
-/*
-#ifdef U_STD_STRING
-   std::string::reference r1 =
-#else
-   char& r1 =
-#endif
-      str01.at(csz01 - 2);
+   std::string::reference r1 = str01.at(csz01 - 2);
 
-   U_ASSERT( str03 == str01 );
+   U_ASSERT( str03 == str01 )
    r1 = 'd';
-   U_ASSERT( str01[csz01 - 2] == 'd' );
-   U_ASSERT( str03[csz01 - 2] == 'a' );
+   U_ASSERT( str01[csz01 - 2] == 'd' )
+   U_ASSERT( str03[csz01 - 2] == 'a' )
 
    str03 = str01; 
    csz01 = str01.size();
 
-#ifdef U_STD_STRING
-   std::string::reference r2 =
-#else
-   char& r2 =
-#endif
-      str01[csz01 - 3];
+   std::string::reference r2 = str01[csz01 - 3];
 
-   U_ASSERT( str03 == str01 );
+   U_ASSERT( str03 == str01 )
    r2 = 'w';
-   U_ASSERT( str01[csz01 - 3] == 'w' );
-   U_ASSERT( str03[csz01 - 3] == 'b' );
-*/
+   U_ASSERT( str01[csz01 - 3] == 'w' )
+   U_ASSERT( str03[csz01 - 3] == 'b' )
+
    str03 = str01;
    csz02 = str01.size();
    it1 = str01._end();
-   U_ASSERT( str03 == str01 );
+   U_ASSERT( str03 == str01 )
    --it1;
    *it1 = 'q'; 
-   U_ASSERT( str01[csz02 - 1] == 'q' );
-   U_ASSERT( str03[csz02 - 1] == 'z' );
+   U_ASSERT( str01[csz02 - 1] == 'q' )
+   U_ASSERT( str03[csz02 - 1] == 'z' )
 
    str03 = str01;
    rit1 = str01._rend();
-   U_ASSERT( str03 == str01 );
+   U_ASSERT( str03 == str01 )
    --rit1;
    *rit1 = 'p';
-   U_ASSERT( str01[0] == 'p' );
-   U_ASSERT( str03[0] == 'x' );
+   U_ASSERT( str01[0] == 'p' )
+   U_ASSERT( str03[0] == 'x' )
 }
 
 // Do another sanity check, this time for member functions that return
@@ -1165,83 +1145,55 @@ static void test_class_02()
    UString str02 = str01;
    UString str05 = str02;
 
-#ifdef U_STD_STRING
    std::string::iterator p = str02.insert(str02.begin(), ' ');
-#else
-   char* p = str02.insert(0, 1, ' ')._begin();
-#endif
 
    UString str03 = str02;
-   U_ASSERT( str03 == str02 );
+   U_ASSERT( str03 == str02 )
    *p = '!';
 
-#ifdef U_STD_STRING
-   U_ASSERT( *str03.c_str() == ' ' );
-#endif
+   U_ASSERT( *str03.c_str() == ' ' )
 
-// str03[0] = '@';
-   U_ASSERT( str02[0] == '!' );
-   U_ASSERT( *p == '!' );
-   U_ASSERT( str02 != str05 );
-// U_ASSERT( str02 != str03 );
+   str03[0] = '@';
+   U_ASSERT( str02[0] == '!' )
+   U_ASSERT( *p == '!' )
+   U_ASSERT( str02 != str05 )
+   U_ASSERT( str02 != str03 )
 
    UString str10 = str01;
 
-#ifdef U_STD_STRING
    std::string::iterator p2 = str10.insert(str10.begin(), 'a');
-#else
-   char* p2 = str10.insert(0, 1, 'a')._begin();
-#endif
 
    UString str11 = str10;
    *p2 = 'e';
 
-#ifdef U_STD_STRING
-   U_ASSERT( str11 != str10 );
-#endif
+   U_ASSERT( str11 != str10 )
 
    UString str06 = str01;
    UString str07 = str06;
 
-#ifdef U_STD_STRING
    p = str06.erase(str06.begin());
-#else
-   p = str06.erase()._begin();
-#endif
 
    UString str08 = str06;
-   U_ASSERT( str08 == str06 );
+   U_ASSERT( str08 == str06 )
    *p = '!';
 
-#ifdef U_STD_STRING
-   U_ASSERT( *str08.c_str() == 't' );
-#endif
+   U_ASSERT( *str08.c_str() == 't' )
 
-// str08[0] = '@';
-   U_ASSERT( str06[0] == '!' );
-   U_ASSERT( *p == '!' );
-   U_ASSERT( str06 != str07 );
+   str08[0] = '@';
+   U_ASSERT( str06[0] == '!' )
+   U_ASSERT( *p == '!' )
+   U_ASSERT( str06 != str07 )
 
-/*
-#ifdef U_STD_STRING
-   U_ASSERT( str06 != str08 );
-#endif
-*/
+   U_ASSERT( str06 != str08 )
 
    UString str12 = str01;
 
-#ifdef U_STD_STRING
    p2 = str12.erase(str12.begin(), str12.begin() + str12.size() - 1);
-#else
-   p2 = str12.erase(0, str12.size() - 1)._begin();
-#endif
 
    UString str13 = str12;
    *p2 = 'e';
 
-#ifdef U_STD_STRING
-   U_ASSERT( str12 != str13 );
-#endif
+   U_ASSERT( str12 != str13 )
 }
 #endif
 
@@ -1259,23 +1211,24 @@ static void test_stream_01()
    const UString str05;
          UString str10;
 
+#ifdef U_STDCPP_ENABLE
    // istream& operator>>(istream&, UString&)
    istrstream istrs01(U_STRING_TO_PARAM(str01));
    istrs01 >> str10;
-   U_ASSERT( str10 == str02 );
+   U_ASSERT( str10 == str02 )
 
    int i01 = istrs01.peek(); //a-boo
-   U_ASSERT( i01 == ' ' );
+   U_ASSERT( i01 == ' ' )
 
    istrs01 >> str10; 
-   U_ASSERT( str10 == str03 ); 
+   U_ASSERT( str10 == str03 )
    istrs01 >> str10; 
-   U_ASSERT( str10 == str04 ); // sentry picks out the white spaces. . 
+   U_ASSERT( str10 == str04 ) // sentry picks out the white spaces. . 
 
 #if __GNUC__ >= 3
    istrstream istrs02(U_STRING_TO_PARAM(str05)); // empty
    istrs02 >> str10;
-   // U_ASSERT( str10 == str04 );
+   // U_ASSERT( str10 == str04 )
 #endif
 
    // istream& getline(istream&, UString&, char)
@@ -1285,43 +1238,44 @@ static void test_stream_01()
 #endif
 
    getline(istrs01, str10, '\n');
-   U_ASSERT( !istrs01.fail() );
-   U_ASSERT( !istrs01.eof() );
-   U_ASSERT( istrs01.good() );
-   U_ASSERT( str10 == " bay" );
+   U_ASSERT( !istrs01.fail() )
+   U_ASSERT( !istrs01.eof() )
+   U_ASSERT( istrs01.good() )
+   U_ASSERT( str10 == " bay" )
 
    istrs01.clear();
    getline(istrs01, str10, '\t');
-   U_ASSERT( !istrs01.fail() );
-   U_ASSERT( !istrs01.eof() );
-   U_ASSERT( istrs01.good() );
-   U_ASSERT( str10 == str05 );
+   U_ASSERT( !istrs01.fail() )
+   U_ASSERT( !istrs01.eof() )
+   U_ASSERT( istrs01.good() )
+   U_ASSERT( str10 == str05 )
 
    istrs01.clear();
    getline(istrs01, str10, '\t');
-   U_ASSERT( !istrs01.fail() );
-   U_ASSERT( !istrs01.eof() );
-   U_ASSERT( istrs01.good() );
-   U_ASSERT( str10 == str05 );
+   U_ASSERT( !istrs01.fail() )
+   U_ASSERT( !istrs01.eof() )
+   U_ASSERT( istrs01.good() )
+   U_ASSERT( str10 == str05 )
 
    istrs01.clear();
    getline(istrs01, str10, '.');
-   U_ASSERT( !istrs01.fail() );
-   U_ASSERT( istrs01.eof() );
-   U_ASSERT( !istrs01.good() );
-   U_ASSERT( str10 == "\t    from Elk Rapids to the point reminds me of miles" );
+   U_ASSERT( !istrs01.fail() )
+   U_ASSERT( istrs01.eof() )
+   U_ASSERT( !istrs01.good() )
+   U_ASSERT( str10 == "\t    from Elk Rapids to the point reminds me of miles" )
 #if __GNUC__ >= 3
    getline(istrs02, str10, '\n');
-   U_ASSERT( istrs02.fail() );
-   U_ASSERT( istrs02.eof() );
-   U_ASSERT( str10 == "\t    from Elk Rapids to the point reminds me of miles" );
+   U_ASSERT( istrs02.fail() )
+   U_ASSERT( istrs02.eof() )
+   U_ASSERT( str10 == "\t    from Elk Rapids to the point reminds me of miles" )
 #endif
 
    // ostream& operator<<(ostream&, const UString&)
    char buffer[1024];
    ostrstream ostrs01(buffer, sizeof(buffer));
    ostrs01 << str01 << '\0';
-   U_ASSERT( str01 == ostrs01.str() );
+   U_ASSERT( str01 == ostrs01.str() )
+#endif
 }
 
 // testing UStringbuf::xsputn via stress testing with large UStrings
@@ -1333,23 +1287,25 @@ static void test_stream_04(unsigned size)
    UString str(size, 's');
    unsigned expected_size = (2 * (size + sizeof(char)));
    char buffer[expected_size+1];
+#ifdef U_STDCPP_ENABLE
    ostrstream oss(buffer, sizeof(buffer));
 
    // sanity checks
-   U_ASSERT( str.size() == size );
-   U_ASSERT( oss.good() );
+   U_ASSERT( str.size() == size )
+   U_ASSERT( oss.good() )
 
    // stress test
    oss << str << std::endl;
-   U_ASSERT( oss.good() );
+   U_ASSERT( oss.good() )
 
    oss << str << std::endl << '\0';
-   U_ASSERT( oss.good() );
+   U_ASSERT( oss.good() )
 
-   U_ASSERT( str.size() == size );
-   U_ASSERT( oss.good() );
+   U_ASSERT( str.size() == size )
+   U_ASSERT( oss.good() )
    UString str_tmp = UString(oss.str());
-   U_ASSERT( str_tmp.size() == expected_size );
+   U_ASSERT( str_tmp.size() == expected_size )
+#endif
 }
 
 // testing filebuf::xsputn via stress testing with large UStrings
@@ -1360,21 +1316,21 @@ static void test_stream_05(unsigned size)
 
    const char* filename = "inserters_extractors-1.txt";
    const char fillc = 'f';
+#ifdef U_STDCPP_ENABLE
    ofstream ofs(filename);
    UString str(size, fillc);
 
    // sanity checks
-   U_ASSERT( str.size() == size );
-   U_ASSERT( ofs.good() );
+   U_ASSERT( str.size() == size )
+   U_ASSERT( ofs.good() )
 
    // stress test
    ofs << str << std::endl;
-   U_ASSERT( ofs.good() == true );
+   U_ASSERT( ofs.good() )
 
    ofs << str << std::endl;
-   U_ASSERT( ofs.good() == true );
-
-   U_ASSERT( str.size() == size );
+   U_ASSERT( ofs.good() )
+   U_ASSERT( str.size() == size )
 
    ofs.close();
 
@@ -1394,9 +1350,10 @@ static void test_stream_05(unsigned size)
          break;
       }
 
-   U_ASSERT( count == 2 * size );
+   U_ASSERT( count == (2 * size) )
 
    unlink(filename);
+#endif
 }
 
 // istrstream extractor properly size buffer based on
@@ -1409,13 +1366,15 @@ static void test_stream_06()
    unsigned i01 = str01.size();
    str01.erase(0, 1);
    unsigned i03 = str01.size();
-   U_ASSERT( i01 - 1 == i03 );
+   U_ASSERT( i01 - 1 == i03 )
 
+#ifdef U_STDCPP_ENABLE
    istrstream is(U_STRING_TO_PARAM(str01));
    UString str02;
    is >> str02;
    unsigned i05 = str02.size();
-   U_ASSERT( i05 == i03 );
+   U_ASSERT( i05 == i03 )
+#endif
 }
 
 // istream::operator>>(UString)
@@ -1426,19 +1385,22 @@ static void test_stream_07()
    U_TRACE(5, "test_stream_07()")
 
    const UString name("z6.cc");
+#ifdef U_STDCPP_ENABLE
    istrstream iss(U_STRING_TO_PARAM(name));
    int i = 0;
    UString s;
    while (iss >> s) ++i;
 
-   U_ASSERT( i < 3 );
-   U_ASSERT( static_cast<bool>(iss.rdstate() & ios::failbit) );
+   U_ASSERT( i < 3 )
+   U_ASSERT( static_cast<bool>(iss.rdstate() & ios::failbit) )
+#endif
 }
 
 static void test_stream_08()
 {
    U_TRACE(5, "test_stream_08()")
 
+#ifdef U_STDCPP_ENABLE
    istrstream istrm(U_CONSTANT_TO_PARAM("enero :2001"));
    int      year = 0;
    char     sep = 0;
@@ -1448,6 +1410,7 @@ static void test_stream_08()
    U_ASSERT( month.size() == 5 )
    U_ASSERT( sep == ':' )
    U_ASSERT( year == 2001 )
+#endif
 }
 
 static void test_stream_09()
@@ -1460,9 +1423,10 @@ static void test_stream_09()
    foo += "& love";
 
    char buffer[1024];
+#ifdef U_STDCPP_ENABLE
    ostrstream oss1(buffer, sizeof(buffer));
    oss1 << foo << '\0';
-   U_ASSERT( foo == oss1.str() );
+   U_ASSERT( foo == oss1.str() )
 
    ostrstream oss2(buffer, sizeof(buffer));
    oss2.width(20);
@@ -1470,8 +1434,58 @@ static void test_stream_09()
    oss2.put('\0');
    U_ASSERT( foo != oss2.str() )
    U_ASSERT( strlen(oss2.str()) == 20 )
+#endif
 }
 #endif
+
+static void check_HugeTLB(char* ptr, uint32_t size)
+{
+   U_TRACE(5, "check_HugeTLB(%p,%u)", ptr, size)
+
+   for (uint32_t j = 0; j < size; ++j)     ptr[j]  = 'A';
+   for (uint32_t k = 0; k < size; ++k) if (ptr[k] != 'A') U_ERROR("HugeTLB read failed :-( at index %u", k);
+}
+
+void U_EXPORT check_mmap(uint32_t map_size)
+{
+   U_TRACE(5, "check_mmap(%u)", map_size)
+
+   for (uint32_t i = 0; i < 1; ++i)
+      {
+      UString buffer(map_size);
+
+      buffer.size_adjust(U_2M);
+
+      check_HugeTLB(buffer.data(), U_2M);
+      }
+
+   char* place = UFile::mmap(&map_size);
+
+   check_HugeTLB(place, U_2M);
+
+   for (uint32_t i = 0; i < 21; ++i)
+      {
+      UMemoryPool::deallocate(place + i * U_2M, U_2M);
+      }
+
+   UFile::munmap(place, map_size);
+
+   map_size = U_1G;
+
+   place = UFile::mmap(&map_size);
+
+   check_HugeTLB(place, U_2M);
+
+   UFile::munmap(place, map_size);
+}
+
+#define U_STR0 "\026\003\001"
+#define U_STR1 "The string \xC3\xBC@foo-bar" // "The string ü@foo-bar"
+#define U_STR2 "binary: \xC3\xBC\x88\x01\x0B" 
+#define U_STR3 "ã~C~Uã~C¬ã~C¼ã~C| ã~C¯ã~C¼ã~B¯ã~A®ã~C~Yã~C³ã~C~Aã~C~^ã~C¼ã~B¯"
+            // "\343~C~U\343~C\254\343~C\274\343~C| \343~C\257\343~C\274\343~B\257\343~A\256\343~C~Y\343~C\263\343~C~A\343~C~^\343~C\274\343~B\257"
+
+//#define U_USE_STRTOD // Parse number in full precision (but slower)
 
 int
 U_EXPORT main (int argc, char* argv[])
@@ -1479,6 +1493,96 @@ U_EXPORT main (int argc, char* argv[])
    U_ULIB_INIT(argv);
 
    U_TRACE(5, "main(%d)", argc)
+
+   UCrono crono;
+   UString x(100U), y, z, z1;
+
+   U_ASSERT( U_STRING_FROM_CONSTANT("0.0").strtod() == 0.0 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("1.0").strtod() == 1.0 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("-1.0").strtod() == -1.0 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("-0.0").strtod() == -0.0 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("1.89").strtod() == 1.89 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("1e30").strtod() == 1e30 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("1.2345").strtod() == 1.2345 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("5e-324").strtod() == 5e-324 ) // Min subnormal positive double
+   U_ASSERT( U_STRING_FROM_CONSTANT("-1E-10").strtod() == -1e-10 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("0.9199").strtod() == 0.9199 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("0.0000001").strtod() == 1e-7 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("0.000001").strtod() == 0.000001 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("-1E10").strtod() == -10000000000 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("-1E10").strtod() == -10000000000 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("-1e10").strtod() == -10000000000 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("-1E+10").strtod() == -10000000000 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("1.2345678").strtod() == 1.2345678 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("1234567.8").strtod() == 1234567.8 )
+   U_ASSERT( U_STRING_FROM_CONSTANT(".123456789").strtod() == 0.123456789 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("0.123456789012").strtod() == 0.123456789012 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("3.50582559e-71").strtod() == 3.50582559e-71 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("-79.39773355813419").strtod() == -79.39773355813419 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("-1.79769e+308").strtod() == -1.7976900000000001e+308 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("18014398509481993.0").strtod() == 18014398509481993.0 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("1.234567890123456e30").strtod() == 1.234567890123456e30 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("-9223372036854775807").strtod() == -9223372036854775807 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("1.234567890123456e30").strtod() == 1.234567890123456e30 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("18446744073709551616").strtod() == 1.8446744073709552e+19 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("45913141877270640000.0").strtod() == 4.5913141877270643e+19 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("-9223372036854775809").strtod() == -9.223372036854775809e+18 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("2.2250738585072014e-308").strtod() == 2.2250738585072014e-308 ) // Min normal positive double
+   U_ASSERT( U_STRING_FROM_CONSTANT("3.08984926168550152811E-32").strtod() == 3.08984926168550152811E-32 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("10141204801825834086073718800384").strtod() == 1.0141204801825834e+31 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("10141204801825835211973625643008").strtod() == 1.0141204801825835e+31 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("10141204801825834649023672221696").strtod() == 1.0141204801825835e+31 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("5708990770823838890407843763683279797179383808").strtod() == 5.7089907708238389e+45 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("5708990770823839524233143877797980545530986496").strtod() == 5.7089907708238395e+45 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("5708990770823839207320493820740630171355185152").strtod() == 5.7089907708238395e+45 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").strtod() == 1e+308 )
+
+   U_ASSERT( U_STRING_FROM_CONSTANT("-2.22507e-308").strtod() == -2.2250699999999998e-308 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("7.8459735791271921E65").strtod() == 7.8459735791271921E65 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("2.225073858507201e-308").strtod() == 2.225073858507201e-308 ) // Max subnormal positive double
+   U_ASSERT( U_STRING_FROM_CONSTANT("1.7976931348623157e308").strtod() == 1.7976931348623157e308 ) // Max double
+#ifdef U_USE_STRTOD
+   U_ASSERT( U_STRING_FROM_CONSTANT("0.999999999999999944488848768742172978818416595458984375").strtod() == 1 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("0.999999999999999944488848768742172978818416595458984376").strtod() == 1 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("1.00000000000000011102230246251565404236316680908203126").strtod() == 1.0000000000000002 )
+   U_ASSERT( U_STRING_FROM_CONSTANT("0.999999999999999944488848768742172978818416595458984374").strtod() == 0.99999999999999989 )
+#endif
+
+   int i;
+
+   for (i = -310; i < 310; ++i)
+      {
+      x.snprintf(U_CONSTANT_TO_PARAM("23456789012E%d"), i);
+
+      x.strtod();
+      }
+
+#ifdef U_STDCPP_ENABLE
+   UString expressions;
+
+   expressions = U_STRING_FROM_CONSTANT("2 + 3 + 5"); // = 10
+   cout << UStringExt::evalExpression(expressions, UString::getStringNull()) << "\n";
+   expressions = U_STRING_FROM_CONSTANT("2 * 3 + 5"); // = 11
+   cout << UStringExt::evalExpression(expressions, UString::getStringNull()) << "\n";
+   expressions = U_STRING_FROM_CONSTANT("2 * (3 + 5)"); // = 16
+   cout << UStringExt::evalExpression(expressions, UString::getStringNull()) << "\n";
+   expressions = U_STRING_FROM_CONSTANT("2 * (2*(2*(2+1)))"); // = 24
+   cout << UStringExt::evalExpression(expressions, UString::getStringNull()) << "\n";
+   expressions = U_STRING_FROM_CONSTANT("10 % 3"); // = 1
+   cout << UStringExt::evalExpression(expressions, UString::getStringNull()) << "\n";
+   expressions = U_STRING_FROM_CONSTANT("true || false"); // = true
+   cout << UStringExt::evalExpression(expressions, UString::getStringNull()) << "\n";
+   expressions = U_STRING_FROM_CONSTANT("false || ! (false && 1)"); // = true
+   cout << UStringExt::evalExpression(expressions, UString::getStringNull()) << "\n";
+   expressions = U_STRING_FROM_CONSTANT("3 > 2 && 1 <= (3-2)"); // = true
+   cout << UStringExt::evalExpression(expressions, UString::getStringNull()) << "\n";
+   expressions = U_STRING_FROM_CONSTANT("false"); // = false
+   cout << UStringExt::evalExpression(expressions, UString::getStringNull()) << "\n";
+   expressions = U_STRING_FROM_CONSTANT("rand() == 0"); // = false
+   cout << UStringExt::evalExpression(expressions, UString::getStringNull()) << "\n";
+
+   // expressions = U_STRING_FROM_CONSTANT("/pippo/pluto == UStringExt::expandEnvironmentVar('$HOME', 5, 0)/pluto"); // = false
+   // cout << UStringExt::evalExpression(expressions, UString::getStringNull()) << "\n";
 
    int year = 0;
    char sep = 0;
@@ -1491,11 +1595,100 @@ U_EXPORT main (int argc, char* argv[])
 
    U_ASSERT( sep == ':' )
    U_ASSERT( year == 2001 )
-
    U_ASSERT( month.shrink() == false )
-
    U_ASSERT( month.size() == 5 )
    U_ASSERT( month.capacity() == (U_STACK_TYPE_4 - (1 + sizeof(UStringRep))) )
+
+   istrstream istrs02(U_CONSTANT_TO_PARAM("\"DEBUG=1 \\\n"
+                                          "  FW_CONF=etc/nodog_fw.conf \\\n"
+                                          "  AllowedWebHosts=159.213.0.0/16 \\\n"
+                                          "  InternalDevice=ath0 ath0 \\\n"
+                                          "  LocalNetwork=10.30.1.0/24 10.1.0.1/16 \\\n"
+                                          "  AuthServiceAddr=http://www.auth-firenze.com/login http://localhost\""));
+
+   z.get(istrs02);
+
+   z = UStringExt::prepareForEnvironmentVar(z);
+
+   U_ASSERT( z == U_STRING_FROM_CONSTANT("DEBUG=1\n"
+                                         "FW_CONF=etc/nodog_fw.conf\n"
+                                         "AllowedWebHosts=159.213.0.0/16\n"
+                                         "'InternalDevice=ath0 ath0'\n"
+                                         "'LocalNetwork=10.30.1.0/24 10.1.0.1/16'\n"
+                                         "'AuthServiceAddr=http://www.auth-firenze.com/login http://localhost'\n") )
+
+   y = UStringExt::getEnvironmentVar(U_CONSTANT_TO_PARAM("LocalNetwork"), &z);
+
+   U_ASSERT( y == U_STRING_FROM_CONSTANT("10.30.1.0/24 10.1.0.1/16") )
+#endif
+
+   UString buffer(U_CAPACITY), encoded(U_CAPACITY);
+
+   z1 = UStringExt::prepareForEnvironmentVar(U_STRING_FROM_CONSTANT("MasqueradeDevice=eth0 'AuthServiceAddr=http://wifi-aaa2.comune.fi.it' FullPrivateNetwork=172.16.0.0/12 "
+                                             "'LocalNetwork=172.16.13.0/24 172.17.13.0/24' 'InternalDevice=br-lan br-wds' 'ExternalDevice=eth0 tun0 tun2'"));
+
+   bool ok = ( z1 == U_STRING_FROM_CONSTANT("MasqueradeDevice=eth0\n"
+                                            "'AuthServiceAddr=http://wifi-aaa2.comune.fi.it'\n"
+                                            "FullPrivateNetwork=172.16.0.0/12\n"
+                                            "'LocalNetwork=172.16.13.0/24 172.17.13.0/24'\n"
+                                            "'InternalDevice=br-lan br-wds'\n"
+                                            "'ExternalDevice=eth0 tun0 tun2'\n") );
+
+   U_INTERNAL_ASSERT( ok )
+
+   buffer.setFromNumber64s(-34LL);
+
+   U_ASSERT_EQUALS( buffer, U_STRING_FROM_CONSTANT("-34") )
+
+   UString db_anagrafica = U_STRING_FROM_CONSTANT("10.8.0.93 172.16.93.0/24 91\n"
+                                                  "10.20.0.4 172.23.0.0/20 47\n"
+                                                  "10.20.0.7 \"172.22.0.0/20 172.22.16.0/20 172.22.32.0/20 172.22.48.0/20 172.22.128.0/20\" \"60 61 78 83 90\"\n");
+
+
+   uint32_t pos = U_STRING_FIND(db_anagrafica, 0, "10.8.0.93");
+
+   U_INTERNAL_DUMP("pos = %d", pos)
+
+   U_INTERNAL_ASSERT_DIFFERS( pos, U_NOT_FOUND )
+
+   UXMLEscape::encode(U_CONSTANT_TO_PARAM("<script>alert(\\\"This should not be displayed in a browser alert box.\\\");<\\/script>"), encoded);
+
+   buffer.snprintf(
+      U_CONSTANT_TO_PARAM("<tr>"
+      "<td>%u</td>"
+      "<td>%v</td>"
+      "</tr>"),
+      11, encoded.rep);
+
+   U_ASSERT_EQUALS( buffer, U_STRING_FROM_CONSTANT("<tr><td>11</td><td>&lt;script&gt;alert(&quot;This should not be displayed in a browser alert box.&quot;);&lt;/script&gt;</td></tr>") )
+
+   // return 0;
+
+   check_mmap(21 * U_2M);
+
+   // return 0;
+
+   U_ASSERT( UServices::dosMatchExtWithOR( U_CONSTANT_TO_PARAM("10.8.0.2"),   U_CONSTANT_TO_PARAM("10.8.[0-1].[1-2][0-9][0-9]|10.8.[0-1].[1-9][0-9]|10.8.[0-1].[0-9]"), 0) == true )
+
+   U_ASSERT( UServices::dosMatchExtWithOR( U_CONSTANT_TO_PARAM("10.8.0.2"),   U_CONSTANT_TO_PARAM("10.8.[0-1].[1-2][0-9][0-9]|10.8.[0-1].[1-9][0-9]|10.8.[0-1].[0-9]"), 0) == true )
+   U_ASSERT( UServices::dosMatchExtWithOR( U_CONSTANT_TO_PARAM("10.8.1.29"),  U_CONSTANT_TO_PARAM("10.8.[0-1].[1-2][0-9][0-9]|10.8.[0-1].[1-9][0-9]|10.8.[0-1].[0-9]"), 0) == true )
+   U_ASSERT( UServices::dosMatchExtWithOR( U_CONSTANT_TO_PARAM("10.8.0.148"), U_CONSTANT_TO_PARAM("10.8.[0-1].[1-2][0-9][0-9]|10.8.[0-1].[1-9][0-9]|10.8.[0-1].[0-9]"), 0) == true )
+   U_ASSERT( UServices::dosMatchExtWithOR( U_CONSTANT_TO_PARAM("10.8.1.10a"), U_CONSTANT_TO_PARAM("10.8.[0-1].[1-2][0-9][0-9]|10.8.[0-1].[1-9][0-9]|10.8.[0-1].[0-9]"), 0) == false )
+   U_ASSERT( UServices::dosMatchExtWithOR( U_CONSTANT_TO_PARAM("10.8.3.2"),   U_CONSTANT_TO_PARAM("10.8.[0-1].[1-2][0-9][0-9]|10.8.[0-1].[1-9][0-9]|10.8.[0-1].[0-9]"), 0) == false )
+
+   UVector<UString> vec;
+
+   U_ASSERT_EQUALS( vec.loadFromData(U_STRING_FROM_CONSTANT(
+   "#dc:9f:db:30:63:27 172.16.13.253 Member   ### wdsRepWinetown-r29587_picoM2\n"
+   "\n"
+   "## wdsRep: wan@eth0, br-lan@wlan0+wlan0-1\n"
+   "#\n"
+   "00:27:22:9a:d9:bd 172.16.13.252 Member   ### wdsRepLab16-r29587_picoM2\n"
+   "\n"
+   "## wdsRep: br-lan@eth0+wlan0+wlan0-1\n"
+   "#\n"
+   "#00:27:22:9b:d9:bd 172.16.13.252 Member   ### wdsRepLab16-r29587_picoM2\n"
+   )), 3 )
 
    U_INTERNAL_DUMP("u__ct_tab['\\r'] = %d %B", u__ct_tab['\r'], u__ct_tab['\r'])
    U_INTERNAL_DUMP("u__ct_tab['\\n'] = %d %B", u__ct_tab['\n'], u__ct_tab['\n'])
@@ -1525,70 +1718,56 @@ U_EXPORT main (int argc, char* argv[])
    U_INTERNAL_DUMP("u__ct_tab[ '\000'] = %d %B", u_cttab('\000'), u_cttab('\000'))
    U_INTERNAL_DUMP("u__istext('\000') = %b", u__istext('\000'))
 
-   const char* str;
-   uint32_t str_len;
+   U_INTERNAL_ASSERT( u_isText(  (const unsigned char*)U_CONSTANT_TO_PARAM(U_STR0)) == false )
+   U_INTERNAL_ASSERT( u_isUTF8(  (const unsigned char*)U_CONSTANT_TO_PARAM(U_STR0)) )
+   U_INTERNAL_ASSERT( u_isUTF16( (const unsigned char*)U_CONSTANT_TO_PARAM(U_STR0)) == false )
+   U_INTERNAL_ASSERT( u_isBinary((const unsigned char*)U_CONSTANT_TO_PARAM(U_STR0)) == false )
 
-   str     = "\026\003\001";
-   str_len = strlen(str) + 1;
-
-   U_INTERNAL_ASSERT( u_isText((const unsigned char*)str, str_len)   == false )
-   U_INTERNAL_ASSERT( u_isUTF8((const unsigned char*)str, str_len)   == true )
-   U_INTERNAL_ASSERT( u_isUTF16((const unsigned char*)str, str_len)  == false )
-   U_INTERNAL_ASSERT( u_isBinary((const unsigned char*)str, str_len) == false )
- 
    // NB: in UTF-8 the character ü is encoded as two bytes C3 (hex) and BC (hex)
 
-   str     = "The string \xC3\xBC@foo-bar"; // "The string ü@foo-bar"
-   str_len = strlen(str);
+   U_INTERNAL_ASSERT( u_isText(  (const unsigned char*)U_CONSTANT_TO_PARAM(U_STR1)) == false )
+   U_INTERNAL_ASSERT( u_isUTF8(  (const unsigned char*)U_CONSTANT_TO_PARAM(U_STR1)) )
+   U_INTERNAL_ASSERT( u_isUTF16( (const unsigned char*)U_CONSTANT_TO_PARAM(U_STR1)) == false )
+   U_INTERNAL_ASSERT( u_isBinary((const unsigned char*)U_CONSTANT_TO_PARAM(U_STR1)) == false )
 
-   U_INTERNAL_ASSERT( u_isText((const unsigned char*)str, str_len)   == false )
-   U_INTERNAL_ASSERT( u_isUTF8((const unsigned char*)str, str_len)   == true )
-   U_INTERNAL_ASSERT( u_isUTF16((const unsigned char*)str, str_len)  == false )
-   U_INTERNAL_ASSERT( u_isBinary((const unsigned char*)str, str_len) == false )
- 
-   UString z = UString::fromUTF8((const unsigned char*)str, str_len);
+   z = UString::fromUTF8((const unsigned char*)U_CONSTANT_TO_PARAM(U_STR1));
 
    U_INTERNAL_ASSERT( z.isText()   == false )
    U_INTERNAL_ASSERT( z.isUTF8()   == false )
    U_INTERNAL_ASSERT( z.isUTF16()  == false )
-   U_INTERNAL_ASSERT( z.isBinary() == true )
+   U_INTERNAL_ASSERT( z.isBinary() )
 
-   U_INTERNAL_ASSERT( UString::toUTF8((const unsigned char*)z.data(), z.size()) == str )
+   U_INTERNAL_ASSERT( UString::toUTF8((const unsigned char*)U_STRING_TO_PARAM(z)) == U_STRING_FROM_CONSTANT(U_STR1) )
 
-   str     = "binary: \xC3\xBC\x88\x01\x0B";
-   str_len = strlen(str);
+   U_INTERNAL_ASSERT( u_isText(  (const unsigned char*)U_CONSTANT_TO_PARAM(U_STR2)) == false )
+   U_INTERNAL_ASSERT( u_isUTF8(  (const unsigned char*)U_CONSTANT_TO_PARAM(U_STR2)) == false )
+   U_INTERNAL_ASSERT( u_isUTF16( (const unsigned char*)U_CONSTANT_TO_PARAM(U_STR2)) == false )
+   U_INTERNAL_ASSERT( u_isBinary((const unsigned char*)U_CONSTANT_TO_PARAM(U_STR2)) )
 
-   U_INTERNAL_ASSERT( u_isText((const unsigned char*)str, str_len)   == false )
-   U_INTERNAL_ASSERT( u_isUTF8((const unsigned char*)str, str_len)   == false )
-   U_INTERNAL_ASSERT( u_isUTF16((const unsigned char*)str, str_len)  == false )
-   U_INTERNAL_ASSERT( u_isBinary((const unsigned char*)str, str_len) == true )
-
-   z = UString::fromUTF8((const unsigned char*)str, str_len);
+   z = UString::fromUTF8((const unsigned char*)U_CONSTANT_TO_PARAM(U_STR2));
 
    U_INTERNAL_ASSERT( z.isUTF8()   == false )
    U_INTERNAL_ASSERT( z.isUTF16()  == false )
    U_INTERNAL_ASSERT( z.isText()   == false )
-   U_INTERNAL_ASSERT( z.isBinary() == true )
+   U_INTERNAL_ASSERT( z.isBinary() )
 
-   str = "ã~C~Uã~C¬ã~C¼ã~C| ã~C¯ã~C¼ã~B¯ã~A®ã~C~Yã~C³ã~C~Aã~C~^ã~C¼ã~B¯";
-      // "\343~C~U\343~C\254\343~C\274\343~C| \343~C\257\343~C\274\343~B\257\343~A\256\343~C~Y\343~C\263\343~C~A\343~C~^\343~C\274\343~B\257"
-
-   str_len = strlen(str);
-   z       = UString::toUTF8((const unsigned char*)str, str_len);
+   z = UString::toUTF8((const unsigned char*)U_CONSTANT_TO_PARAM(U_STR3));
 
    U_INTERNAL_DUMP("toUTF8(%u) = %#*.S", z.size(), U_STRING_TO_TRACE(z))
 
-   U_INTERNAL_ASSERT( u_isText((const unsigned char*)str, str_len)   == false )
-   U_INTERNAL_ASSERT( u_isUTF8((const unsigned char*)str, str_len)   == false )
-   U_INTERNAL_ASSERT( u_isUTF16((const unsigned char*)str, str_len)  == false )
-   U_INTERNAL_ASSERT( u_isBinary((const unsigned char*)str, str_len) == true )
+   U_INTERNAL_ASSERT( u_isText(  (const unsigned char*)U_CONSTANT_TO_PARAM(U_STR3)) == false )
+   U_INTERNAL_ASSERT( u_isUTF8(  (const unsigned char*)U_CONSTANT_TO_PARAM(U_STR3)) == false )
+   U_INTERNAL_ASSERT( u_isUTF16( (const unsigned char*)U_CONSTANT_TO_PARAM(U_STR3)) == false )
+   U_INTERNAL_ASSERT( u_isBinary((const unsigned char*)U_CONSTANT_TO_PARAM(U_STR3)) )
 
    U_INTERNAL_ASSERT( z.isText()   == false )
-   U_INTERNAL_ASSERT( z.isUTF8()   == true )
+   U_INTERNAL_ASSERT( z.isUTF8() )
    U_INTERNAL_ASSERT( z.isUTF16()  == false )
    U_INTERNAL_ASSERT( z.isBinary() == false )
 
-   U_INTERNAL_ASSERT( UString::fromUTF8((const unsigned char*)z.data(), z.size()) == str )
+   U_INTERNAL_ASSERT( UString::fromUTF8((const unsigned char*)U_STRING_TO_PARAM(z)) == U_STRING_FROM_CONSTANT(U_STR3) )
+
+   const char* str;
 
    /*
    str     = "A list is only as strong as its weakest link. \xe2 Donald Knuth"; // â
@@ -1603,12 +1782,11 @@ U_EXPORT main (int argc, char* argv[])
    cout << z << "\n";
    */
 
-   UCrono crono;
-   UVector<UString> vec;
-   UString x = U_STRING_FROM_CONSTANT("172.31.1.0/24 172.31.2.0/24  172.31.3.0/24 \t\t\t\t\t\t\t\t\t\t\t\t\t"
-                                      "172.31.4.0/24 172.31.5.0/24  172.31.6.0/24 \t\t\t\t\t\t\t\t\t\t\t\t\t172.31.7.0/24");
+   x = U_STRING_FROM_CONSTANT("172.31.1.0/24 172.31.2.0/24  172.31.3.0/24 \t\t\t\t\t\t\t\t\t\t\t\t\t"
+                              "172.31.4.0/24 172.31.5.0/24  172.31.6.0/24 \t\t\t\t\t\t\t\t\t\t\t\t\t172.31.7.0/24");
 
-   int i, n = vec.split(x);
+           vec.clear();
+   int n = vec.split(x);
 
    U_INTERNAL_ASSERT_EQUALS(n, 7)
 
@@ -1617,7 +1795,7 @@ U_EXPORT main (int argc, char* argv[])
    vec.clear();
 
    n = vec.split(U_CONSTANT_TO_PARAM("172.31.1.0/24 172.31.2.0/24  172.31.3.0/24 \t\t\t\t\t\t\t\t\t\t\t\t\t"
-                                     "172.31.4.0/24 172.31.5.0/24  172.31.6.0/24 \t\t\t\t\t\t\t\t\t\t\t\t\t172.31.7.0/24"));
+                                       "172.31.4.0/24 172.31.5.0/24  172.31.6.0/24 \t\t\t\t\t\t\t\t\t\t\t\t\t172.31.7.0/24"));
 
    U_INTERNAL_ASSERT_EQUALS(n, 7)
 
@@ -1631,51 +1809,51 @@ U_EXPORT main (int argc, char* argv[])
 
    for (i = 0; i < n; ++i)
       {
-#ifdef TEST_MEMMOVE
+   #ifdef TEST_MEMMOVE
       test_memmove_01();
-#endif
-#ifdef TEST_ASSIGN
+#  endif
+#  ifdef TEST_ASSIGN
       test_assign_01();
-#endif
-#ifdef TEST_CAPACITY
+#  endif
+#  ifdef TEST_CAPACITY
       test_capacity_01();
       test_capacity_02();
-#endif
-#ifdef TEST_COMPARE
+#  endif
+#  ifdef TEST_COMPARE
       test_compare_01();
-#endif
-#ifdef TEST_CONSTRUCTORS
+#  endif
+#  ifdef TEST_CONSTRUCTORS
       test_constructors_01();
       test_constructors_02();
       test_constructors_03();
-#endif
-#ifdef TEST_ACCESS
+#  endif
+#  ifdef TEST_ACCESS
       test_access_01();
-#endif
-#ifdef TEST_FIND
+#  endif
+#  ifdef TEST_FIND
       test_find_01();
       test_rfind_01();
-#endif
-#ifdef TEST_INSERT
+#  endif
+#  ifdef TEST_INSERT
       test_insert_01();
-#endif
-#ifdef TEST_REPLACE
+#  endif
+#  ifdef TEST_REPLACE
       test_replace_01();
-#endif
-#ifdef TEST_NOT_MEMBER
+#  endif
+#  ifdef TEST_NOT_MEMBER
       test_not_member_01();
-#endif
-#ifdef TEST_OPERATIONS
+#  endif
+#  ifdef TEST_OPERATIONS
       test_operations_01();
-#endif
-#ifdef TEST_SUBSTR
+#  endif
+#  ifdef TEST_SUBSTR
       test_substr_01();
-#endif
-#ifdef TEST_CLASS
+#  endif
+#  if defined(TEST_CLASS) && defined(U_STD_STRING)
       test_class_01();
       test_class_02();
-#endif
-#ifdef TEST_STREAM
+#  endif
+#  ifdef TEST_STREAM
       test_stream_01();
       test_stream_04(1);      // expected_size == 4
       test_stream_04(1000);   // expected_size == 2002
@@ -1687,12 +1865,12 @@ U_EXPORT main (int argc, char* argv[])
       test_stream_07();
       test_stream_08();
       test_stream_09();
-#endif
+#  endif
       }
 
    x = U_STRING_FROM_CONSTANT("/mnt/mirror/home/stefano/spool/cross");
 
-   UString y = UStringExt::basename(x);
+   y = UStringExt::basename(x);
 
    U_ASSERT( y == "cross" )
 
@@ -1788,12 +1966,13 @@ U_EXPORT main (int argc, char* argv[])
    u_cwd_len = U_CONSTANT_SIZE("/mnt/storage/stefano/ulib/nodebug/64/gentoo/ULib-1.0.5/tests/examples"); // 69
 
    z.setBuffer(u_cwd_len + U_CONSTANT_SIZE( "/www.sito1.com/cgi-bin/redirect.sh")); // 34
-   z.snprintf("%w%.*s", U_CONSTANT_TO_TRACE("/www.sito1.com/cgi-bin/redirect.sh")); // 69 + 34 = 103 => (128 - (1 + sizeof(ustringrep)))
+   z.snprintf(U_CONSTANT_TO_PARAM("%w%.*s"), U_CONSTANT_TO_TRACE("/www.sito1.com/cgi-bin/redirect.sh")); // 69 + 34 = 103 => (128 - (1 + sizeof(ustringrep)))
 
    U_ASSERT_DIFFERS( z.size(), u_cwd_len )
    U_ASSERT( z == U_STRING_FROM_CONSTANT("/mnt/storage/stefano/ulib/nodebug/64/gentoo/ULib-1.0.5/tests/examples/www.sito1.com/cgi-bin/redirect.sh") )
 
-   /* Sort two version numbers, comparing equivalently seperated strings of digits numerically
+   /**
+    * Sort two version numbers, comparing equivalently seperated strings of digits numerically
     *
     * Returns a positive number if (a > b)
     * Returns a negative number if (a < b)
@@ -1823,9 +2002,14 @@ U_EXPORT main (int argc, char* argv[])
    U_ASSERT( UStringExt::compareversion(U_STRING_FROM_CONSTANT("2.1000"), U_STRING_FROM_CONSTANT("3.111")) < 0 )
    U_ASSERT( UStringExt::compareversion(U_STRING_FROM_CONSTANT("3.111"), U_STRING_FROM_CONSTANT("2.1000")) > 0 )
 
+#ifdef USE_LIBSSL
+   z = UServices::createToken();
+#endif
+   z = UServices::generateCode();
+
    /* recursively expand variables if needed
 
-#define ENV_1     \
+   #define ENV_1     \
    "HOME=$HOME\n" \
    "PATH=$PATH\n" \
    "BRUTTOBUCO=$BRUTTOBUCO\n" \
@@ -1845,7 +2029,7 @@ U_EXPORT main (int argc, char* argv[])
 
    z = UStringExt::expandEnvironmentVar(U_STRING_FROM_CONSTANT(ENV_1), 0);
 
-#define ENV_2    \
+   #define ENV_2    \
    "HOME=1000\n" \
    "PATH=da qualche parte\n" \
    "BRUTTOBUCO=\n" \
@@ -1855,37 +2039,37 @@ U_EXPORT main (int argc, char* argv[])
    */
 
 #ifdef USE_LIBZ
-#  define TEXT3 \
-"Apr 12 10:03:22 www sm-mta[2031]: l3C834YF002031: from=<tddiaz@thai.com>, size=2426, class=0, nrcpts=1, msgid=<c69d01c77cd8$9471501e$6aa9eea9@thai.com>, proto=SMTP, daemon=MTA, relay=adsl-d36.87-197-150.t-com.sk [87.197.150.36]\n" \
-"Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: to=<marcodd@unirel.it>, delay=00:00:13, xdelay=00:00:00, mailer=cyrusv2, pri=122426, relay=localhost, dsn=5.1.1, stat=User unknown\n" \
-"Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: l3C83MYF002034: DSN: User unknown" \
-"Apr 12 10:03:22 www sm-mta[2031]: l3C834YF002031: from=<tddiaz@thai.com>, size=2426, class=0, nrcpts=1, msgid=<c69d01c77cd8$9471501e$6aa9eea9@thai.com>, proto=SMTP, daemon=MTA, relay=adsl-d36.87-197-150.t-com.sk [87.197.150.36]\n" \
-"Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: to=<marcodd@unirel.it>, delay=00:00:13, xdelay=00:00:00, mailer=cyrusv2, pri=122426, relay=localhost, dsn=5.1.1, stat=User unknown\n" \
-"Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: l3C83MYF002034: DSN: User unknown" \
-"Apr 12 10:03:22 www sm-mta[2031]: l3C834YF002031: from=<tddiaz@thai.com>, size=2426, class=0, nrcpts=1, msgid=<c69d01c77cd8$9471501e$6aa9eea9@thai.com>, proto=SMTP, daemon=MTA, relay=adsl-d36.87-197-150.t-com.sk [87.197.150.36]\n" \
-"Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: to=<marcodd@unirel.it>, delay=00:00:13, xdelay=00:00:00, mailer=cyrusv2, pri=122426, relay=localhost, dsn=5.1.1, stat=User unknown\n" \
-"Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: l3C83MYF002034: DSN: User unknown" \
-"Apr 12 10:03:22 www sm-mta[2031]: l3C834YF002031: from=<tddiaz@thai.com>, size=2426, class=0, nrcpts=1, msgid=<c69d01c77cd8$9471501e$6aa9eea9@thai.com>, proto=SMTP, daemon=MTA, relay=adsl-d36.87-197-150.t-com.sk [87.197.150.36]\n" \
-"Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: to=<marcodd@unirel.it>, delay=00:00:13, xdelay=00:00:00, mailer=cyrusv2, pri=122426, relay=localhost, dsn=5.1.1, stat=User unknown\n" \
-"Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: l3C83MYF002034: DSN: User unknown" \
-"Apr 12 10:03:22 www sm-mta[2031]: l3C834YF002031: from=<tddiaz@thai.com>, size=2426, class=0, nrcpts=1, msgid=<c69d01c77cd8$9471501e$6aa9eea9@thai.com>, proto=SMTP, daemon=MTA, relay=adsl-d36.87-197-150.t-com.sk [87.197.150.36]\n" \
-"Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: to=<marcodd@unirel.it>, delay=00:00:13, xdelay=00:00:00, mailer=cyrusv2, pri=122426, relay=localhost, dsn=5.1.1, stat=User unknown\n" \
-"Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: l3C83MYF002034: DSN: User unknown" \
-"Apr 12 10:03:22 www sm-mta[2031]: l3C834YF002031: from=<tddiaz@thai.com>, size=2426, class=0, nrcpts=1, msgid=<c69d01c77cd8$9471501e$6aa9eea9@thai.com>, proto=SMTP, daemon=MTA, relay=adsl-d36.87-197-150.t-com.sk [87.197.150.36]\n" \
-"Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: to=<marcodd@unirel.it>, delay=00:00:13, xdelay=00:00:00, mailer=cyrusv2, pri=122426, relay=localhost, dsn=5.1.1, stat=User unknown\n" \
-"Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: l3C83MYF002034: DSN: User unknown" \
-"Apr 12 10:03:22 www sm-mta[2031]: l3C834YF002031: from=<tddiaz@thai.com>, size=2426, class=0, nrcpts=1, msgid=<c69d01c77cd8$9471501e$6aa9eea9@thai.com>, proto=SMTP, daemon=MTA, relay=adsl-d36.87-197-150.t-com.sk [87.197.150.36]\n" \
-"Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: to=<marcodd@unirel.it>, delay=00:00:13, xdelay=00:00:00, mailer=cyrusv2, pri=122426, relay=localhost, dsn=5.1.1, stat=User unknown\n" \
-"Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: l3C83MYF002034: DSN: User unknown" \
-"Apr 12 10:03:22 www sm-mta[2031]: l3C834YF002031: from=<tddiaz@thai.com>, size=2426, class=0, nrcpts=1, msgid=<c69d01c77cd8$9471501e$6aa9eea9@thai.com>, proto=SMTP, daemon=MTA, relay=adsl-d36.87-197-150.t-com.sk [87.197.150.36]\n" \
-"Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: to=<marcodd@unirel.it>, delay=00:00:13, xdelay=00:00:00, mailer=cyrusv2, pri=122426, relay=localhost, dsn=5.1.1, stat=User unknown\n" \
-"Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: l3C83MYF002034: DSN: User unknown" \
-"Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: l3C83MYF002034: DSN: User unknown" \
-"Apr 12 10:03:22 www sm-mta[2031]: l3C834YF002031: from=<tddiaz@thai.com>, size=2426, class=0, nrcpts=1, msgid=<c69d01c77cd8$9471501e$6aa9eea9@thai.com>, proto=SMTP, daemon=MTA, relay=adsl-d36.87-197-150.t-com.sk [87.197.150.36]\n" \
-"Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: to=<marcodd@unirel.it>, delay=00:00:13, xdelay=00:00:00, mailer=cyrusv2, pri=122426, relay=localhost, dsn=5.1.1, stat=User unknown\n" \
-"Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: l3C83MYF002034: DSN: User unknown" \
-"Apr 12 10:03:22 www sm-mta[2031]: l3C834YF002031: from=<tddiaz@thai.com>, size=2426, class=0, nrcpts=1, msgid=<c69d01c77cd8$9471501e$6aa9eea9@thai.com>, proto=SMTP, daemon=MTA, relay=adsl-d36.87-197-150.t-com.sk [87.197.150.36]\n" \
-"Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: to=<marcodd@unirel.it>, delay=00:00:13, xdelay=00:00:00, mailer=cyrusv2, pri=122426, relay=localhost, dsn=5.1.1, stat=User unknown\n"
+   #define TEXT3 \
+   "Apr 12 10:03:22 www sm-mta[2031]: l3C834YF002031: from=<tddiaz@thai.com>, size=2426, class=0, nrcpts=1, msgid=<c69d01c77cd8$9471501e$6aa9eea9@thai.com>, proto=SMTP, daemon=MTA, relay=adsl-d36.87-197-150.t-com.sk [87.197.150.36]\n" \
+   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: to=<marcodd@unirel.it>, delay=00:00:13, xdelay=00:00:00, mailer=cyrusv2, pri=122426, relay=localhost, dsn=5.1.1, stat=User unknown\n" \
+   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: l3C83MYF002034: DSN: User unknown" \
+   "Apr 12 10:03:22 www sm-mta[2031]: l3C834YF002031: from=<tddiaz@thai.com>, size=2426, class=0, nrcpts=1, msgid=<c69d01c77cd8$9471501e$6aa9eea9@thai.com>, proto=SMTP, daemon=MTA, relay=adsl-d36.87-197-150.t-com.sk [87.197.150.36]\n" \
+   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: to=<marcodd@unirel.it>, delay=00:00:13, xdelay=00:00:00, mailer=cyrusv2, pri=122426, relay=localhost, dsn=5.1.1, stat=User unknown\n" \
+   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: l3C83MYF002034: DSN: User unknown" \
+   "Apr 12 10:03:22 www sm-mta[2031]: l3C834YF002031: from=<tddiaz@thai.com>, size=2426, class=0, nrcpts=1, msgid=<c69d01c77cd8$9471501e$6aa9eea9@thai.com>, proto=SMTP, daemon=MTA, relay=adsl-d36.87-197-150.t-com.sk [87.197.150.36]\n" \
+   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: to=<marcodd@unirel.it>, delay=00:00:13, xdelay=00:00:00, mailer=cyrusv2, pri=122426, relay=localhost, dsn=5.1.1, stat=User unknown\n" \
+   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: l3C83MYF002034: DSN: User unknown" \
+   "Apr 12 10:03:22 www sm-mta[2031]: l3C834YF002031: from=<tddiaz@thai.com>, size=2426, class=0, nrcpts=1, msgid=<c69d01c77cd8$9471501e$6aa9eea9@thai.com>, proto=SMTP, daemon=MTA, relay=adsl-d36.87-197-150.t-com.sk [87.197.150.36]\n" \
+   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: to=<marcodd@unirel.it>, delay=00:00:13, xdelay=00:00:00, mailer=cyrusv2, pri=122426, relay=localhost, dsn=5.1.1, stat=User unknown\n" \
+   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: l3C83MYF002034: DSN: User unknown" \
+   "Apr 12 10:03:22 www sm-mta[2031]: l3C834YF002031: from=<tddiaz@thai.com>, size=2426, class=0, nrcpts=1, msgid=<c69d01c77cd8$9471501e$6aa9eea9@thai.com>, proto=SMTP, daemon=MTA, relay=adsl-d36.87-197-150.t-com.sk [87.197.150.36]\n" \
+   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: to=<marcodd@unirel.it>, delay=00:00:13, xdelay=00:00:00, mailer=cyrusv2, pri=122426, relay=localhost, dsn=5.1.1, stat=User unknown\n" \
+   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: l3C83MYF002034: DSN: User unknown" \
+   "Apr 12 10:03:22 www sm-mta[2031]: l3C834YF002031: from=<tddiaz@thai.com>, size=2426, class=0, nrcpts=1, msgid=<c69d01c77cd8$9471501e$6aa9eea9@thai.com>, proto=SMTP, daemon=MTA, relay=adsl-d36.87-197-150.t-com.sk [87.197.150.36]\n" \
+   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: to=<marcodd@unirel.it>, delay=00:00:13, xdelay=00:00:00, mailer=cyrusv2, pri=122426, relay=localhost, dsn=5.1.1, stat=User unknown\n" \
+   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: l3C83MYF002034: DSN: User unknown" \
+   "Apr 12 10:03:22 www sm-mta[2031]: l3C834YF002031: from=<tddiaz@thai.com>, size=2426, class=0, nrcpts=1, msgid=<c69d01c77cd8$9471501e$6aa9eea9@thai.com>, proto=SMTP, daemon=MTA, relay=adsl-d36.87-197-150.t-com.sk [87.197.150.36]\n" \
+   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: to=<marcodd@unirel.it>, delay=00:00:13, xdelay=00:00:00, mailer=cyrusv2, pri=122426, relay=localhost, dsn=5.1.1, stat=User unknown\n" \
+   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: l3C83MYF002034: DSN: User unknown" \
+   "Apr 12 10:03:22 www sm-mta[2031]: l3C834YF002031: from=<tddiaz@thai.com>, size=2426, class=0, nrcpts=1, msgid=<c69d01c77cd8$9471501e$6aa9eea9@thai.com>, proto=SMTP, daemon=MTA, relay=adsl-d36.87-197-150.t-com.sk [87.197.150.36]\n" \
+   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: to=<marcodd@unirel.it>, delay=00:00:13, xdelay=00:00:00, mailer=cyrusv2, pri=122426, relay=localhost, dsn=5.1.1, stat=User unknown\n" \
+   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: l3C83MYF002034: DSN: User unknown" \
+   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: l3C83MYF002034: DSN: User unknown" \
+   "Apr 12 10:03:22 www sm-mta[2031]: l3C834YF002031: from=<tddiaz@thai.com>, size=2426, class=0, nrcpts=1, msgid=<c69d01c77cd8$9471501e$6aa9eea9@thai.com>, proto=SMTP, daemon=MTA, relay=adsl-d36.87-197-150.t-com.sk [87.197.150.36]\n" \
+   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: to=<marcodd@unirel.it>, delay=00:00:13, xdelay=00:00:00, mailer=cyrusv2, pri=122426, relay=localhost, dsn=5.1.1, stat=User unknown\n" \
+   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: l3C83MYF002034: DSN: User unknown" \
+   "Apr 12 10:03:22 www sm-mta[2031]: l3C834YF002031: from=<tddiaz@thai.com>, size=2426, class=0, nrcpts=1, msgid=<c69d01c77cd8$9471501e$6aa9eea9@thai.com>, proto=SMTP, daemon=MTA, relay=adsl-d36.87-197-150.t-com.sk [87.197.150.36]\n" \
+   "Apr 12 10:03:22 www sm-mta[2034]: l3C834YF002031: to=<marcodd@unirel.it>, delay=00:00:13, xdelay=00:00:00, mailer=cyrusv2, pri=122426, relay=localhost, dsn=5.1.1, stat=User unknown\n"
 
    z = U_STRING_FROM_CONSTANT(TEXT3);
 
@@ -1911,15 +2095,15 @@ U_EXPORT main (int argc, char* argv[])
    U_ASSERT( UStringExt::isEmailAddress( U_STRING_FROM_CONSTANT("69d01c77cd8$9471501e$6aa9eea9@thai.com"))  == true )
    U_ASSERT( UStringExt::isEmailAddress( U_STRING_FROM_CONSTANT("69d01c77cd8$9471501e@6aa9eea9@thai.com")) == false )
 
-   z = UString((void*)"buffer occupato");
+   z = UString((void*)U_CONSTANT_TO_PARAM("buffer occupato"));
    y = z;
 
    z.setBuffer(100);
-   z.snprintf("%s", "pippo pluto paperino");
+   z.snprintf(U_CONSTANT_TO_PARAM("%s"), "pippo pluto paperino");
 
    U_ASSERT( U_STRING_FROM_CONSTANT("pippo pluto paperino") == z )
 
-   z.snprintf("%s", "!!!.,;'?pippo.,;'?!!!");
+   z.snprintf(U_CONSTANT_TO_PARAM("%s"), "!!!.,;'?pippo.,;'?!!!");
    z = UStringExt::trimPunctuation(z);
 
    U_ASSERT( U_STRING_FROM_CONSTANT("pippo") == z )
@@ -1927,33 +2111,6 @@ U_EXPORT main (int argc, char* argv[])
 
    U_INTERNAL_ASSERT( U_STRING_FROM_CONSTANT("           \n\t\r").isWhiteSpace() )
    U_INTERNAL_ASSERT( U_STRING_FROM_CONSTANT("gXWUj7VekBdkycg3Z9kXuglV9plUl2cs4XkNLSDhe5VHRgE03e63VypMChCWDGI=").isBase64() )
-
-   UString expressions;
-
-   expressions = U_STRING_FROM_CONSTANT("2 + 3 + 5"); // = 10
-   cout << UStringExt::evalExpression(expressions, UString::getStringNull()) << "\n";
-   expressions = U_STRING_FROM_CONSTANT("2 * 3 + 5"); // = 11
-   cout << UStringExt::evalExpression(expressions, UString::getStringNull()) << "\n";
-   expressions = U_STRING_FROM_CONSTANT("2 * (3 + 5)"); // = 16
-   cout << UStringExt::evalExpression(expressions, UString::getStringNull()) << "\n";
-   expressions = U_STRING_FROM_CONSTANT("2 * (2*(2*(2+1)))"); // = 24
-   cout << UStringExt::evalExpression(expressions, UString::getStringNull()) << "\n";
-   expressions = U_STRING_FROM_CONSTANT("10 % 3"); // = 1
-   cout << UStringExt::evalExpression(expressions, UString::getStringNull()) << "\n";
-   expressions = U_STRING_FROM_CONSTANT("true || false"); // = true
-   cout << UStringExt::evalExpression(expressions, UString::getStringNull()) << "\n";
-   expressions = U_STRING_FROM_CONSTANT("false || ! (false && 1)"); // = true
-   cout << UStringExt::evalExpression(expressions, UString::getStringNull()) << "\n";
-   expressions = U_STRING_FROM_CONSTANT("3 > 2 && 1 <= (3-2)"); // = true
-   cout << UStringExt::evalExpression(expressions, UString::getStringNull()) << "\n";
-   expressions = U_STRING_FROM_CONSTANT("false"); // = false
-   cout << UStringExt::evalExpression(expressions, UString::getStringNull()) << "\n";
-   expressions = U_STRING_FROM_CONSTANT("rand() == 0"); // = false
-   cout << UStringExt::evalExpression(expressions, UString::getStringNull()) << "\n";
-
-// expressions = U_STRING_FROM_CONSTANT("/pippo/pluto == UStringExt::expandEnvironmentVar('$HOME', 5, 0)/pluto"); // = false
-// cout << UStringExt::evalExpression(expressions, UString::getStringNull()) << "\n";
-
 
 #ifdef USE_LIBPCRE
    // date (YYYY/MM/DD) --> (DD/MM/YYYY)
@@ -2021,29 +2178,7 @@ U_EXPORT main (int argc, char* argv[])
    U_ASSERT( z == U_STRING_FROM_CONSTANT("HOME=TSA\nOPENSSL=bin/openssl\nOPENSSL_CNF=CA/openssl.cnf\n'UTRACE=0 5M 0'\n"
                                          "TSA_CACERT=CA/cacert.pem\nTSA_CERT=CA/server.crt\nTSA_KEY=CA/server.key\n") )
 
-   istrstream istrs02(U_CONSTANT_TO_PARAM("\"DEBUG=1 \\\n"
-                                          "  FW_CONF=etc/nodog_fw.conf \\\n"
-                                          "  AllowedWebHosts=159.213.0.0/16 \\\n"
-                                          "  InternalDevice=ath0 ath0 \\\n"
-                                          "  LocalNetwork=10.30.1.0/24 10.1.0.1/16 \\\n"
-                                          "  AuthServiceAddr=http://www.auth-firenze.com/login http://localhost\""));
-
-   z.get(istrs02);
-
-   z = UStringExt::prepareForEnvironmentVar(z);
-
-   U_ASSERT( z == U_STRING_FROM_CONSTANT("DEBUG=1\n"
-                                         "FW_CONF=etc/nodog_fw.conf\n"
-                                         "AllowedWebHosts=159.213.0.0/16\n"
-                                         "'InternalDevice=ath0 ath0'\n"
-                                         "'LocalNetwork=10.30.1.0/24 10.1.0.1/16'\n"
-                                         "'AuthServiceAddr=http://www.auth-firenze.com/login http://localhost'\n") )
-
-   y = UStringExt::getEnvironmentVar(U_CONSTANT_TO_PARAM("LocalNetwork"), &z);
-
-   U_ASSERT( y == U_STRING_FROM_CONSTANT("10.30.1.0/24 10.1.0.1/16") )
-
-   z = UStringExt::prepareForEnvironmentVar(UFile::contentOf("inp/environment.conf"));
+   z = UStringExt::prepareForEnvironmentVar(UFile::contentOf(U_STRING_FROM_CONSTANT("inp/environment.conf")));
 
    y = U_STRING_FROM_CONSTANT("DIR_WEB=$HOME/www\n"
                           "DIR_POLICY=$HOME/policy\n"
@@ -2094,28 +2229,26 @@ U_EXPORT main (int argc, char* argv[])
 
    U_ASSERT( z == y )
 
-/*
-   y = z = UFile::contentOf("inp/livevalidation_standalone.compressed.js");
+   /*
+   y = z = UFile::contentOf(U_STRING_FROM_CONSTANT("inp/livevalidation_standalone.compressed.js"));
 
    z = UStringExt::minifyCssJs(z);
 
-   (void) UFile::writeToTmp(U_STRING_TO_PARAM(z), false, "livevalidation_standalone.compressed.js", 0);
+   (void) UFile::writeToTmp(U_STRING_TO_PARAM(z), O_RDWR | O_TRUNC, U_CONSTANT_TO_PARAM("livevalidation_standalone.compressed.js"), 0);
 
    U_ASSERT( z == y )
-*/
+   */
 
    crono.stop();
 
    printf("Time Consumed for (%d) iteration = %ld ms\n", n, crono.getTimeElapsed());
 
-/*
+   /*
    check DEAD OF SOURCE STRING WITH CHILD ALIVE...
 
    y = U_STRING_FROM_CONSTANT("I am the source string");
    z = y.substr(17U);
 
    y.clear();
-*/
-
-   U_RETURN(0);
+   */
 }

@@ -56,16 +56,16 @@ public:
 
             pFault->getFaultReason() = U_STRING_FROM_CONSTANT("Invalid number of arugments");
 
-            pFault->setDetail("The fault occurred because the add method expected 2 arguments "
-                                  "but received %d arguments", num_arguments);
+            pFault->setDetail(U_CONSTANT_TO_PARAM("The fault occurred because the add method expected 2 arguments "
+                              "but received %d arguments"), num_arguments);
 
             pFault->encode(buffer);
 
             U_RETURN(false);
             }
 
-         long a = theCall.getArgument(0).strtol(),
-              b = theCall.getArgument(1).strtol();
+         long a = theCall.getArgument(0).strtol(10),
+              b = theCall.getArgument(1).strtol(10);
 
          returnValue = a + b;
 
@@ -115,8 +115,8 @@ public:
 
             pFault->getFaultReason() = U_STRING_FROM_CONSTANT("Invalid number of arugments");
 
-            pFault->setDetail("The fault occurred because the reverse method expected 1 arguments "
-                                  "but received %d arguments", num_arguments);
+            pFault->setDetail(U_CONSTANT_TO_PARAM("The fault occurred because the reverse method expected 1 arguments "
+                              "but received %d arguments"), num_arguments);
 
             pFault->encode(returnValue);
 
@@ -146,11 +146,18 @@ public:
       {
       U_TRACE_REGISTER_OBJECT(5, USOAPExample, "%p", &file_method)
 
-      dispatcher          = U_NEW(USOAPObject);
-      URPCMethod::encoder = U_NEW(USOAPEncoder);
+      U_NEW(USOAPObject, dispatcher, USOAPObject);
+      U_NEW(USOAPEncoder, URPCMethod::encoder, USOAPEncoder);
 
-      USOAPObject::insertMethod(U_NEW(AddMethod));
-      USOAPObject::insertMethod(U_NEW(ReverseMethod));
+      URPCMethod* pmethod;
+
+      U_NEW(AddMethod, pmethod, AddMethod);
+
+      USOAPObject::insertMethod(pmethod);
+
+      U_NEW(ReverseMethod, pmethod, ReverseMethod);
+
+      USOAPObject::insertMethod(pmethod);
 
       // Load generic method
 
@@ -173,6 +180,8 @@ U_EXPORT main (int argc, char* argv[])
 
    U_TRACE(5, "main(%d)",argc)
 
+   UString::str_allocate(STR_ALLOCATE_SOAP);
+
    UFileConfig method_file;
 
    method_file.load(UString(argv[1]));
@@ -185,7 +194,11 @@ U_EXPORT main (int argc, char* argv[])
 
    bool bSendingFault;
    UString filename, msg;
-   USOAPParser parser(U_NEW(UVector<UString>));
+   UVector<UString>* pvec;
+
+   U_NEW(UVector<UString>, pvec, UVector<UString>);
+
+   USOAPParser parser(pvec);
 
    while (cin >> filename)
       {

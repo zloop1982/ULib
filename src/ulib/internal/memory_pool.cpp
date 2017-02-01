@@ -14,11 +14,11 @@
 #include <ulib/file.h>
 
 // --------------------------------------------------------------------------------------
-// U_NUM_ENTRY_MEM_BLOCK: numero di blocchi da preallocare per 'type' stack
+// U_NUM_ENTRY_MEM_BLOCK: number of blocks to preallocate for 'type' stack
 
-#define U_NUM_ENTRY_MEM_BLOCK 32 // (per fare i test assegnare a 2)
+#define U_NUM_ENTRY_MEM_BLOCK 32
 
-// U_SIZE_MEM_BLOCK: space da preallocare totale per i vari 'type' stack definiti (~256k bytes)
+// U_SIZE_MEM_BLOCK: total space to preallocate for the various 'type' stack defined (~256k bytes)
 
 #define U_SIZE_MEM_BLOCK (U_STACK_TYPE_0  * U_NUM_ENTRY_MEM_BLOCK + \
                           U_STACK_TYPE_1  * U_NUM_ENTRY_MEM_BLOCK + \
@@ -33,88 +33,15 @@
 // --------------------------------------------------------------------------------------
 
 #ifdef DEBUG
-const char*  UMemoryPool::obj_class;
-const char*  UMemoryPool::func_call;
-#  ifdef U_STDCPP_ENABLE
-#     include <fstream>
-#  endif
+const char* UMemoryPool::obj_class;
+const char* UMemoryPool::func_call;
+#ifdef U_STDCPP_ENABLE
+#  include <fstream>
+#endif
 #endif
 
-/*
-uint32_t UMemoryPool::stackIndexToSize(uint32_t sz)
-{
-   U_TRACE(0, "UMemoryPool::stackIndexToSize(%u)", sz)
-
-   U_INTERNAL_ASSERT_RANGE(1,sz,U_MAX_SIZE_PREALLOCATE)
-
-   static const uint32_t stack_type[U_NUM_STACK_TYPE] = // 10
-      { U_STACK_TYPE_0,  U_STACK_TYPE_1, U_STACK_TYPE_2,
-        U_STACK_TYPE_3,  U_STACK_TYPE_4, U_STACK_TYPE_5,
-        U_STACK_TYPE_6,  U_STACK_TYPE_7, U_STACK_TYPE_8,
-        U_STACK_TYPE_9 };
-
-   uint32_t key;
-    int32_t probe, low = -1, high = U_NUM_STACK_TYPE; // 10
-
-   while ((high - low) > 1)
-      {
-      probe = (low + high) >> 1;
-      key   = stack_type[probe];
-
-      U_INTERNAL_DUMP("low = %d high = %d probe = %d key = %u", low, high, probe, key)
-
-      if (key > sz) high = probe;
-      else           low = probe;
-      }
-
-   if (low == -1 || (key = stack_type[low], sz > key)) ++low;
-
-   U_INTERNAL_ASSERT(sz <= stack_type[low])
-
-   U_RETURN(low);
-
-   if (sz <= U_STACK_TYPE_0) U_RETURN(0);
-   if (sz <= U_STACK_TYPE_1) U_RETURN(1);
-   if (sz <= U_STACK_TYPE_2) U_RETURN(2);
-   if (sz <= U_STACK_TYPE_3) U_RETURN(3);
-   if (sz <= U_STACK_TYPE_4) U_RETURN(4);
-   if (sz <= U_STACK_TYPE_5) U_RETURN(5);
-   if (sz <= U_STACK_TYPE_6) U_RETURN(6);
-   if (sz <= U_STACK_TYPE_7) U_RETURN(7);
-   if (sz <= U_STACK_TYPE_8) U_RETURN(8);
-                             U_RETURN(9);
-
-   static uint32_t last_sz, last_stack_type;
-
-   if (sz != last_sz)
-      {
-      if (sz <= U_STACK_TYPE_0) { last_stack_type = 0; goto end; }
-      if (sz <= U_STACK_TYPE_1) { last_stack_type = 1; goto end; }
-      if (sz <= U_STACK_TYPE_2) { last_stack_type = 2; goto end; }
-      if (sz <= U_STACK_TYPE_3) { last_stack_type = 3; goto end; }
-      if (sz <= U_STACK_TYPE_4) { last_stack_type = 4; goto end; }
-      if (sz <= U_STACK_TYPE_5) { last_stack_type = 5; goto end; }
-      if (sz <= U_STACK_TYPE_6) { last_stack_type = 6; goto end; }
-      if (sz <= U_STACK_TYPE_7) { last_stack_type = 7; goto end; }
-      if (sz <= U_STACK_TYPE_8) { last_stack_type = 8; goto end; }
-                                  last_stack_type = 9;
-      }
-
-#ifdef DEBUG
-   static uint32_t num_call, cache_miss;
-
-                      ++num_call;
-   if (sz != last_sz) ++cache_miss;
-
-   U_INTERNAL_DUMP("num_call = %u cache_miss = %u", num_call, cache_miss)
-#endif
-
-end:
-   U_RETURN(last_stack_type);
-}
-*/
-
-// struttura e classe che encapsula lo stack dinamico di puntatori a blocchi preallocati per un 'type' dimensione definito
+const uint32_t UMemoryPool::U_STACK_INDEX_TO_SIZE[U_NUM_STACK_TYPE] = { U_STACK_TYPE_0, U_STACK_TYPE_1, U_STACK_TYPE_2, U_STACK_TYPE_3, U_STACK_TYPE_4,
+                                                                        U_STACK_TYPE_5, U_STACK_TYPE_6, U_STACK_TYPE_7, U_STACK_TYPE_8, U_MAX_SIZE_PREALLOCATE };
 
 typedef struct ustackmemorypool {
 #ifdef DEBUG
@@ -129,9 +56,6 @@ typedef struct ustackmemorypool {
             num_call_allocateMemoryBlocks;
 #endif
 } ustackmemorypool;
-
-static const uint32_t U_STACK_INDEX_TO_SIZE[] = { U_STACK_TYPE_0, U_STACK_TYPE_1, U_STACK_TYPE_2, U_STACK_TYPE_3, U_STACK_TYPE_4,
-                                                  U_STACK_TYPE_5, U_STACK_TYPE_6, U_STACK_TYPE_7, U_STACK_TYPE_8, U_MAX_SIZE_PREALLOCATE };
 
 /*
            --   --        --   --   --        --   -- 
@@ -167,7 +91,7 @@ public:
 
    void deallocatePointerBlock()
       {
-      U_TRACE(0, "UStackMemoryPool::deallocatePointerBlock()")
+      U_TRACE_NO_PARAM(0, "UStackMemoryPool::deallocatePointerBlock()")
 
 #  if defined(ENABLE_MEMPOOL)
       U_INTERNAL_DUMP("&mem_pointer_block[  0] = %p", &mem_pointer_block[0])
@@ -178,13 +102,7 @@ public:
       if (pointer_block < &mem_pointer_block[0] ||
           pointer_block > &mem_pointer_block[U_NUM_STACK_TYPE * U_NUM_ENTRY_MEM_BLOCK * 2])
          {
-         uint32_t size = space * sizeof(void*);
-
-         U_INTERNAL_DUMP("size = %u", size)
-
-         U_INTERNAL_ASSERT_EQUALS(size & U_PAGEMASK, 0)
-
-         UMemoryPool::deallocate(pointer_block, size);
+         UMemoryPool::deallocate(pointer_block, space * sizeof(void*));
          }
 #  endif
       }
@@ -195,12 +113,12 @@ public:
 
       U_INTERNAL_ASSERT_MAJOR(index, 0)
 
-      // NB: si alloca lo space per numero totale puntatori
-      //     (blocchi allocati precedentemente + un nuovo insieme di blocchi)
-      //     relativi a type 'dimensione' stack corrente...
+      // NB: we alloc the space for total number pointer (block allocate previous + a new set of blocks) relativ to type 'dimension' current stack...
 
       uint32_t size = new_space * sizeof(void*);
-      void** new_block = (void**) UFile::mmap(&size, -1, PROT_READ | PROT_WRITE, U_MAP_ANON, 0);
+
+      void** new_block = (void**) UFile::mmap(&size, -1, PROT_READ | PROT_WRITE, MAP_PRIVATE | U_MAP_ANON, 0);
+
       new_space = (size / sizeof(void*));
 
       if (len) U_MEMCPY(new_block, pointer_block, len * sizeof(void*));
@@ -220,8 +138,6 @@ public:
 
       U_INTERNAL_ASSERT_MAJOR(n, len)
 
-      // si alloca un nuovo insieme di blocchi relativi a 'type' stack corrente...
-
       uint32_t num_entry = (n - len),
                size      = num_entry * type;
 
@@ -231,7 +147,7 @@ public:
          {
          U_INTERNAL_ASSERT_EQUALS(len, 0)
 
-         pointer_block = (void**) UFile::mmap(&size, -1, PROT_READ | PROT_WRITE, U_MAP_ANON, 0);
+         pointer_block = (void**) UFile::mmap(&size, -1, PROT_READ | PROT_WRITE, MAP_PRIVATE |  U_MAP_ANON, 0);
            len = space = (size / type);
 
 #     if defined(DEBUG) && defined(ENABLE_MEMPOOL)
@@ -249,9 +165,6 @@ public:
          char* eblock = pblock + (num_entry * type);
 
          if (space <= new_len) growPointerBlock(space + num_entry); // NB: this call can change len...
-
-         // ...che viene inizializzato suddividendolo in base al type
-         //    'dimensione' e assegnando i valori dei puntatori relativi nel nuovo stack
 
          do {
                                            eblock -= type;
@@ -272,45 +185,31 @@ public:
 
    void* pop()
       {
-   // U_TRACE(0, "UStackMemoryPool::pop()") // problem with sanitize address
-
-   // U_INTERNAL_DUMP("index = %u type = %u len = %u space = %u depth = %u max_depth = %u pop_cnt = %u push_cnt = %u num_call_allocateMemoryBlocks = %u",
-   //                  index,     type,     len,     space,     depth,     max_depth,     pop_cnt,     push_cnt,     num_call_allocateMemoryBlocks)
-
       U_INTERNAL_ASSERT_MINOR(index, U_NUM_STACK_TYPE) // 10
 
       if (len == 0) allocateMemoryBlocks(space);
 
       void** pblock = pointer_block + --len;
 
-#  if defined(DEBUG)
+      void* ptr = (index == 0 ? (void*)pblock : *pblock);
+
+#  ifdef DEBUG
+      U_INTERNAL_ASSERT_EQUALS(((long)ptr & (sizeof(long)-1)), 0) // memory aligned
+
       if (++depth > max_depth) max_depth = depth;
 
       ++pop_cnt;
 #  endif
 
-   // U_INTERNAL_DUMP("index = %u type = %u len = %u space = %u depth = %u max_depth = %u pop_cnt = %u push_cnt = %u num_call_allocateMemoryBlocks = %u",
-   //                  index,     type,     len,     space,     depth,     max_depth,     pop_cnt,     push_cnt,     num_call_allocateMemoryBlocks)
-
-      void* ptr = (index == 0 ? (void*)pblock : *pblock);
-
-      U_INTERNAL_ASSERT_EQUALS(((long)ptr & (sizeof(long)-1)), 0) // memory aligned
-
-   // U_RETURN(ptr);
-        return ptr;
+      return ptr;
       }
 
    void push(void* ptr)
       {
-   // U_TRACE(0, "UStackMemoryPool::push(%p)", ptr) // problem with sanitize address
-
-   // U_INTERNAL_DUMP("index = %u type = %u len = %u space = %u depth = %u max_depth = %u pop_cnt = %u push_cnt = %u num_call_allocateMemoryBlocks = %u",
-   //                  index,     type,     len,     space,     depth,     max_depth,     pop_cnt,     push_cnt,     num_call_allocateMemoryBlocks)
-
       U_INTERNAL_ASSERT_MAJOR(index, 0)
       U_INTERNAL_ASSERT_MINOR(index, U_NUM_STACK_TYPE) // 10
       U_INTERNAL_ASSERT_EQUALS(index, U_SIZE_TO_STACK_INDEX(type))
-      U_INTERNAL_ASSERT_EQUALS(type, U_STACK_INDEX_TO_SIZE[index])
+      U_INTERNAL_ASSERT_EQUALS(type, UMemoryPool::U_STACK_INDEX_TO_SIZE[index])
       U_INTERNAL_ASSERT_EQUALS(((long)ptr & (sizeof(long)-1)), 0) // memory aligned
 
       if (len == space) growPointerBlock(space << 1); // NB: this call can change len...
@@ -319,29 +218,22 @@ public:
       if (ptr < &mem_block[0] ||
           ptr > &mem_block[U_SIZE_MEM_BLOCK])
          {
-      // (void) U_SYSCALL(memset, "%p,%d,%u", (void*)ptr, 0, type); // NB: in debug mode the memory area is zeroed to enhance showing bugs...
-         (void)           memset(             (void*)ptr, 0, type); // NB: in debug mode the memory area is zeroed to enhance showing bugs...
+         (void) memset((void*)ptr, 0, type); // NB: in debug mode the memory area is zeroed to enhance showing bugs...
          }
 #  endif
 
       pointer_block[len++] = (void*)ptr;
 
-#  if defined(DEBUG)
+#  ifdef DEBUG
       if (depth) --depth;
 
       ++push_cnt;
 #  endif
-
-   // U_INTERNAL_DUMP("index = %u type = %u len = %u space = %u depth = %u max_depth = %u pop_cnt = %u push_cnt = %u num_call_allocateMemoryBlocks = %u",
-   //                  index,     type,     len,     space,     depth,     max_depth,     pop_cnt,     push_cnt,     num_call_allocateMemoryBlocks)
       }
 
 #if defined(DEBUG) && defined(U_STDCPP_ENABLE)
    static void paint(ostream& os); // print info
 #endif
-
-   // NB: inizialmente viene allocato lo spazio per il doppio dei
-   //     puntatori necessari (quelli cioe' che vengono inizializzati)...
 
 #if defined(ENABLE_MEMPOOL)
    static char  mem_block[U_SIZE_MEM_BLOCK];
@@ -349,44 +241,12 @@ public:
 
    static ustackmemorypool mem_stack[U_NUM_STACK_TYPE]; // 10
 #endif
+
+private:
+   U_DISALLOW_COPY_AND_ASSIGN(UStackMemoryPool)
 };
 
-#if defined(ENABLE_MEMPOOL) && defined(DEBUG)
-bool UMemoryPool::check(void* ptr)
-{
-   U_TRACE(0, "UMemoryPool::check(%p)", ptr)
-
-   UStackMemoryPool* pstack;
-
-   for (uint32_t stack_index = 0; stack_index < U_NUM_STACK_TYPE; ++stack_index)
-      {
-      pstack = (UStackMemoryPool*)(UStackMemoryPool::mem_stack+stack_index);
-
-      U_INTERNAL_DUMP("stack[%u]: type = %4u len = %5u space = %5u depth = %4u max_depth = %4u pop_cnt = %5u push_cnt = %5u allocateMemoryBlocks = %u",
-                           stack_index, pstack->type, pstack->len, pstack->space,
-                           pstack->depth, pstack->max_depth,
-                           pstack->pop_cnt, pstack->push_cnt,
-                           pstack->num_call_allocateMemoryBlocks);
-
-      U_CHECK_MEMORY_OBJECT(pstack)
-
-      for (uint32_t i = 0; i < pstack->len; ++i)
-         {
-         if (ptr == pstack->pointer_block[i])
-            {
-            U_ERROR("duplicate entry on memory pool: stack[%u].index = %u stack[%u].len = %u stack[%u].space = %u stack[%u].pointer_block[%u] = %p",
-                       stack_index,    pstack->index,
-                       stack_index,    pstack->len,
-                       stack_index,    pstack->space,
-                       stack_index, i, pstack->pointer_block[i]);
-            }
-         }
-      }
-
-   U_RETURN(true);
-}
-#endif
-
+#ifdef ENABLE_MEMPOOL
 void UMemoryPool::allocateMemoryBlocks(int stack_index, uint32_t n)
 {
    U_TRACE(0+256, "UMemoryPool::allocateMemoryBlocks(%d,%u)", stack_index, n)
@@ -394,7 +254,6 @@ void UMemoryPool::allocateMemoryBlocks(int stack_index, uint32_t n)
    U_INTERNAL_ASSERT_MAJOR(stack_index, 0)
    U_INTERNAL_ASSERT_MINOR(stack_index, U_NUM_STACK_TYPE) // 10
 
-#if defined(ENABLE_MEMPOOL)
    UStackMemoryPool* pstack = (UStackMemoryPool*)(UStackMemoryPool::mem_stack+stack_index);
 
    U_INTERNAL_DUMP("stack[%u]: type = %4u len = %5u space = %5u depth = %4u max_depth = %4u pop_cnt = %5u push_cnt = %5u allocateMemoryBlocks = %u",
@@ -404,7 +263,6 @@ void UMemoryPool::allocateMemoryBlocks(int stack_index, uint32_t n)
                         pstack->num_call_allocateMemoryBlocks);
 
    if (n > pstack->len) pstack->allocateMemoryBlocks(n);
-#endif
 }
 
 void UMemoryPool::allocateMemoryBlocks(const char* ptr)
@@ -413,8 +271,6 @@ void UMemoryPool::allocateMemoryBlocks(const char* ptr)
 
    U_INTERNAL_ASSERT_POINTER(ptr)
 
-#if defined(ENABLE_MEMPOOL)
-   int value;
    void* addr;
    uint32_t i;
    char* endptr;
@@ -434,7 +290,7 @@ void UMemoryPool::allocateMemoryBlocks(const char* ptr)
 
    if (*endptr == ':')
       {
-      value = strtol(ptr, &endptr, 10);
+      int value = strtol(ptr, &endptr, 10);
 
       if (value) UFile::rlimit_memalloc = value;
 
@@ -442,6 +298,23 @@ void UMemoryPool::allocateMemoryBlocks(const char* ptr)
 
       if (value) UFile::rlimit_memfree = value;
       }
+
+#if defined(U_LINUX) && defined(MAP_HUGE_2MB)
+   if (UFile::rlimit_memfree == U_2M)
+      {
+#  ifdef DEBUG
+      char buffer[256];
+
+      if (u_err_buffer == 0) u_err_buffer = buffer;
+#  endif
+
+      // cat /proc/meminfo | grep Huge
+
+      UFile::nr_hugepages = UFile::setSysParam("/proc/sys/vm/nr_hugepages", 64);
+
+      U_DEBUG("Creation of 64 huge pages %s", UFile::nr_hugepages ? "success" : "FAILED")
+      }
+#endif
 
    for (i = 1; i < U_NUM_STACK_TYPE; ++i)
       {
@@ -473,49 +346,91 @@ void UMemoryPool::allocateMemoryBlocks(const char* ptr)
             }
          }
       }
-#endif
 }
 
 void UMemoryPool::push(void* ptr, int stack_index)
 {
    U_TRACE(0+256, "UMemoryPool::push(%p,%d)", ptr, stack_index) // problem with sanitize address
 
+   U_INTERNAL_ASSERT_POINTER(ptr)
    U_INTERNAL_ASSERT_MINOR(stack_index, U_NUM_STACK_TYPE) // 10
 
-#if !defined(ENABLE_MEMPOOL)
-   U_SYSCALL_VOID(free, "%p", ptr);
-#else
    if (stack_index) ((UStackMemoryPool*)(UStackMemoryPool::mem_stack+stack_index))->push(ptr);
-#endif
+}
+
+void UMemoryPool::_free(void* ptr, uint32_t num, uint32_t type_size)
+{
+   U_TRACE(1, "UMemoryPool::_free(%p,%u,%u)", ptr, num, type_size) // problem with sanitize address
+
+   U_INTERNAL_ASSERT_POINTER(ptr)
+   U_INTERNAL_ASSERT_MAJOR(num, 0)
+
+   uint32_t length = (num * type_size);
+
+   U_INTERNAL_DUMP("length = %u", length)
+
+   if (length <= U_MAX_SIZE_PREALLOCATE)       push(ptr, U_SIZE_TO_STACK_INDEX(length));
+   else                                  deallocate(ptr, UFile::getSizeAligned(length));
 }
 
 void* UMemoryPool::pop(int stack_index)
 {
-   U_TRACE(0+256, "UMemoryPool::pop(%d)", stack_index) // problem with sanitize address
+   U_TRACE(0+256, "UMemoryPool::pop(%d)", stack_index)
 
    U_INTERNAL_ASSERT_MINOR(stack_index, U_NUM_STACK_TYPE) // 10
 
-#if !defined(ENABLE_MEMPOOL)
-   void* ptr = U_SYSCALL(malloc, "%u", U_STACK_INDEX_TO_SIZE[stack_index]);
-#else
    UStackMemoryPool* pstack = (UStackMemoryPool*)(UStackMemoryPool::mem_stack+stack_index);
 
-#  ifdef DEBUG
+#ifdef DEBUG
    if (pstack->index &&
        pstack->len == 0)
       {
-      U_WARNING("we are going to call allocateMemoryBlocks() (pid %P) - object = %S func = %S"
+      U_WARNING("We are going to call allocateMemoryBlocks() (pid %P) - object = %S func = %S"
                 " index = %u type = %u len = %u space = %u depth = %u max_depth = %u num_call_allocateMemoryBlocks = %u pop_cnt = %u push_cnt = %u",
                   obj_class, func_call, pstack->index, pstack->type, pstack->len, pstack->space, pstack->depth,
                   pstack->max_depth, pstack->num_call_allocateMemoryBlocks, pstack->pop_cnt, pstack->push_cnt);
       }
-#  endif
-
-   void* ptr = pstack->pop();
 #endif
 
-   U_RETURN(ptr);
+   return pstack->pop();
 }
+
+#  ifdef DEBUG
+bool UMemoryPool::check(void* ptr)
+{
+   U_TRACE(0, "UMemoryPool::check(%p)", ptr)
+
+   UStackMemoryPool* pstack;
+
+   for (uint32_t stack_index = 0; stack_index < U_NUM_STACK_TYPE; ++stack_index)
+      {
+      pstack = (UStackMemoryPool*)(UStackMemoryPool::mem_stack+stack_index);
+
+      U_INTERNAL_DUMP("stack[%u]: type = %4u len = %5u space = %5u depth = %4u max_depth = %4u pop_cnt = %5u push_cnt = %5u allocateMemoryBlocks = %u",
+                           stack_index, pstack->type, pstack->len, pstack->space,
+                           pstack->depth, pstack->max_depth,
+                           pstack->pop_cnt, pstack->push_cnt,
+                           pstack->num_call_allocateMemoryBlocks);
+
+      U_CHECK_MEMORY_OBJECT(pstack)
+
+      for (uint32_t i = 0; i < pstack->len; ++i)
+         {
+         if (ptr == pstack->pointer_block[i])
+            {
+            U_ERROR("Duplicate entry on memory pool: stack[%u].index = %u stack[%u].len = %u stack[%u].space = %u stack[%u].pointer_block[%u] = %p",
+                       stack_index,    pstack->index,
+                       stack_index,    pstack->len,
+                       stack_index,    pstack->space,
+                       stack_index, i, pstack->pointer_block[i]);
+            }
+         }
+      }
+
+   U_RETURN(true);
+}
+#  endif
+#endif
 
 void* UMemoryPool::_malloc(uint32_t num, uint32_t type_size, bool bzero)
 {
@@ -528,10 +443,10 @@ void* UMemoryPool::_malloc(uint32_t num, uint32_t type_size, bool bzero)
 
    U_INTERNAL_DUMP("length = %u", length)
 
-#if !defined(ENABLE_MEMPOOL)
-#  ifndef HAVE_ARCH64
+#ifndef ENABLE_MEMPOOL
+# ifndef HAVE_ARCH64
    U_INTERNAL_ASSERT_RANGE(4, length, 1U * 1024U * 1024U * 1024U) // NB: over 1G is very suspect on 32bit...
-#  endif
+# endif
    ptr = U_SYSCALL(malloc, "%u", length);
 #else
    if (length <= U_MAX_SIZE_PREALLOCATE)
@@ -543,7 +458,9 @@ void* UMemoryPool::_malloc(uint32_t num, uint32_t type_size, bool bzero)
       }
    else
       {
-      ptr = UFile::mmap(&length, -1, PROT_READ | PROT_WRITE, U_MAP_ANON, 0);
+      ptr = UFile::mmap(&length, -1, PROT_READ | PROT_WRITE, MAP_PRIVATE | U_MAP_ANON, 0);
+
+      U_INTERNAL_DUMP("length = %u", length)
       }
 #endif
 
@@ -563,22 +480,19 @@ void* UMemoryPool::_malloc(uint32_t* pnum, uint32_t type_size, bool bzero)
 
    U_INTERNAL_DUMP("length = %u", length)
 
-#if !defined(ENABLE_MEMPOOL)
-#  ifndef HAVE_ARCH64
+#ifndef ENABLE_MEMPOOL
+# ifndef HAVE_ARCH64
    U_INTERNAL_ASSERT_MINOR(length, 1U * 1024U * 1024U * 1024U) // NB: over 1G is very suspect on 32bit...
-#  endif
+# endif
    ptr = U_SYSCALL(malloc, "%u", length);
 #else
-   if (length <= U_MAX_SIZE_PREALLOCATE)
+   if (length > U_MAX_SIZE_PREALLOCATE) ptr = UFile::mmap(&length, -1, PROT_READ | PROT_WRITE, MAP_PRIVATE | U_MAP_ANON, 0);
+   else
       {
       int stack_index = U_SIZE_TO_STACK_INDEX(length);
 
       ptr    = pop(stack_index);
       length = U_STACK_INDEX_TO_SIZE[stack_index];
-      }
-   else
-      {
-      ptr = UFile::mmap(&length, -1, PROT_READ | PROT_WRITE, U_MAP_ANON, 0);
       }
 
    *pnum = length / type_size;
@@ -591,64 +505,52 @@ void* UMemoryPool::_malloc(uint32_t* pnum, uint32_t type_size, bool bzero)
    U_RETURN(ptr);
 }
 
+#if defined(ENABLE_MEMPOOL) && !defined(U_SERVER_CAPTIVE_PORTAL)
 void UMemoryPool::deallocate(void* ptr, uint32_t length)
 {
    U_TRACE(1, "UMemoryPool::deallocate(%p,%u)", ptr, length)
 
-#if !defined(ENABLE_MEMPOOL) || defined(U_SERVER_CAPTIVE_PORTAL)
-   U_SYSCALL_VOID(free, "%p", ptr);
-#else
    if (UFile::isLastAllocation(ptr, length))
       {
       UFile::pfree  = (char*)ptr;
       UFile::nfree += length;
 
       U_INTERNAL_DUMP("UFile::nfree = %u UFile::pfree = %p", UFile::nfree, UFile::pfree)
+
+      return;
       }
-   else
-      {
-#  ifdef HAVE_ARCH64
-      // MADV_DONTNEED causes the kernel to reclaim the indicated pages immediately and drop their contents
 
-      (void) U_SYSCALL(madvise, "%p,%lu,%d", (void*)ptr, length, MADV_DONTNEED);
-#  else
-      // munmap() is expensive. A series of page table entries must be cleaned up, and the VMA must be unlinked.
-      // By contrast, madvise(MADV_DONTNEED) only needs to set a flag in the VMA and has the further benefit that
-      // no system call is required to reallocate the memory. That operation informs the kernel that the pages can
-      // be (destructively) discarded from memory; if the process tries to access the pages again, they will either
-      // be faulted in from the underlying file, for a file mapping, or re-created as zero-filled pages, for the
-      // anonymous mappings that are employed by user-space allocators. Of course, re-creating the pages zero filled
-      // is normally exactly the desired behavior for a user-space memory allocator. (The only potential downside is
-      // that process address space is not freed, but this tends not to matter on 64-bit systems) 
+#if defined(U_LINUX) && defined(HAVE_ARCH64)
+# if defined(MAP_HUGE_1GB) || defined(MAP_HUGE_2MB) // (since Linux 3.8)
+   U_INTERNAL_DUMP("UFile::nr_hugepages = %ld", UFile::nr_hugepages)
 
-      (void) U_SYSCALL(munmap, "%p,%lu", (void*)ptr, length);
-#  endif
-      }
+   if (UFile::nr_hugepages == 0) // NB: MADV_DONTNEED cannot be applied to locked pages, Huge TLB pages, or VM_PFNMAP pages...
+# endif
+   {
+   (void) U_SYSCALL(madvise, "%p,%lu,%d", (void*)ptr, length, MADV_DONTNEED); // causes the kernel to reclaim the indicated pages immediately and drop their contents
+
+   return;
+   }
 #endif
+   /**
+    * munmap() is expensive. A series of page table entries must be cleaned up, and the VMA must be unlinked. By contrast, madvise(MADV_DONTNEED) only needs to set
+    * a flag in the VMA and has the further benefit that no system call is required to reallocate the memory. That operation informs the kernel that the pages can
+    * be (destructively) discarded from memory; if the process tries to access the pages again, they will either be faulted in from the underlying file, for a file
+    * mapping, or re-created as zero-filled pages, for the anonymous mappings that are employed by user-space allocators. Of course, re-creating the pages zero filled
+    * is normally exactly the desired behavior for a user-space memory allocator. (The only potential downside is that process address space is not freed, but this tends
+    * not to matter on 64-bit systems)
+    */
+
+   (void) U_SYSCALL(munmap, "%p,%lu", (void*)ptr, length);
 }
-
-void UMemoryPool::_free(void* ptr, uint32_t num, uint32_t type_size)
-{
-   U_TRACE(1, "UMemoryPool::_free(%p,%u,%u)", ptr, num, type_size) // problem with sanitize address
-
-#if !defined(ENABLE_MEMPOOL)
-   U_SYSCALL_VOID(free, "%p", ptr);
-#else
-   uint32_t length = (num * type_size);
-
-   U_INTERNAL_DUMP("length = %u", length)
-
-   if (length <= U_MAX_SIZE_PREALLOCATE)       push(ptr, U_SIZE_TO_STACK_INDEX(length));
-   else                                  deallocate(ptr, (length + U_PAGEMASK) & ~U_PAGEMASK);
 #endif
-}
 
 #if defined(DEBUG) && defined(U_STDCPP_ENABLE)
 void UStackMemoryPool::paint(ostream& os) // paint info
 {
    U_TRACE(0, "UStackMemoryPool::paint(%p)", &os)
 
-#  if defined(ENABLE_MEMPOOL)
+# if defined(ENABLE_MEMPOOL)
    char buffer[256];
    uint32_t max_space = 0;
    UStackMemoryPool* pstack;
@@ -661,9 +563,9 @@ void UStackMemoryPool::paint(ostream& os) // paint info
 
       (void) snprintf(buffer, sizeof(buffer),
                       "stack[%u]: type = %4u len = %5u space = %5u allocateMemoryBlocks = %2u depth = %5u max_depth = %5u pop_cnt = %9u push_cnt = %9u\n",
-                        stack_index,
-                        pstack->type, pstack->len, pstack->space, pstack->num_call_allocateMemoryBlocks,
-                        pstack->depth, pstack->max_depth, pstack->pop_cnt, pstack->push_cnt);
+                      stack_index,
+                      pstack->type, pstack->len, pstack->space, pstack->num_call_allocateMemoryBlocks,
+                      pstack->depth, pstack->max_depth, pstack->pop_cnt, pstack->push_cnt);
 
       os << buffer;
       }
@@ -671,11 +573,11 @@ void UStackMemoryPool::paint(ostream& os) // paint info
    /*
    (void) snprintf(buffer, sizeof(buffer),
 #     ifdef HAVE_ARCH64
-          "\n        8   24   32   56  128  256  512  1024 2048 4096\n"
+          U_CONSTANT_TO_PARAM("\n        8   24   32   56  128  256  512  1024 2048 4096\n"
 #     else
-          "\n        4   16   36   48  128  256  512  1024 2048 4096\n"
+          U_CONSTANT_TO_PARAM("\n        4   16   36   48  128  256  512  1024 2048 4096\n"
 #     endif
-          "       %s   %s   %s   %s   %s   %s   %s   %s   %s   %s\n",
+          "       %s   %s   %s   %s   %s   %s   %s   %s   %s   %s\n"),
           (mem_stack[0].space == max_space ? "--" : "  "),
           (mem_stack[1].space == max_space ? "--" : "  "),
           (mem_stack[2].space == max_space ? "--" : "  "),
@@ -691,7 +593,7 @@ void UStackMemoryPool::paint(ostream& os) // paint info
 
    for (int32_t i = max_space-1; i >= 0; --i)
       {
-      (void) snprintf(buffer, sizeof(buffer), "%5u %c%s%c %c%s%c %c%s%c %c%s%c %c%s%c %c%s%c %c%s%c %c%s%c %c%s%c %c%s%c\n", i+1,
+      (void) snprintf(buffer, sizeof(buffer), U_CONSTANT_TO_PARAM("%5u %c%s%c %c%s%c %c%s%c %c%s%c %c%s%c %c%s%c %c%s%c %c%s%c %c%s%c %c%s%c\n"), i+1,
           (mem_stack[0].space >  (uint32_t)i ?  '|' :  ' '),
           (mem_stack[0].space == (uint32_t)i ? "--" : (mem_stack[0].len > (uint32_t)i ? "xx" : "  ")),
           (mem_stack[0].space >  (uint32_t)i ?  '|' :  ' '),
@@ -727,17 +629,17 @@ void UStackMemoryPool::paint(ostream& os) // paint info
       }
 
    (void) snprintf(buffer, sizeof(buffer),
-          "       --   --   --   --   --   --   --   --   --   --\n"
+          U_CONSTANT_TO_PARAM("       --   --   --   --   --   --   --   --   --   --\n"
 #     ifdef HAVE_ARCH64
           "        8   24   32   56  128  256  512  1024 2048 4096"
 #     else
           "        4   16   36   48  128  256  512  1024 2048 4096\n"
 #     endif
-          "\n");
+          "\n"));
 
    os << buffer << endl;
    */
-#  endif
+# endif
 }
 
 void UMemoryPool::printInfo(ostream& os)
@@ -747,17 +649,17 @@ void UMemoryPool::printInfo(ostream& os)
    UStackMemoryPool::paint(os);
 }
 
-void UMemoryPool::writeInfoTo(const char* format, ...)
+void UMemoryPool::writeInfoTo(const char* format, uint32_t fmt_size, ...)
 {
-   U_TRACE(0+256, "UMemoryPool::writeInfoTo(%S)", format)
+   U_TRACE(0+256, "UMemoryPool::writeInfoTo(%.*S,%u)", fmt_size, format, fmt_size)
 
-#  if defined(ENABLE_MEMPOOL) && !defined(_MSWINDOWS_)
+# if defined(ENABLE_MEMPOOL) && !defined(_MSWINDOWS_)
    char name[256];
 
    va_list argp;
-   va_start(argp, format);
+   va_start(argp, fmt_size);
 
-   (void) u__vsnprintf(name, sizeof(name), format, argp);
+   (void) u__vsnprintf(name, sizeof(name), format, fmt_size, argp);
 
    va_end(argp);
 
@@ -766,16 +668,12 @@ void UMemoryPool::writeInfoTo(const char* format, ...)
    if (!of) return;
 
    UStackMemoryPool::paint(of);
-#  endif
+# endif
 }
 #endif
 
 #if defined(ENABLE_MEMPOOL)
 char UStackMemoryPool::mem_block[U_SIZE_MEM_BLOCK];
-// ----------------------------------------------------------------------------
-// NB: l'inizializzazione seguente dipende strettamente da 'U_NUM_ENTRY_MEM_BLOCK'
-// che normalmente e' uguale a 32, altrimenti (per fare i test si assegna a 2...)
-// si devono commentare nel file "memory_pool.dat" le righe eccessive...
 // ***************************************************************** memory_pool.dat
 // U_SPACE + U_TYPE *   0, U_SPACE + U_TYPE *   1, U_SPACE + U_TYPE *   2,
 // U_SPACE + U_TYPE *   3, U_SPACE + U_TYPE *   4, U_SPACE + U_TYPE *   5,
@@ -783,7 +681,6 @@ char UStackMemoryPool::mem_block[U_SIZE_MEM_BLOCK];
 // .................................................................
 // U_SPACE + U_TYPE * 126, U_SPACE + U_TYPE * 127,
 // ***************************************************************** memory_pool.dat
-// ----------------------------------------------------------------------------
 void* UStackMemoryPool::mem_pointer_block[U_NUM_STACK_TYPE * U_NUM_ENTRY_MEM_BLOCK * 2] = {
 #undef  U_TYPE
 #define U_TYPE U_STACK_TYPE_0

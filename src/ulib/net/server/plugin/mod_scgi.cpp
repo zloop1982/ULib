@@ -65,13 +65,13 @@ int USCGIPlugIn::handlerConfig(UFileConfig& cfg)
       {
       UClient_Base::cfg = &cfg;
 
-      connection = U_NEW(UClient_Base(&cfg));
+      U_NEW(UClient_Base, connection, UClient_Base(&cfg));
 
       UString x = cfg.at(U_CONSTANT_TO_PARAM("SCGI_URI_MASK"));
 
       U_INTERNAL_ASSERT_EQUALS(UHTTP::scgi_uri_mask, 0)
 
-      if (x) UHTTP::scgi_uri_mask = U_NEW(UString(x));
+      if (x) U_NEW(UString, UHTTP::scgi_uri_mask, UString(x));
 
       scgi_keep_conn = cfg.readBoolean(U_CONSTANT_TO_PARAM("SCGI_KEEP_CONN"));
 
@@ -83,7 +83,7 @@ int USCGIPlugIn::handlerConfig(UFileConfig& cfg)
 
 int USCGIPlugIn::handlerInit()
 {
-   U_TRACE(1, "USCGIPlugIn::handlerInit()")
+   U_TRACE_NO_PARAM(1, "USCGIPlugIn::handlerInit()")
 
    if (connection &&
        UHTTP::scgi_uri_mask)
@@ -91,27 +91,25 @@ int USCGIPlugIn::handlerInit()
 #  ifdef _MSWINDOWS_
       U_INTERNAL_ASSERT_DIFFERS(connection->port, 0)
 
-      connection->socket = (USocket*)U_NEW(UTCPSocket(connection->bIPv6));
+      U_NEW(UTCPSocket, connection->socket, UTCPSocket(connection->bIPv6));
 #  else
-      connection->socket = connection->port ? (USocket*)U_NEW(UTCPSocket(connection->bIPv6))
-                                            : (USocket*)U_NEW(UUnixSocket);
+      if (connection->port) U_NEW(UTCPSocket,  connection->socket, UTCPSocket(connection->bIPv6));
+      else                  U_NEW(UUnixSocket, connection->socket, UUnixSocket);
 #  endif
 
       if (connection->connect())
          {
          U_SRV_LOG("connection to the scgi-backend %V accepted", connection->host_port.rep);
 
-         (void) UServer_Base::senvironment->append(U_CONSTANT_TO_PARAM("SCGI=1\n"));
-
 #     ifndef U_ALIAS
          U_ERROR("Sorry, I can't run scgi plugin because alias URI support is missing, please recompile ULib");
 #     else
          // NB: SCGI is NOT a static page...
 
-         if (UHTTP::valias == 0) UHTTP::valias = U_NEW(UVector<UString>(2U));
+         if (UHTTP::valias == 0) U_NEW(UVector<UString>, UHTTP::valias, UVector<UString>(2U));
 
          UHTTP::valias->push_back(*UHTTP::scgi_uri_mask);
-         UHTTP::valias->push_back(U_STRING_FROM_CONSTANT("/nostat"));
+         UHTTP::valias->push_back(*UString::str_nostat);
 
          U_RETURN(U_PLUGIN_HANDLER_PROCESSED | U_PLUGIN_HANDLER_GO_ON);
 #     endif
@@ -128,7 +126,7 @@ int USCGIPlugIn::handlerInit()
 
 int USCGIPlugIn::handlerRequest()
 {
-   U_TRACE(0, "USCGIPlugIn::handlerRequest()")
+   U_TRACE_NO_PARAM(0, "USCGIPlugIn::handlerRequest()")
 
    if (connection &&
        UHTTP::isSCGIRequest())
@@ -139,7 +137,7 @@ int USCGIPlugIn::handlerRequest()
       char* envp[128];
       UString environment(U_CAPACITY);
 
-      if (UHTTP::getCGIEnvironment(environment, U_CGI) == false) U_RETURN(U_PLUGIN_HANDLER_ERROR);
+      if (UHTTP::getCGIEnvironment(environment, U_WSCGI) == false) U_RETURN(U_PLUGIN_HANDLER_ERROR);
 
       int n = u_split(U_STRING_TO_PARAM(environment), envp, 0);
 
@@ -174,7 +172,7 @@ int USCGIPlugIn::handlerRequest()
 
       UString request(10U + n);
 
-      request.snprintf("%u:%v,", environment.size(), environment.rep);
+      request.snprintf(U_CONSTANT_TO_PARAM("%u:%v,"), environment.size(), environment.rep);
 
       (void) request.append(*UClientImage_Base::body);
 

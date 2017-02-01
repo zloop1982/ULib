@@ -25,7 +25,6 @@ extern "C" { int sem_getvalue(sem_t* sem, int* sval); }
 #  endif
 #endif
 
-class UFile;
 class UTimeVal;
 class UServer_Base;
 
@@ -84,7 +83,6 @@ public:
     * @param  timeout period in milliseconds to wait
     */
 
-   void lock();
    bool wait(time_t timeoutMS);
 
    /**
@@ -94,6 +92,7 @@ public:
     * threads to execute, one must perform multiple post operations
     */
 
+   void   lock();
    void unlock() { post(); }
 
 #if defined(U_STDCPP_ENABLE) && defined(DEBUG)
@@ -101,30 +100,30 @@ public:
 #endif
 
 protected:
-   sem_t* psem;
    USemaphore* next;
+#if defined(__MACOSX__) || defined(__APPLE__)
+   sem_t* psem;
+   char name[24];
+#elif defined(_MSWINDOWS_) || (defined(HAVE_SEM_INIT) && (!defined(U_LINUX) || LINUX_VERSION_CODE > KERNEL_VERSION(2,6,7)))
+   sem_t* psem;
+#else
+   int psem;
+#endif
 
-   static UFile* flock;
    static USemaphore* first;
 
    void post();
 
    static bool checkForDeadLock(UTimeVal& time); // NB: check if process has restarted and it had a lock active...
-   
-#ifdef HAVE_SEM_GETVALUE
+
+#if !defined(__MACOSX__) && !defined(__APPLE__) && defined(HAVE_SEM_GETVALUE) && (!defined(U_LINUX) || LINUX_VERSION_CODE > KERNEL_VERSION(2,6,7))
    int getValue() { int value = -1; (void) sem_getvalue(psem, &value); return value; }
 #else
    int getValue() { return -1; }
 #endif
    
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   USemaphore(const USemaphore&) = delete;
-   USemaphore& operator=(const USemaphore&) = delete;
-#else
-   USemaphore(const USemaphore&)            {}
-   USemaphore& operator=(const USemaphore&) { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(USemaphore)
 
    friend class UServer_Base;
 };

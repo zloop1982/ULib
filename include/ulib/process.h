@@ -35,6 +35,7 @@
 
 class UCommand;
 class UServer_Base;
+class UNoCatPlugIn;
 
 class U_EXPORT UProcess {
 public:
@@ -50,7 +51,7 @@ public:
       {
       U_TRACE_REGISTER_OBJECT(0, UProcess, "", 0)
 
-      _pid    = (pid_t) -1;
+      _pid    = (pid_t)-1;
       status  = 0;
       running = false;
       }
@@ -70,7 +71,7 @@ public:
    pid_t  pid() const  { return  _pid; }
    pid_t ppid() const
       {
-      U_TRACE(0, "UProcess::ppid()")
+      U_TRACE_NO_PARAM(0, "UProcess::ppid()")
 
       pid_t _ppid = U_SYSCALL_NO_PARAM(getppid);
 
@@ -84,7 +85,7 @@ public:
 
    static uint32_t removeZombies()
       {
-      U_TRACE(1, "UProcess::removeZombies()")
+      U_TRACE_NO_PARAM(1, "UProcess::removeZombies()")
 
       uint32_t n = 0;
 
@@ -149,16 +150,11 @@ protected:
    static void setStdInOutErr(bool fd_stdin, bool fd_stdout, bool fd_stderr) U_NO_EXPORT;
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UProcess(const UProcess&) = delete;
-   UProcess& operator=(const UProcess&) = delete;
-#else
-   UProcess(const UProcess&)            {}
-   UProcess& operator=(const UProcess&) { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UProcess)
 
    friend class UCommand;
    friend class UServer_Base;
+   friend class UNoCatPlugIn;
 };
 
 #endif

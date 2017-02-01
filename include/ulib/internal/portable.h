@@ -3,10 +3,10 @@
 #ifndef PORTABLE_H
 #define PORTABLE_H 1
 
-/*
-#define NO_ULIB
-#define U_STD_STRING
-*/
+/**
+ * #define NO_ULIB
+ * #define U_STD_STRING
+ */
 
 #ifdef NO_ULIB
 #  ifdef    DEBUG
@@ -55,6 +55,7 @@
 #  define U_CHECK_MEMORY
 
 #  define U_TRACE(level,args...)
+#  define U_TRACE_NO_PARAM(level,name)
 #  define U_DUMP(args...)
 #  define U_INTERNAL_DUMP(args...)
 #  define U_SYSCALL_NO_PARAM(name)              ::name()

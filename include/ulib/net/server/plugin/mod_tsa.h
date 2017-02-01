@@ -24,8 +24,6 @@ public:
    // Check for memory error
    U_MEMORY_TEST
 
-   // COSTRUTTORI
-
             UTsaPlugIn();
    virtual ~UTsaPlugIn();
 
@@ -33,12 +31,12 @@ public:
 
    // Server-wide hooks
 
-   virtual int handlerConfig(UFileConfig& cfg) U_DECL_OVERRIDE;
-   virtual int handlerInit() U_DECL_OVERRIDE;
+   virtual int handlerConfig(UFileConfig& cfg) U_DECL_FINAL;
+   virtual int handlerInit() U_DECL_FINAL;
 
    // Connection-wide hooks
 
-   virtual int handlerRequest() U_DECL_OVERRIDE;
+   virtual int handlerRequest() U_DECL_FINAL;
 
    // DEBUG
 
@@ -50,13 +48,7 @@ protected:
    static UCommand* command;
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UTsaPlugIn(const UTsaPlugIn&) = delete;
-   UTsaPlugIn& operator=(const UTsaPlugIn&) = delete;
-#else
-   UTsaPlugIn(const UTsaPlugIn&) : UServerPlugIn() {}
-   UTsaPlugIn& operator=(const UTsaPlugIn&)        { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UTsaPlugIn)
 };
 
 #endif

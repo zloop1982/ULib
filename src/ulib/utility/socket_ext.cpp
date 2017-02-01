@@ -13,7 +13,6 @@
 
 #include <ulib/file.h>
 #include <ulib/notifier.h>
-#include <ulib/container/vector.h>
 #include <ulib/utility/interrupt.h>
 #include <ulib/net/server/server.h>
 
@@ -78,26 +77,36 @@ bool USocketExt::read(USocket* sk, UString& buffer, uint32_t count, int timeoutM
 
    ptr = buffer.c_pointer(start);
 
-   /**
-    * When packets in SSL arrive at a destination, they are pulled off the socket in chunks of sizes
-    * controlled by the encryption protocol being used, decrypted, and placed in SSL-internal buffers.
-    * The buffer content is then transferred to the application program through SSL_read(). If you've
-    * read only part of the decrypted data, there will still be pending input data on the SSL connection,
-    * but it won't show up on the underlying file descriptor via select(). Your code needs to call
-    * SSL_pending() explicitly to see if there is any pending data to be read...
-    */
 read:
-#ifdef USE_LIBSSL
-   if (sk->isSSLActive() == false) // NB: without this csp test fail (we have timeout (10 seconds) to read SOAP body response)...
-#endif
-   {
    if (sk->isBlocking() &&
-       timeoutMS != 0   &&
-       (errno = 0, UNotifier::waitForRead(sk->iSockDesc, timeoutMS) != 1))
+       timeoutMS != 0)
       {
-      goto error;
+#  ifndef USE_LIBSSL
+      if (errno = 0, UNotifier::waitForRead(sk->iSockDesc, timeoutMS) != 1) goto error;
+#  else
+      /**
+       * When packets in SSL arrive at a destination, they are pulled off the socket in chunks of sizes
+       * controlled by the encryption protocol being used, decrypted, and placed in SSL-internal buffers.
+       * The buffer content is then transferred to the application program through SSL_read(). If you've
+       * read only part of the decrypted data, there will still be pending input data on the SSL connection,
+       * but it won't show up on the underlying file descriptor via select(). Your code needs to call
+       * SSL_pending() explicitly to see if there is any pending data to be read
+       */
+
+      U_DUMP("sk->pending() = %u", ((USSLSocket*)sk)->pending())
+
+      /**
+       * What I see by myself is that for blocking socket SSL_read() can return some data though
+       * it won't show up on the underlying file descriptor via select() while SSL_pending() return 0...
+       */
+
+      if (sk->isSSLActive() == false && // NB: without this csp test fail: we have a timeout(10 seconds) when we try to read SOAP body response...
+          (errno = 0, UNotifier::waitForRead(sk->iSockDesc, timeoutMS) != 1))
+         {
+         goto error;
+         }
+#  endif
       }
-   }
 
    value = sk->recv(ptr + byte_read, ncount);
 
@@ -109,7 +118,7 @@ error:   U_INTERNAL_DUMP("errno = %d", errno)
 
          if (errno != EAGAIN)
             {
-            if (U_ClientImage_parallelization != 1) // 1 => child of parallelization
+            if (U_ClientImage_parallelization != U_PARALLELIZATION_CHILD)
                {
                if (errno != ECONNRESET &&
                    sk == UServer_Base::csocket)
@@ -143,7 +152,7 @@ error:   U_INTERNAL_DUMP("errno = %d", errno)
             {
             U_INTERNAL_DUMP("byte_read = %d errno = %d", byte_read, errno)
 
-            if (U_ClientImage_parallelization != 1) sk->abortive_close(); // 1 => child of parallelization
+            if (U_ClientImage_parallelization != U_PARALLELIZATION_CHILD) sk->abortive_close();
 
             U_RETURN(false);
             }
@@ -165,7 +174,7 @@ error:   U_INTERNAL_DUMP("errno = %d", errno)
       U_INTERNAL_ASSERT_DIFFERS(count, U_SINGLE_READ)
 
       if (time_limit &&
-          sk->checkTime(time_limit, timeout) == false) // NB: may be is attacked by a "slow loris"... http://lwn.net/Articles/337853/
+          sk->checkTime(time_limit, timeout) == false) // NB: may be we are attacked by a "slow loris"... http://lwn.net/Articles/337853/
          {
          sk->iState |= USocket::TIMEOUT;
 
@@ -193,10 +202,14 @@ error:   U_INTERNAL_DUMP("errno = %d", errno)
       goto read;
       }
 
+#ifdef U_EPOLLET_POSTPONE_STRATEGY
+   if (UNotifier::bepollet == false)
+#endif
+   {
+#if !defined(U_LINUX) || !defined(ENABLE_THREAD) || !defined(U_LOG_DISABLE) || defined(USE_LIBZ)
    if (sk->isBlocking() == false)
       {
       /**
-       * -------------------------------------------------------------------------------------------------------------------
        * Edge trigger (EPOLLET) simply means (unless you've used EPOLLONESHOT) that you'll get 1 event when something
        * enters the (kernel) buffer. Thus, if you get 1 EPOLLIN event and do nothing about it, you'll get another
        * EPOLLIN the next time some data arrives on that descriptor - if no new data arrives, you will not get an
@@ -208,12 +221,11 @@ error:   U_INTERNAL_DUMP("errno = %d", errno)
        * The suggested way to use epoll as an edge-triggered (EPOLLET) interface is as follows:
        *
        * 1) with nonblocking file descriptors
-       * 2) by waiting for an event only after read(2) or write(2) return EAGAIN.
+       * 2) by waiting for an event only after read(2) or write(2) return EAGAIN
        * -------------------------------------------------------------------------------------------------------------------
        * Edge-triggered semantics allow a more efficient internal implementation than level-triggered semantics.
        *
        * see: https://raw.githubusercontent.com/dankamongmen/libtorque/master/doc/mteventqueues
-       * -------------------------------------------------------------------------------------------------------------------
        */
 
       buffer.rep->_length = start + byte_read;
@@ -223,6 +235,8 @@ error:   U_INTERNAL_DUMP("errno = %d", errno)
 
       goto read;
       }
+#endif
+   }
 
 done:
    U_INTERNAL_DUMP("byte_read = %d", byte_read)
@@ -231,7 +245,7 @@ done:
       {
       start += byte_read;
 
-      if (start > buffer.size()) buffer.size_adjust_force(start); // NB: we force because string can be referenced...
+      if (start > buffer.size()) buffer.size_adjust_force(start); // NB: we force because the string can be referenced...
 
       if (byte_read >= (int)count &&
           sk->iState != USocket::CLOSE)
@@ -563,7 +577,7 @@ int USocketExt::writev(USocket* sk, struct iovec* iov, int iovcnt, uint32_t coun
 #if defined(USE_LIBSSL) && !defined(_MSWINDOWS_)
    if (sk->isSSLActive())
 #endif
-#if defined(USE_LIBSSL) || defined(_MSWINDOWS_)
+#if defined(USE_LIBSSL) ||  defined(_MSWINDOWS_)
    {
    int sz, byte_written;
 
@@ -639,7 +653,7 @@ int USocketExt::writev(USocket* sk, struct iovec* iov, int iovcnt, uint32_t coun
    char* ptr   = (char*)_iov;
    uint32_t sz = sizeof(struct iovec) * iovcnt;
 
-   u__memcpy(ptr, iov, sz, __PRETTY_FUNCTION__);
+   U_MEMCPY(ptr, iov, sz);
 
 #ifdef U_PIPELINE_HOMOGENEOUS_DISABLE
    U_INTERNAL_ASSERT_EQUALS(cloop, 1)
@@ -648,8 +662,8 @@ int USocketExt::writev(USocket* sk, struct iovec* iov, int iovcnt, uint32_t coun
       {
       for (uint32_t i = 1; i < cloop; ++i)
          {
-                   ptr +=    sz;
-         u__memcpy(ptr, iov, sz, __PRETTY_FUNCTION__);
+                  ptr +=    sz;
+         U_MEMCPY(ptr, iov, sz);
          }
 
       iov     = _iov;
@@ -667,7 +681,7 @@ int USocketExt::writev(USocket* sk, struct iovec* iov, int iovcnt, uint32_t coun
    int byte_written = _writev(sk, iov, iovcnt, count, timeoutMS);
 #endif
 
-        if (cloop == 1) u__memcpy(iov, _iov, sz, __PRETTY_FUNCTION__);
+        if (cloop == 1) U_MEMCPY(iov, _iov, sz);
 #ifndef U_PIPELINE_HOMOGENEOUS_DISABLE
    else if (cloop > 1                 &&
             byte_written < (int)count &&
@@ -682,8 +696,8 @@ int USocketExt::writev(USocket* sk, struct iovec* iov, int iovcnt, uint32_t coun
          {
          if (iov[i].iov_len)
             {
-            u__memcpy(ptr, iov[i].iov_base, iov[i].iov_len, __PRETTY_FUNCTION__);
-                      ptr                += iov[i].iov_len;
+            U_MEMCPY(ptr, iov[i].iov_base, iov[i].iov_len);
+                     ptr +=                iov[i].iov_len;
             }
          }
 
@@ -699,26 +713,15 @@ int USocketExt::writev(USocket* sk, struct iovec* iov, int iovcnt, uint32_t coun
    U_RETURN(byte_written);
 }
 
-void USocketExt::setRemoteInfo(USocket* sk, UString& logbuf)
-{
-   U_TRACE(0, "USocketExt::setRemoteInfo(%p,%V)", sk, logbuf.rep)
-
-   UString x(100U);
-
-   x.snprintf("%2d '%s:%u'", sk->iSockDesc, sk->cRemoteAddress.pcStrAddress, sk->iRemotePort);
-
-   (void) logbuf.insert(0, x);
-}
-
 // Send a command to a server and wait for a response (single line)
 
-int USocketExt::vsyncCommand(USocket* sk, char* buffer, uint32_t buffer_size, const char* format, va_list argp)
+int USocketExt::vsyncCommand(USocket* sk, char* buffer, uint32_t buffer_size, const char* format, uint32_t fmt_size, va_list argp)
 {
-   U_TRACE(0, "USocketExt::vsyncCommand(%p,%p,%u,%S)", sk, buffer, buffer_size, format)
+   U_TRACE(0, "USocketExt::vsyncCommand(%p,%p,%u,%.*S,%u)", sk, buffer, buffer_size, fmt_size, format, fmt_size)
 
    U_INTERNAL_ASSERT(sk->isOpen())
 
-   uint32_t buffer_len = u__vsnprintf(buffer, buffer_size-2, format, argp);
+   uint32_t buffer_len = u__vsnprintf(buffer, buffer_size-2, format, fmt_size, argp);
 
    buffer[buffer_len++] = '\r';
    buffer[buffer_len++] = '\n';
@@ -731,13 +734,13 @@ int USocketExt::vsyncCommand(USocket* sk, char* buffer, uint32_t buffer_size, co
 
 // Send a command to a server and wait for a response (multi line)
 
-int USocketExt::vsyncCommandML(USocket* sk, char* buffer, uint32_t buffer_size, const char* format, va_list argp)
+int USocketExt::vsyncCommandML(USocket* sk, char* buffer, uint32_t buffer_size, const char* format, uint32_t fmt_size, va_list argp)
 {
-   U_TRACE(0, "USocketExt::vsyncCommandML(%p,%p,%u,%S)", sk, buffer, buffer_size, format)
+   U_TRACE(0, "USocketExt::vsyncCommandML(%p,%p,%u,%.*S,%u)", sk, buffer, buffer_size, fmt_size, format, fmt_size)
 
    U_INTERNAL_ASSERT(sk->isOpen())
 
-   uint32_t buffer_len = u__vsnprintf(buffer, buffer_size-2, format, argp);
+   uint32_t buffer_len = u__vsnprintf(buffer, buffer_size-2, format, fmt_size, argp);
 
    buffer[buffer_len++] = '\r';
    buffer[buffer_len++] = '\n';
@@ -750,9 +753,9 @@ int USocketExt::vsyncCommandML(USocket* sk, char* buffer, uint32_t buffer_size, 
 
 // Send a command to a server and wait for a response (check for token line)
 
-int USocketExt::vsyncCommandToken(USocket* sk, UString& buffer, const char* format, va_list argp)
+int USocketExt::vsyncCommandToken(USocket* sk, UString& buffer, const char* format, uint32_t fmt_size, va_list argp)
 {
-   U_TRACE(1, "USocketExt::vsyncCommandToken(%p,%V,%S)", sk, buffer.rep, format)
+   U_TRACE(1, "USocketExt::vsyncCommandToken(%p,%V,%.*S,%u)", sk, buffer.rep, fmt_size, format, fmt_size)
 
    U_INTERNAL_ASSERT(sk->isOpen())
    U_INTERNAL_ASSERT_EQUALS((bool)buffer, false)
@@ -760,7 +763,7 @@ int USocketExt::vsyncCommandToken(USocket* sk, UString& buffer, const char* form
    static uint32_t cmd_count;
 
    char token[32];
-   uint32_t token_len = u__snprintf(token, sizeof(token), "U%04u ", cmd_count++);
+   uint32_t token_len = u__snprintf(token, sizeof(token), U_CONSTANT_TO_PARAM("U%04u "), cmd_count++);
 
    U_INTERNAL_DUMP("token = %.*S", token_len, token)
 
@@ -768,7 +771,7 @@ int USocketExt::vsyncCommandToken(USocket* sk, UString& buffer, const char* form
 
    U_MEMCPY(p, token, token_len);
 
-   uint32_t buffer_len = token_len + u__vsnprintf(p+token_len, buffer.capacity(), format, argp);
+   uint32_t buffer_len = token_len + u__vsnprintf(p+token_len, buffer.capacity(), format, fmt_size, argp);
 
    p[buffer_len++] = '\r';
    p[buffer_len++] = '\n';
@@ -808,7 +811,7 @@ U_NO_EXPORT inline bool USocketExt::parseCommandResponse(char* buffer, int r, in
     *    123 The last line
     * The user-process then simply needs to search for the second occurrence of the same reply code, followed by
     * <SP> (Space), at the beginning of a line, and ignore all intermediary lines. If an intermediary line begins
-    * with a 3-digit number, the Server must pad the front to avoid confusion.
+    * with a 3-digit number, the Server must pad the front to avoid confusion
     */
 
    int complete = 2;
@@ -904,12 +907,14 @@ UString USocketExt::getNetworkDevice(const char* exclude)
 
    if (U_SYSCALL(fscanf, "%p,%S", route, "%*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s") != EOF) // Skip the first line
       {
-      char dev[7], dest[9];
+      char  dev[7],
+           dest[9];
+      char* ptr = dest;
 
       while (U_SYSCALL(fscanf, "%p,%S", route, "%6s %8s %*s %*s %*s %*s %*s %*s %*s %*s %*s\n", dev, dest) != EOF)
          {
-         bool found = (exclude ? (strncmp(dev, exclude, 6) != 0)   // not the whatever it is
-                               : (strcmp(dest, "00000000") == 0)); // default route
+         bool found = (exclude ? (strncmp(dev, exclude, 6) != 0)                                                        // not the whatever it is
+                               : (u_get_unalignedp64(ptr) == U_MULTICHAR_CONSTANT64('0','0','0','0','0','0','0','0'))); // default route
 
          if (found)
             {
@@ -1131,7 +1136,7 @@ UString USocketExt::getMacAddress(int fd, const char* device)
 
    UString result(100U);
 
-#if !defined(_MSWINDOWS_) && defined(HAVE_SYS_IOCTL_H)
+#ifdef U_LINUX
    U_INTERNAL_ASSERT(fd != -1)
 
    struct ifreq ifr;
@@ -1142,7 +1147,7 @@ UString USocketExt::getMacAddress(int fd, const char* device)
       {
       char* hwaddr = ifr.ifr_hwaddr.sa_data;
 
-      result.snprintf("%02x:%02x:%02x:%02x:%02x:%02x",
+      result.snprintf(U_CONSTANT_TO_PARAM("%02x:%02x:%02x:%02x:%02x:%02x"),
                       hwaddr[0] & 0xFF,
                       hwaddr[1] & 0xFF,
                       hwaddr[2] & 0xFF,
@@ -1164,7 +1169,7 @@ UString USocketExt::getIPAddress(int fd, const char* device)
 
    UString result(100U);
 
-#if !defined(_MSWINDOWS_) && defined(HAVE_SYS_IOCTL_H)
+#ifdef U_LINUX
    struct ifreq ifr;
 
    (void) u__strncpy(ifr.ifr_name, device, IFNAMSIZ-1);
@@ -1197,7 +1202,7 @@ UString USocketExt::getNetworkAddress(int fd, const char* device)
 
    UString result(100U);
 
-#if !defined(_MSWINDOWS_) && defined(HAVE_SYS_IOCTL_H)
+#ifdef U_LINUX
    struct ifreq ifaddr, ifnetmask;
 
    (void) u__strncpy(   ifaddr.ifr_name, device, IFNAMSIZ-1);
@@ -1223,10 +1228,11 @@ UString USocketExt::getNetworkAddress(int fd, const char* device)
                  netmask.psaIP4Addr.sin_addr.s_addr;
 
       /*
-      result.snprintf("%d.%d.%d.%d", (network       & 0xFF),
-                                     (network >>  8 & 0xFF),
-                                     (network >> 16 & 0xFF),
-                                     (network >> 24 & 0xFF));
+      result.snprintf(U_CONSTANT_TO_PARAM("%d.%d.%d.%d"),
+                      (network       & 0xFF),
+                      (network >>  8 & 0xFF),
+                      (network >> 16 & 0xFF),
+                      (network >> 24 & 0xFF));
       */
 
       (void) U_SYSCALL(inet_ntop, "%d,%p,%p,%u", AF_INET, &network, result.data(), INET_ADDRSTRLEN);
@@ -1268,7 +1274,7 @@ U_NO_EXPORT void USocketExt::callbackResolv(void* arg, int status, int timeouts,
 
 void USocketExt::waitResolv()
 {
-   U_TRACE(1, "USocketExt::waitResolv()")
+   U_TRACE_NO_PARAM(1, "USocketExt::waitResolv()")
 
    U_INTERNAL_ASSERT_POINTER(resolv_channel)
 
@@ -1308,7 +1314,14 @@ void USocketExt::startResolv(const char* name, int family)
 
       struct ares_options options;
 
-      status = U_SYSCALL(ares_init_options, "%p,%p,%d", (ares_channel*)&resolv_channel, &options, 0);
+      union uuares_channeldata {
+                  void** p1;
+      ares_channeldata** p2;
+      };
+
+      union uuares_channeldata p = { &resolv_channel };
+
+      status = U_SYSCALL(ares_init_options, "%p,%p,%d", p.p2, &options, 0);
 
       if (status != ARES_SUCCESS) U_ERROR("ares_init_options() failed: %s", ares_strerror(status));
       }
@@ -1319,7 +1332,7 @@ void USocketExt::startResolv(const char* name, int family)
 }
 #endif
 
-#if defined(LINUX) || defined(__LINUX__) || defined(__linux__)
+#ifdef U_LINUX
 #  include <linux/types.h>
 #  include <linux/rtnetlink.h>
 #endif
@@ -1332,7 +1345,7 @@ UString USocketExt::getGatewayAddress(const char* network, uint32_t network_len)
 
    // Ex: ip route show to exact 192.168.1.0/24
 
-#if defined(LINUX) || defined(__LINUX__) || defined(__linux__)
+#ifdef U_LINUX
    static int sock;
 
    if (sock == 0) sock = USocket::socket(AF_NETLINK, SOCK_DGRAM, NETLINK_ROUTE);
@@ -1384,7 +1397,9 @@ UString USocketExt::getGatewayAddress(const char* network, uint32_t network_len)
          do {
             // Receive response from the kernel
 
-            if ((readLen = U_SYSCALL(recv, "%d,%p,%u,%d", sock, CAST(bufPtr), 4096 - msgLen, 0)) < 0) break;
+            readLen = U_SYSCALL(recv, "%d,%p,%u,%d", sock, CAST(bufPtr), 4096 - msgLen, 0);
+
+            if (readLen < 0) break;
 
             nlHdr.p = bufPtr;
 
@@ -1412,21 +1427,20 @@ UString USocketExt::getGatewayAddress(const char* network, uint32_t network_len)
             }
          while ((nlHdr.h->nlmsg_seq != 1) || (nlHdr.h->nlmsg_pid != (uint32_t)u_pid));
 
-         U_INTERNAL_DUMP("msgLen = %u readLen = %u", msgLen, readLen)
+         U_INTERNAL_DUMP("msgLen = %u readLen = %d", msgLen, readLen)
 
          // Parse the response
 
          int rtLen;
          char* dst;
          char dstMask[32];
-         struct rtmsg* rtMsg;
          struct rtattr* rtAttr;
          char ifName[IF_NAMESIZE];
          struct in_addr dstAddr, srcAddr, gateWay;
 
          for (; NLMSG_OK(nlMsg.h,msgLen); nlMsg.h = NLMSG_NEXT(nlMsg.h,msgLen))
             {
-            rtMsg = (struct rtmsg*) NLMSG_DATA(nlMsg.h);
+            struct rtmsg* rtMsg = (struct rtmsg*) NLMSG_DATA(nlMsg.h);
 
             U_INTERNAL_DUMP("rtMsg = %p msgLen = %u rtm_family = %u rtm_table = %u", rtMsg, msgLen, rtMsg->rtm_family, rtMsg->rtm_table)
 
@@ -1505,7 +1519,7 @@ UString USocketExt::getGatewayAddress(const char* network, uint32_t network_len)
 
             dst = U_SYSCALL(inet_ntoa, "%u", dstAddr);
 
-            if (u__snprintf(dstMask, sizeof(dstMask), "%s/%u", dst, rtMsg->rtm_dst_len) == network_len &&
+            if (u__snprintf(dstMask, sizeof(dstMask), U_CONSTANT_TO_PARAM("%s/%u"), dst, rtMsg->rtm_dst_len) == network_len &&
                     strncmp(dstMask, network, network_len) == 0)
                {
                if (gateWay.s_addr)

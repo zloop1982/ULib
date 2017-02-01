@@ -7,14 +7,18 @@ AC_DEFUN([AC_CHECK_PACKAGE],[
 	wanted=1;
 	if test -z "$with_libz" ; then
 		wanted=0;
-		with_libz="${CROSS_ENVIRONMENT}/usr";
+		if test -n "$CROSS_ENVIRONMENT" -o "$enable_shared" = "no"; then
+			with_libz="no";
+		else
+			with_libz="${CROSS_ENVIRONMENT}/usr";
+		fi
 	fi
 	AC_ARG_WITH(libz, [  --with-libz             use system     LIBZ library - [[will check /usr /usr/local]] [[default=use if present]]], [
 	if test "$withval" = "no"; then
 		AC_MSG_RESULT(no)
 	else
 		AC_MSG_RESULT(yes)
-		for dir in $withval ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
+		for dir in $withval ${CROSS_ENVIRONMENT}/ ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
 			libzdir="$dir"
 			if test -f "$dir/include/zlib.h"; then
 				found_libz="yes";
@@ -32,12 +36,12 @@ AC_DEFUN([AC_CHECK_PACKAGE],[
 			echo "${T_MD}libz found in $libzdir${T_ME}"
 			USE_LIBZ=yes
 			AC_DEFINE(USE_LIBZ, 1, [Define if enable libz support])
-			libz_version=$(grep ZLIB_VERSION $libzdir/include/zlib.h | head -n1 | cut -d'"' -f2)
+			libz_version=$(grep ZLIB_VERSION $libzdir/include/zlib.h 2>/dev/null | head -n1 | cut -d'"' -f2 2>/dev/null)
 			if test -z "${libz_version}"; then
 				libz_version="unknown"
 			fi
          ULIB_LIBS="$ULIB_LIBS -lz";
-			if test $libzdir != "${CROSS_ENVIRONMENT}/usr"; then
+			if test $libzdir != "${CROSS_ENVIRONMENT}/" -a $libzdir != "${CROSS_ENVIRONMENT}/usr" -a $libzdir != "${CROSS_ENVIRONMENT}/usr/local"; then
 				CPPFLAGS="$CPPFLAGS -I$libzdir/include"
 				LDFLAGS="$LDFLAGS -L$libzdir/lib -Wl,-R$libzdir/lib";
 				PRG_LDFLAGS="$PRG_LDFLAGS -L$libzdir/lib";
@@ -47,69 +51,32 @@ AC_DEFUN([AC_CHECK_PACKAGE],[
 	], [AC_MSG_RESULT(no)])
 
 	AC_MSG_CHECKING(if you want to enable build of ZIP support)
-	AC_ARG_ENABLE(zip, [  --enable-zip              enable build of ZIP support - require libz [[default: use if present libz]]])
-	if test "$enable_zip" != "no" && test x_$found_libz = x_yes; then
-		enable_zip="yes"
+	if test x_$found_libz = x_yes; then
+		if test -z "$enable_zip" -o "x_$enable_zip" != "x_no"; then
+			enable_zip="yes"
+		fi
 	else
 		enable_zip="no"
 	fi
+	AC_ARG_ENABLE(zip, [  --enable-zip              enable build of ZIP support - require libz [[default: use if present libz]]])
 	AC_MSG_RESULT([$enable_zip])
-
-	AC_MSG_CHECKING(if tdb library is wanted)
-	wanted=1;
-	if test -z "$with_libtdb" ; then
-		wanted=0;
-		with_libtdb="${CROSS_ENVIRONMENT}/usr";
-	fi
-	AC_ARG_WITH(libtdb,    [  --with-libtdb           use system      tdb library - [[will check /usr /usr/local]] [[default=use if present]]], [
-	if test "$withval" = "no"; then
-		AC_MSG_RESULT(no)
-	else
-		AC_MSG_RESULT(yes)
-		for dir in $withval ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
-			libtdbdir="$dir"
-			if test -f "$dir/include/tdb.h"; then
-				found_libtdb="yes";
-				break;
-			fi
-		done
-		if test x_$found_libtdb != x_yes; then
-			msg="Cannot find libtdb library";
-			if test $wanted = 1; then
-				AC_MSG_ERROR($msg)
-			else
-				AC_MSG_RESULT($msg)
-			fi
-		else
-			echo "${T_MD}libtdb found in $libtdbdir${T_ME}"
-			USE_LIBTDB=yes
-			AC_DEFINE(USE_LIBTDB, 1, [Define if enable libtdb support])
-			libtdb_version=$(ls $libtdbdir/lib*/libtdb.so.*.* 2>/dev/null | head -n 1 | awk -F'.so.' '{n=2; print $n}' 2>/dev/null)
-			if test -z "${libtdb_version}"; then
-				libtdb_version="unknown"
-			fi
-         ULIB_LIBS="$ULIB_LIBS -ltdb";
-			if test $libtdbdir != "${CROSS_ENVIRONMENT}/usr"; then
-				CPPFLAGS="$CPPFLAGS -I$libtdbdir/include"
-				LDFLAGS="$LDFLAGS -L$libtdbdir/lib -Wl,-R$libtdbdir/lib";
-				PRG_LDFLAGS="$PRG_LDFLAGS -L$libtdbdir/lib";
-			fi
-		fi
-	fi
-	], [AC_MSG_RESULT(no)])
 
 	AC_MSG_CHECKING(if zopfli library is wanted)
 	wanted=1;
 	if test -z "$with_libzopfli" ; then
 		wanted=0;
-		with_libzopfli="${CROSS_ENVIRONMENT}/usr";
+		if test -n "$CROSS_ENVIRONMENT" -o "$USP_FLAGS" = "-DAS_cpoll_cppsp_DO" -o "$enable_shared" = "no"; then
+			with_libzopfli="no";
+		else
+			with_libzopfli="${CROSS_ENVIRONMENT}/usr";
+		fi
 	fi
 	AC_ARG_WITH(libzopfli, [  --with-libzopfli        use system   zopfli library - [[will check /usr /usr/local]] [[default=use if present]]], [
 	if test "$withval" = "no"; then
 		AC_MSG_RESULT(no)
 	else
 		AC_MSG_RESULT(yes)
-		for dir in $withval ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
+		for dir in $withval ${CROSS_ENVIRONMENT}/ ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
 			libzopflidir="$dir"
 			if test -f "$dir/include/zopfli.h"; then
 				found_libzopfli="yes";
@@ -132,53 +99,10 @@ AC_DEFUN([AC_CHECK_PACKAGE],[
 				libzopfli_version="unknown"
 			fi
          ULIB_LIBS="$ULIB_LIBS -lzopfli";
-			if test $libzopflidir != "${CROSS_ENVIRONMENT}/usr"; then
+			if test $libzopflidir != "${CROSS_ENVIRONMENT}/" -a $libzopflidir != "${CROSS_ENVIRONMENT}/usr" -a $libzopflidir != "${CROSS_ENVIRONMENT}/usr/local"; then
 				CPPFLAGS="$CPPFLAGS -I$libzopflidir/include"
 				LDFLAGS="$LDFLAGS -L$libzopflidir/lib -Wl,-R$libzopflidir/lib";
 				PRG_LDFLAGS="$PRG_LDFLAGS -L$libzopflidir/lib";
-			fi
-		fi
-	fi
-	], [AC_MSG_RESULT(no)])
-
-	AC_MSG_CHECKING(if libuuid library is wanted)
-	wanted=1;
-	if test -z "$with_libuuid" ; then
-		wanted=0;
-		with_libuuid="${CROSS_ENVIRONMENT}/usr";
-	fi
-	AC_ARG_WITH(libuuid, [  --with-libuuid          use system  libuuid library - [[will check /usr /usr/local]] [[default=use if present]]],
-	[if test "$withval" = "no"; then
-		AC_MSG_RESULT(no)
-	else
-		AC_MSG_RESULT(yes)
-		for dir in $withval ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
-			libuuiddir="$dir";
-			if test -f "$dir/include/uuid/uuid.h"; then
-				found_libuuid="yes";
-				break;
-			fi
-		done
-		if test x_$found_libuuid != x_yes; then
-			msg="Cannot find LIBUUID library";
-			if test $wanted = 1; then
-				AC_MSG_ERROR($msg)
-			else
-				AC_MSG_RESULT($msg)
-			fi
-		else
-			echo "${T_MD}libuuid found in $libuuiddir${T_ME}"
-			USE_LIBUUID=yes
-			AC_DEFINE(USE_LIBUUID, 1, [Define if enable libuuid support])
-			libuuid_version=$(pkg-config --modversion ext2fs)
-			if test -z "${libuuid_version}"; then
-				libuuid_version="unknown"
-			fi
-         ULIB_LIBS="-luuid $ULIB_LIBS";
-			if test $libuuiddir != "${CROSS_ENVIRONMENT}/usr"; then
-				CPPFLAGS="$CPPFLAGS -I$libuuiddir/include";
-				LDFLAGS="$LDFLAGS -L$libuuiddir/lib -Wl,-R$libuuiddir/lib";
-				PRG_LDFLAGS="$PRG_LDFLAGS -L$libuuiddir/lib";
 			fi
 		fi
 	fi
@@ -188,14 +112,18 @@ AC_DEFUN([AC_CHECK_PACKAGE],[
 	wanted=1;
 	if test -z "$with_magic" ; then
 		wanted=0;
-		with_magic="${CROSS_ENVIRONMENT}/usr";
+		if test -n "$CROSS_ENVIRONMENT" -o "$enable_shared" = "no"; then
+			with_magic="no";
+		else
+			with_magic="${CROSS_ENVIRONMENT}/usr";
+		fi
 	fi
 	AC_ARG_WITH(magic, [  --with-magic            use system libmagic library - [[will check /usr /usr/local]] [[default=use if present]]],
 	[if test "$withval" = "no"; then
 		AC_MSG_RESULT(no)
 	else
 		AC_MSG_RESULT(yes)
-		for dir in $withval ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
+		for dir in $withval ${CROSS_ENVIRONMENT}/ ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
 			magicdir="$dir";
 			if test -f "$dir/include/magic.h"; then
 				found_magic="yes";
@@ -218,7 +146,7 @@ AC_DEFUN([AC_CHECK_PACKAGE],[
 				libmagic_version="unknown"
 			fi
          ULIB_LIBS="-lmagic $ULIB_LIBS";
-			if test $magicdir != "${CROSS_ENVIRONMENT}/usr"; then
+			if test $magicdir != "${CROSS_ENVIRONMENT}/" -a $magicdir != "${CROSS_ENVIRONMENT}/usr" -a $magicdir != "${CROSS_ENVIRONMENT}/usr/local"; then
 				CPPFLAGS="$CPPFLAGS -I$magicdir/include";
 				LDFLAGS="$LDFLAGS -L$magicdir/lib -Wl,-R$magicdir/lib";
 				PRG_LDFLAGS="$PRG_LDFLAGS -L$magicdir/lib";
@@ -231,14 +159,24 @@ AC_DEFUN([AC_CHECK_PACKAGE],[
 	wanted=1;
 	if test -z "$with_ssl" ; then
 		wanted=0;
-		with_ssl="${CROSS_ENVIRONMENT}/usr";
+		if test -n "$CROSS_ENVIRONMENT" -o "$enable_shared" = "no"; then
+			with_ssl="no";
+		else
+			with_ssl="${CROSS_ENVIRONMENT}/usr";
+		fi
 	fi
+
+   AC_ARG_ENABLE(ssl-staticlib-deps, [  --enable-ssl-staticlib-deps  link with dependencies of OpenSSL's static libraries. Must be specified in addition to --with-ssl [[default=no]]])
+   if test -z "$enable_ssl_staticlib_deps"; then
+      enable_ssl_staticlib_deps="no"
+   fi
+
 	AC_ARG_WITH(ssl, [  --with-ssl              use system      SSL library - [[will check /usr /usr/local]] [[default=use if present]]],
 	[if test "$withval" = "no"; then
 		AC_MSG_RESULT(no)
 	else
 		AC_MSG_RESULT(yes)
-		for dir in $withval ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
+		for dir in $withval ${CROSS_ENVIRONMENT}/ ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
 			ssldir="$dir";
 			if test -f "$dir/include/openssl/ssl.h"; then
 				found_ssl="yes";
@@ -262,25 +200,31 @@ AC_DEFUN([AC_CHECK_PACKAGE],[
 			AC_DEFINE(USE_LIBSSL, 1, [Define if enable libssl support])
 			if test "$found_cyassl" = "yes"; then
 				echo "${T_MD}CYASSL found in $ssldir${T_ME}";
-				ssl_version=$(grep VERSION $ssldir/include/cyassl/openssl/opensslv.h | cut -d' ' -f3 | tr -d '\r\n');
-				ULIB_LIBS="$ULIB_LIBS -lcyassl";
+				ssl_version=$(grep VERSION $ssldir/include/cyassl/openssl/opensslv.h 2>/dev/null | cut -d' ' -f3 | tr -d '\r\n');
+				ULIB_LIBS="-lcyassl $ULIB_LIBS";
 			else
 				echo "${T_MD}libssl found in $ssldir${T_ME}";
 				if test -f "$ssldir/include/openssl/ts.h"; then
 					HAVE_SSL_TS="yes";
 					AC_DEFINE(HAVE_SSL_TS, 1, [Define if we have time stamp support in openssl])
 				fi
-				ssl_version=$(pkg-config --modversion openssl);
-				if test -z "$OPENSSL_LINK"; then
-					ULIB_LIBS="-lssl -lcrypto $ULIB_LIBS";
-				else
+				ssl_version=$($ssldir/bin/openssl version 2>/dev/null)
+				if test -z "${ssl_version}"; then
+					ssl_version=$(grep OPENSSL_VERSION_TEXT $ssldir/include/openssl/opensslv.h 2>/dev/null | grep -v fips | head -1 | cut -d'"' -f2);
+				fi
+				if test -z "${ssl_version}" -a -z "$CROSS_ENVIRONMENT" -a x_$PKG_CONFIG != x_no; then
+					ssl_version=$(pkg-config --modversion openssl 2>/dev/null)
+				fi
+				if test "$enable_ssl_staticlib_deps" != "yes"; then
 					ULIB_LIBS="-lssl -lcrypto $OPENSSL_LINK $ULIB_LIBS";
+				else
+					ULIB_LIBS="$ssldir/lib/libssl.a $ssldir/lib/libcrypto.a $OPENSSL_LINK $ULIB_LIBS";
 				fi
 			fi
 			if test -z "${ssl_version}"; then
 				ssl_version="unknown";
 			fi
-			if test $ssldir != "${CROSS_ENVIRONMENT}/usr"; then
+			if test $ssldir != "${CROSS_ENVIRONMENT}/" -a $ssldir != "${CROSS_ENVIRONMENT}/usr" -a $ssldir != "${CROSS_ENVIRONMENT}/usr/local"; then
 				CPPFLAGS="$CPPFLAGS -I$ssldir/include";
 				LDFLAGS="$LDFLAGS -L$ssldir/lib -Wl,-R$ssldir/lib";
 				PRG_LDFLAGS="$PRG_LDFLAGS -L$ssldir/lib";
@@ -293,14 +237,18 @@ AC_DEFUN([AC_CHECK_PACKAGE],[
 	wanted=1;
 	if test -z "$with_pcre" ; then
 		wanted=0;
-		with_pcre="${CROSS_ENVIRONMENT}/usr";
+		if test -n "$CROSS_ENVIRONMENT" -o "$enable_shared" = "no"; then
+			with_pcre="no";
+		else
+			with_pcre="${CROSS_ENVIRONMENT}/usr";
+		fi
 	fi
 	AC_ARG_WITH(pcre, [  --with-pcre             use system     PCRE library - [[will check /usr /usr/local]] [[default=use if present]]],
 	[if test "$withval" = "no"; then
 		AC_MSG_RESULT(no)
 	else
 		AC_MSG_RESULT(yes)
-		for dir in $withval ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
+		for dir in $withval ${CROSS_ENVIRONMENT}/ ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
 			pcredir="$dir"
 			if test -f "$dir/include/pcre.h"; then
 				found_pcre="yes";
@@ -323,7 +271,7 @@ AC_DEFUN([AC_CHECK_PACKAGE],[
 				pcre_version="unknown"
 			fi
 			ULIB_LIBS="-lpcre $ULIB_LIBS";
-			if test $pcredir != "${CROSS_ENVIRONMENT}/usr"; then
+			if test $pcredir != "${CROSS_ENVIRONMENT}/" -a $pcredir != "${CROSS_ENVIRONMENT}/usr" -a $pcredir != "${CROSS_ENVIRONMENT}/usr/local"; then
 				CPPFLAGS="$CPPFLAGS -I$pcredir/include"
 				LDFLAGS="$LDFLAGS -L$pcredir/lib -Wl,-R$pcredir/lib";
 				PRG_LDFLAGS="$PRG_LDFLAGS -L$pcredir/lib";
@@ -336,14 +284,18 @@ AC_DEFUN([AC_CHECK_PACKAGE],[
 	wanted=1;
 	if test -z "$with_expat" ; then
 		wanted=0;
-		with_expat="${CROSS_ENVIRONMENT}/usr";
+		if test -n "$CROSS_ENVIRONMENT" -o "$enable_shared" = "no"; then
+			with_expat="no";
+		else
+			with_expat="${CROSS_ENVIRONMENT}/usr";
+		fi
 	fi
 	AC_ARG_WITH(expat, [  --with-expat            use system    EXPAT library - [[will check /usr /usr/local]] [[default=use if present]]],
 	[if test "$withval" = "no"; then
 		AC_MSG_RESULT(no)
 	else
 		AC_MSG_RESULT(yes)
-		for dir in $withval ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
+		for dir in $withval ${CROSS_ENVIRONMENT}/ ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
 			expatdir="$dir"
 			if test -f "$dir/include/expat.h"; then
 				found_expat="yes";
@@ -369,7 +321,7 @@ AC_DEFUN([AC_CHECK_PACKAGE],[
 				expat_version="unknown"
 			fi
 			ULIB_LIBS="-lexpat $ULIB_LIBS";
-			if test $expatdir != "${CROSS_ENVIRONMENT}/usr"; then
+			if test $expatdir != "${CROSS_ENVIRONMENT}/" -a $expatdir != "${CROSS_ENVIRONMENT}/usr" -a $expatdir != "${CROSS_ENVIRONMENT}/usr/local"; then
 				CPPFLAGS="$CPPFLAGS -I$expatdir/include"
 				LDFLAGS="$LDFLAGS -L$expatdir/lib -Wl,-R$expatdir/lib";
 				PRG_LDFLAGS="$PRG_LDFLAGS -L$expatdir/lib";
@@ -378,19 +330,166 @@ AC_DEFUN([AC_CHECK_PACKAGE],[
 	fi
 	], [AC_MSG_RESULT(no)])
 
-	AC_MSG_CHECKING(if c-ares library for DNS resolution is wanted)
-	if test -n "$with_libares" ; then
-		wanted=1;
-	else
+	AC_MSG_CHECKING(if libuuid library is wanted)
+	wanted=1;
+	if test -z "$with_libuuid" ; then
 		wanted=0;
-		with_libares="${CROSS_ENVIRONMENT}/usr";
+		if test -n "$CROSS_ENVIRONMENT" -o "$enable_shared" = "no"; then
+			with_libuuid="no";
+		else
+			with_libuuid="${CROSS_ENVIRONMENT}/usr";
+		fi
+	fi
+	AC_ARG_WITH(libuuid, [  --with-libuuid          use system  libuuid library - [[will check /usr /usr/local]] [[default=use if present]]],
+	[if test "$withval" = "no"; then
+		AC_MSG_RESULT(no)
+	else
+		AC_MSG_RESULT(yes)
+		for dir in $withval ${CROSS_ENVIRONMENT}/ ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
+			libuuiddir="$dir";
+			if test -f "$dir/include/uuid/uuid.h"; then
+				found_libuuid="yes";
+				break;
+			fi
+		done
+		if test x_$found_libuuid != x_yes; then
+			msg="Cannot find LIBUUID library";
+			if test $wanted = 1; then
+				AC_MSG_ERROR($msg)
+			else
+				AC_MSG_RESULT($msg)
+			fi
+		else
+			echo "${T_MD}libuuid found in $libuuiddir${T_ME}"
+			USE_LIBUUID=yes
+			AC_DEFINE(USE_LIBUUID, 1, [Define if enable libuuid support])
+			if test -z "$CROSS_ENVIRONMENT" -a x_$PKG_CONFIG != x_no; then
+				libuuid_version=$(pkg-config --modversion ext2fs 2>/dev/null)
+			fi
+			if test -z "${libuuid_version}"; then
+				libuuid_version="unknown"
+			fi
+         ULIB_LIBS="-luuid $ULIB_LIBS";
+			if test $libuuiddir != "${CROSS_ENVIRONMENT}/" -a $libuuiddir != "${CROSS_ENVIRONMENT}/usr" -a $libuuiddir != "${CROSS_ENVIRONMENT}/usr/local"; then
+				CPPFLAGS="$CPPFLAGS -I$libuuiddir/include";
+				LDFLAGS="$LDFLAGS -L$libuuiddir/lib -Wl,-R$libuuiddir/lib";
+				PRG_LDFLAGS="$PRG_LDFLAGS -L$libuuiddir/lib";
+			fi
+		fi
+	fi
+	], [AC_MSG_RESULT(no)])
+
+	AC_MSG_CHECKING(if cURL library is wanted)
+	wanted=1;
+	if test -z "$with_curl" ; then
+		wanted=0;
+		with_curl="no";
+	fi
+
+   AC_ARG_ENABLE(curl-staticlib-deps, [  --enable-curl-staticlib-deps link with dependencies of    cURL's static libraries. Must be specified in addition to --with-curl [[default=no]]])
+   if test -z "$enable_curl_staticlib_deps"; then
+      enable_curl_staticlib_deps="no"
+   fi
+
+	AC_ARG_WITH(curl, [  --with-curl             use system     cURL library - [[will check /usr /usr/local]]],
+	[if test "$withval" = "no"; then
+		AC_MSG_RESULT(no)
+	else
+		AC_MSG_RESULT(yes)
+		for dir in $withval ${CROSS_ENVIRONMENT}/ ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
+			curldir="$dir";
+			if test -f "$dir/include/curl/curl.h"; then
+				found_curl="yes";
+				break;
+			fi
+		done
+		if test x_$found_curl != x_yes; then
+			AC_MSG_ERROR(Cannot find cURL library)
+		else
+			echo "${T_MD}libcurl found in $curldir${T_ME}"
+			USE_LIBCURL=yes
+			AC_DEFINE(USE_LIBCURL, 1, [Define if enable libcurl support])
+			libcurl_version=$($curldir/bin/curl-config --version 2>/dev/null)
+			if test -z "${libcurl_version}" -a -z "$CROSS_ENVIRONMENT" -a x_$PKG_CONFIG != x_no; then
+				libcurl_version=$(pkg-config --modversion libcurl 2>/dev/null)
+			fi
+			if test -z "${libcurl_version}"; then
+				libcurl_version="unknown"
+			fi
+			if test "$enable_curl_staticlib_deps" = "yes"; then
+				libcurl_linking="$curldir/lib/libcurl.a -lz"
+			else
+				libcurl_linking=$($curldir/bin/curl-config --libs 2>/dev/null)
+			fi
+			if test -z "${libcurl_linking}"; then
+				libcurl_linking="-lcurl"
+			fi
+			ULIB_LIBS="$libcurl_linking $ULIB_LIBS";
+			if test $curldir != "${CROSS_ENVIRONMENT}/" -a $curldir != "${CROSS_ENVIRONMENT}/usr" -a $curldir != "${CROSS_ENVIRONMENT}/usr/local"; then
+				libcurl_cflags=$($curldir/bin/curl-config --cflags 2>/dev/null)
+				CPPFLAGS="$CPPFLAGS $libcurl_cflags";
+				LDFLAGS="$LDFLAGS -L$curldir/lib -Wl,-R$curldir/lib";
+				PRG_LDFLAGS="$PRG_LDFLAGS -L$curldir/lib";
+			fi
+		fi
+	fi
+	], [AC_MSG_RESULT(no)])
+
+	AC_MSG_CHECKING(if tdb library is wanted)
+	wanted=1;
+	if test -z "$with_libtdb" ; then
+		wanted=0;
+		with_libtdb="no";
+	fi
+	AC_ARG_WITH(libtdb,    [  --with-libtdb           use system      tdb library - [[will check /usr /usr/local]]], [
+	if test "$withval" = "no"; then
+		AC_MSG_RESULT(no)
+	else
+		AC_MSG_RESULT(yes)
+		for dir in $withval ${CROSS_ENVIRONMENT}/ ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
+			libtdbdir="$dir"
+			if test -f "$dir/include/tdb.h"; then
+				found_libtdb="yes";
+				break;
+			fi
+		done
+		if test x_$found_libtdb != x_yes; then
+			msg="Cannot find libtdb library";
+			if test $wanted = 1; then
+				AC_MSG_ERROR($msg)
+			else
+				AC_MSG_RESULT($msg)
+			fi
+		else
+			echo "${T_MD}libtdb found in $libtdbdir${T_ME}"
+			USE_LIBTDB=yes
+			AC_DEFINE(USE_LIBTDB, 1, [Define if enable libtdb support])
+			libtdb_version=$(ls $libtdbdir/lib*/libtdb.so.*.* 2>/dev/null | head -n 1 | awk -F'.so.' '{n=2; print $n}' 2>/dev/null)
+			if test -z "${libtdb_version}"; then
+				libtdb_version="unknown"
+			fi
+         ULIB_LIBS="$ULIB_LIBS -ltdb";
+			if test $libtdbdir != "${CROSS_ENVIRONMENT}/" -a $libtdbdir != "${CROSS_ENVIRONMENT}/usr" -a $libtdbdir != "${CROSS_ENVIRONMENT}/usr/local"; then
+				CPPFLAGS="$CPPFLAGS -I$libtdbdir/include"
+				LDFLAGS="$LDFLAGS -L$libtdbdir/lib -Wl,-R$libtdbdir/lib";
+				PRG_LDFLAGS="$PRG_LDFLAGS -L$libtdbdir/lib";
+			fi
+		fi
+	fi
+	], [AC_MSG_RESULT(no)])
+
+	AC_MSG_CHECKING(if c-ares library for DNS resolution is wanted)
+	wanted=1;
+	if test -z "$with_libares" ; then
+		wanted=0;
+		with_libares="no";
 	fi
 	AC_ARG_WITH(libares, [  --with-libares          use system   c-ares library - [[will check /usr /usr/local]]], [
 	if test "$withval" = "no"; then
 		AC_MSG_RESULT(no)
 	else
 		AC_MSG_RESULT(yes)
-		for dir in $withval ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
+		for dir in $withval ${CROSS_ENVIRONMENT}/ ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
 			caresdir="$dir"
 			if test -f "$dir/include/ares.h"; then
 				found_cares="yes";
@@ -408,12 +507,14 @@ AC_DEFUN([AC_CHECK_PACKAGE],[
 			echo "${T_MD}libcares found in $caresdir${T_ME}"
 			USE_C_ARES=yes
 			AC_DEFINE(USE_C_ARES, 1, [Define if enable c-ares support])
-			cares_version=$(pkg-config --modversion libcares)
+			if test -z "$CROSS_ENVIRONMENT" -a x_$PKG_CONFIG != x_no; then
+				cares_version=$(pkg-config --modversion libcares 2>/dev/null)
+			fi
 			if test -z "${cares_version}"; then
 				cares_version="unknown"
 			fi
          ULIB_LIBS="-lcares $ULIB_LIBS";
-			if test $caresdir != "${CROSS_ENVIRONMENT}/usr"; then
+			if test $caresdir != "${CROSS_ENVIRONMENT}/" -a $caresdir != "${CROSS_ENVIRONMENT}/usr" -a $caresdir != "${CROSS_ENVIRONMENT}/usr/local"; then
 				CPPFLAGS="$CPPFLAGS -I$caresdir/include"
 				LDFLAGS="$LDFLAGS -L$caresdir/lib -Wl,-R$caresdir/lib";
 				PRG_LDFLAGS="$PRG_LDFLAGS -L$caresdir/lib";
@@ -423,12 +524,17 @@ AC_DEFUN([AC_CHECK_PACKAGE],[
 	], [AC_MSG_RESULT(no)])
 
 	AC_MSG_CHECKING(if SSH library is wanted)
+	wanted=1;
+	if test -z "$with_ssh" ; then
+		wanted=0;
+		with_ssh="no";
+	fi
 	AC_ARG_WITH(ssh, [  --with-ssh              use system      SSH library - [[will check /usr /usr/local]]],
 	[if test "$withval" = "no"; then
 		AC_MSG_RESULT(no)
 	else
 		AC_MSG_RESULT(yes)
-		for dir in $withval ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
+		for dir in $withval ${CROSS_ENVIRONMENT}/ ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
 			sshdir="$dir";
 			if test -f "$dir/include/libssh/libssh.h"; then
 				found_ssh="yes";
@@ -447,7 +553,7 @@ dnl		libssh_version=$(grep LIBSFTP_VERSION $sshdir/include/libssh/sftp.h | cut -
 				libssh_version="unknown"
 			fi
 			ULIB_LIBS="-lssh $ULIB_LIBS";
-			if test $sshdir != "${CROSS_ENVIRONMENT}/usr"; then
+			if test $sshdir != "${CROSS_ENVIRONMENT}/" -a $sshdir != "${CROSS_ENVIRONMENT}/usr" -a $sshdir != "${CROSS_ENVIRONMENT}/usr/local"; then
 				CPPFLAGS="$CPPFLAGS -I$sshdir/include";
 				LDFLAGS="$LDFLAGS -L$sshdir/lib -Wl,-R$sshdir/lib";
 				PRG_LDFLAGS="$PRG_LDFLAGS -L$sshdir/lib";
@@ -456,46 +562,18 @@ dnl		libssh_version=$(grep LIBSFTP_VERSION $sshdir/include/libssh/sftp.h | cut -
 	fi
 	], [AC_MSG_RESULT(no)])
 
-	AC_MSG_CHECKING(if cURL library is wanted)
-	AC_ARG_WITH(curl, [  --with-curl             use system     cURL library - [[will check /usr /usr/local]]],
-	[if test "$withval" = "no"; then
-		AC_MSG_RESULT(no)
-	else
-		AC_MSG_RESULT(yes)
-		for dir in $withval ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
-			curldir="$dir";
-			if test -f "$dir/include/curl/curl.h"; then
-				found_curl="yes";
-				break;
-			fi
-		done
-		if test x_$found_curl != x_yes; then
-			AC_MSG_ERROR(Cannot find cURL library)
-		else
-			echo "${T_MD}libcurl found in $curldir${T_ME}"
-			USE_LIBCURL=yes
-			AC_DEFINE(USE_LIBCURL, 1, [Define if enable libcurL support])
-			libcurl_version=$($curldir/bin/curl-config --version | sed -e "s/libcurl //g")
-			if test -z "${libcurl_version}"; then
-				libcurl_version="unknown"
-			fi
-			ULIB_LIBS="-lcurl $ULIB_LIBS";
-			if test $curldir != "${CROSS_ENVIRONMENT}/usr"; then
-				CPPFLAGS="$CPPFLAGS -I$curldir/include";
-				LDFLAGS="$LDFLAGS -L$curldir/lib -Wl,-R$curldir/lib";
-				PRG_LDFLAGS="$PRG_LDFLAGS -L$curldir/lib";
-			fi
-		fi
-	fi
-	], [AC_MSG_RESULT(no)])
-
 	AC_MSG_CHECKING(if LDAP library is wanted)
+	wanted=1;
+	if test -z "$with_ldap" ; then
+		wanted=0;
+		with_ldap="no";
+	fi
 	AC_ARG_WITH(ldap, [  --with-ldap             use system openLDAP library - [[will check /usr /usr/local]]],
 	[if test "$withval" = "no"; then
 		AC_MSG_RESULT(no)
 	else
 		AC_MSG_RESULT(yes)
-		for dir in $withval ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
+		for dir in $withval ${CROSS_ENVIRONMENT}/ ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
 			ldapdir="$dir"
 			if test -f "$dir/include/ldap.h"; then
 				found_ldap="yes"
@@ -536,7 +614,7 @@ dnl		ldap_version=$(ldapsearch -VV 2>&1 | tail -n1 | cut -d':' -f2 | cut -d')' -
 				ldap_version="unknown"
 			fi
 			ULIB_LIBS="$LDAP_LIBS $ULIB_LIBS";
-			if test $ldapdir != "${CROSS_ENVIRONMENT}/usr"; then
+			if test $ldapdir != "${CROSS_ENVIRONMENT}/" -a $ldapdir != "${CROSS_ENVIRONMENT}/usr" -a $ldapdir != "${CROSS_ENVIRONMENT}/usr/local"; then
 				CPPFLAGS="$CPPFLAGS -I$LDAP_INCS"
 				LDFLAGS="$LDFLAGS -L$LDAP_LDFLAGS -Wl,-R$LDAP_LDFLAGS"
 				PRG_LDFLAGS="$PRG_LDFLAGS -L$ldapdir/lib";
@@ -546,12 +624,17 @@ dnl		ldap_version=$(ldapsearch -VV 2>&1 | tail -n1 | cut -d':' -f2 | cut -d')' -
 	], [AC_MSG_RESULT(no)])
 
 	AC_MSG_CHECKING(if DBI library is wanted)
+	wanted=1;
+	if test -z "$with_dbi" ; then
+		wanted=0;
+		with_dbi="no";
+	fi
 	AC_ARG_WITH(dbi, [  --with-dbi              use system      DBI library - [[will check /usr /usr/local]]],
 	[if test "$withval" = "no"; then
 		AC_MSG_RESULT(no)
 	else
 		AC_MSG_RESULT(yes)
-		for dir in $withval ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
+		for dir in $withval ${CROSS_ENVIRONMENT}/ ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
 			dbidir="$dir";
 			if test -f "$dir/include/dbi/dbi.h"; then
 				found_dbi="yes";
@@ -569,12 +652,12 @@ dnl		ldap_version=$(ldapsearch -VV 2>&1 | tail -n1 | cut -d':' -f2 | cut -d')' -
 				libdbi_version="unknown"
 			fi
 			ULIB_LIBS="-ldbi $ULIB_LIBS";
-			if test $dbidir != "${CROSS_ENVIRONMENT}/usr"; then
+			if test $dbidir != "${CROSS_ENVIRONMENT}/" -a $dbidir != "${CROSS_ENVIRONMENT}/usr" -a $dbidir != "${CROSS_ENVIRONMENT}/usr/local"; then
 				CPPFLAGS="$CPPFLAGS -I$dbidir/include";
 				LDFLAGS="$LDFLAGS -L$dbidir/lib -Wl,-R$dbidir/lib";
 				PRG_LDFLAGS="$PRG_LDFLAGS -L$dbidir/lib";
 			else
-				if ! test -f $dbidir/lib64/libdbi.so && test -f $dbidir/lib64/dbi/libdbi.so; then
+				if ! test -f $dbidir/lib64/libdbi.so -a -f $dbidir/lib64/dbi/libdbi.so; then
 					LDFLAGS="$LDFLAGS -L$dbidir/lib64/dbi -Wl,-R$dbidir/lib64/dbi";
 					PRG_LDFLAGS="$PRG_LDFLAGS -L$dbidir/lib64/dbi";
 				fi
@@ -584,12 +667,17 @@ dnl		ldap_version=$(ldapsearch -VV 2>&1 | tail -n1 | cut -d':' -f2 | cut -d')' -
 	], [AC_MSG_RESULT(no)])
 
 	AC_MSG_CHECKING(if libevent library is wanted)
+	wanted=1;
+	if test -z "$with_libevent" ; then
+		wanted=0;
+		with_libevent="no";
+	fi
 	AC_ARG_WITH(libevent, [  --with-libevent         use system libevent library - [[will check /usr /usr/local]]],
 	[if test "$withval" = "no"; then
 		AC_MSG_RESULT(no)
 	else
 		AC_MSG_RESULT(yes)
-		for dir in $withval ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
+		for dir in $withval ${CROSS_ENVIRONMENT}/ ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
 			libeventdir="$dir";
 			if test -f "$dir/include/event.h"; then
 				found_libevent="yes";
@@ -607,7 +695,7 @@ dnl		ldap_version=$(ldapsearch -VV 2>&1 | tail -n1 | cut -d':' -f2 | cut -d')' -
 				libevent_version="unknown"
 			fi
 			ULIB_LIBS="-levent $ULIB_LIBS";
-			if test $libeventdir != "${CROSS_ENVIRONMENT}/usr"; then
+			if test $libeventdir != "${CROSS_ENVIRONMENT}/" -a $libeventdir != "${CROSS_ENVIRONMENT}/usr" -a $libeventdir != "${CROSS_ENVIRONMENT}/usr/local"; then
 				CPPFLAGS="$CPPFLAGS -I$libeventdir/include";
 				LDFLAGS="$LDFLAGS -L$libeventdir/lib -Wl,-R$libeventdir/lib";
 				PRG_LDFLAGS="$PRG_LDFLAGS -L$libeventdir/lib";
@@ -617,12 +705,17 @@ dnl		ldap_version=$(ldapsearch -VV 2>&1 | tail -n1 | cut -d':' -f2 | cut -d')' -
 	], [AC_MSG_RESULT(no)])
 
 	AC_MSG_CHECKING(if libxml2 library is wanted)
+	wanted=1;
+	if test -z "$with_libxml2" ; then
+		wanted=0;
+		with_libxml2="no";
+	fi
 	AC_ARG_WITH(libxml2, [  --with-libxml2          use system  libxml2 library - [[will check /usr /usr/local]]],
 	[if test "$withval" = "no"; then
 		AC_MSG_RESULT(no)
 	else
 		AC_MSG_RESULT(yes)
-		for dir in $withval ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
+		for dir in $withval ${CROSS_ENVIRONMENT}/ ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
 			libxml2dir="$dir";
 			if test -f "$dir/include/libxml2/libxml/valid.h"; then
 				found_libxml2="yes";
@@ -635,12 +728,14 @@ dnl		ldap_version=$(ldapsearch -VV 2>&1 | tail -n1 | cut -d':' -f2 | cut -d')' -
 			echo "${T_MD}libxml2 found in $libxml2dir${T_ME}"
 			USE_LIBXML2=yes
 			AC_DEFINE(USE_LIBXML2, 1, [Define if enable libxml2 support])
-			libxml2_version=$(pkg-config --modversion libxml-2.0)
+			if test -z "$CROSS_ENVIRONMENT" -a x_$PKG_CONFIG != x_no; then
+				libxml2_version=$(pkg-config --modversion libxml-2.0 2>/dev/null)
+			fi
 			if test -z "${libxml2_version}"; then
 				libxml2_version="unknown"
 			fi
 			ULIB_LIBS="-lxml2 $ULIB_LIBS";
-			if test $libxml2dir != "${CROSS_ENVIRONMENT}/usr"; then
+			if test $libxml2dir != "${CROSS_ENVIRONMENT}/" -a $libxml2dir != "${CROSS_ENVIRONMENT}/usr" -a $libxml2dir != "${CROSS_ENVIRONMENT}/usr/local"; then
 				CPPFLAGS="$CPPFLAGS -I$libxml2dir/include/libxml2";
 				LDFLAGS="$LDFLAGS -L$libxml2dir/lib -Wl,-R$libxml2dir/lib";
 				PRG_LDFLAGS="$PRG_LDFLAGS -L$libxml2dir/lib";
@@ -652,12 +747,17 @@ dnl		ldap_version=$(ldapsearch -VV 2>&1 | tail -n1 | cut -d':' -f2 | cut -d')' -
 	], [AC_MSG_RESULT(no)])
 
 	AC_MSG_CHECKING(if you want to use page-speed SDK)
+	wanted=1;
+	if test -z "$with_page_speed" ; then
+		wanted=0;
+		with_page_speed="no";
+	fi
 	AC_ARG_WITH(page-speed, [  --with-page-speed       use google page-speed SDK   - [[will check /usr /usr/local]]],
 	[if test "$withval" = "no"; then
 		AC_MSG_RESULT(no)
 	else
 		AC_MSG_RESULT(yes)
-		for dir in $withval ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
+		for dir in $withval ${CROSS_ENVIRONMENT}/ ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
 			page_speeddir="$dir";
 			if test -d $dir/page-speed-*; then
 				found_page_speed="yes";
@@ -670,7 +770,7 @@ dnl		ldap_version=$(ldapsearch -VV 2>&1 | tail -n1 | cut -d':' -f2 | cut -d')' -
 			echo "${T_MD}page-speed SDK found in $page_speeddir${T_ME}"
 			USE_PAGE_SPEED=yes
 			AC_DEFINE(USE_PAGE_SPEED, 1, [Define if enable libpagespeed support])
-			page_speed_version=$(ls -1 $page_speeddir | grep page-speed | cut -d'-' -f3)
+			page_speed_version=$(ls -1 $page_speeddir 2>/dev/null | grep page-speed | cut -d'-' -f3)
 			PAGESPEED_ROOT_DIR=$page_speeddir/page-speed-$page_speed_version
 		fi
 	fi
@@ -678,12 +778,17 @@ dnl		ldap_version=$(ldapsearch -VV 2>&1 | tail -n1 | cut -d':' -f2 | cut -d')' -
 	], [AC_MSG_RESULT(no)])
 
 	AC_MSG_CHECKING(if you want to use V8 JavaScript Engine)
+	wanted=1;
+	if test -z "$with_v8-javascript" ; then
+		wanted=0;
+		with_v8-javascript="no";
+	fi
 	AC_ARG_WITH(v8-javascript, [  --with-v8-javascript    use V8 JavaScript Engine    - [[will check /usr /usr/local]]],
 	[if test "$withval" = "no"; then
 		AC_MSG_RESULT(no)
 	else
 		AC_MSG_RESULT(yes)
-		for dir in $withval ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
+		for dir in $withval ${CROSS_ENVIRONMENT}/ ${CROSS_ENVIRONMENT}/usr ${CROSS_ENVIRONMENT}/usr/local; do
 			v8dir="$dir";
 			if test -f "$dir/include/v8.h"; then
 				found_v8="yes";
@@ -752,10 +857,10 @@ else
    if test "$ac_sqlite3_incdir" = "no"; then
       AC_CHECK_HEADER([sqlite3.h])
       SQLITE3_INCLUDE=""
-		libsqlite_version=$(grep SQLITE_VERSION /usr/include/sqlite3.h | grep '"' | cut -d'"' -f2)
+		libsqlite_version=$(grep SQLITE_VERSION /usr/include/sqlite3.h 2>/dev/null | grep '"' | cut -d'"' -f2)
    else
       SQLITE3_INCLUDE=-I$ac_sqlite3_incdir
-		libsqlite_version=$(grep SQLITE_VERSION $ac_sqlite3_incdir/sqlite3.h | grep '"' | cut -d'"' -f2)
+		libsqlite_version=$(grep SQLITE_VERSION $ac_sqlite3_incdir/sqlite3.h 2>/dev/null | grep '"' | cut -d'"' -f2)
    fi
    if test "$ac_sqlite3_libdir" = "no"; then
       AC_SEARCH_LIBS_VAR([sqlite3_exec], sqlite3, , , , SQLITE3_LIBS)
@@ -827,10 +932,10 @@ else
 
 	if test "$ac_mysql_incdir" = "no"; then
 		MYSQL_INCLUDE=`mysql_config --include`
-		libmysql_version=$(grep MYSQL_VERSION_ID /usr/include/mysql/mysql_version.h | cut -f3)
+		libmysql_version=$(grep LIBMYSQL_VERSION     /usr/include/mysql/mysql_version.h 2>/dev/null | head -n1 | cut -d'"' -f2)
 	else
 		MYSQL_INCLUDE=-I$ac_mysql_incdir
-		libmysql_version=$(grep MYSQL_VERSION_ID $ac_mysql_incdir/mysql/mysql_version.h | cut -f3)
+		libmysql_version=$(grep LIBMYSQL_VERSION $ac_mysql_incdir/mysql/mysql_version.h 2>/dev/null | head -n1 | cut -d'"' -f2)
 	fi
 	if test "$ac_mysql_libdir" = "no"; then
 	   	if test "$ac_mysql_threadsafe" = "YES"; then
@@ -913,7 +1018,7 @@ else
 
 	USE_PGSQL=yes
 	AC_DEFINE(USE_PGSQL, 1, [Define if enable PostgreSQL database support])
-	pgsql_version=$(pg_config --version | cut -d' ' -f2)
+	pgsql_version=$(pg_config --version 2>/dev/null | cut -d' ' -f2)
 	if test -z "${pgsql_version}"; then
 		pgsql_version="unknown"
 	fi

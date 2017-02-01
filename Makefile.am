@@ -5,20 +5,22 @@ ACLOCAL_AMFLAGS = -I m4
 
 EXTRA_DIST = cdb configure.help TODO LICENSE* README* *.spec* \
 	 			 ULib.m4 rpm.sh rpmpkgreq.lst rpmpkgreq.lst.suse openwrt \
-	 			 doc/Doxyfile doc/readme.txt shtool *.awk .travis.yml autogen.sh
+	 			 doc/Doxyfile doc/readme.txt shtool *.awk .travis.yml autogen.sh nativejson-benchmark
 
 MAINTAINERCLEANFILES = configure aclocal.m4 libtool Makefile.in Makefile INSTALL
+
+moduledir = @ULIB_MODULEDIR@
 
 SUBDIRS  = include src/ulib
 if PLUGIN
 SUBDIRS += src/ulib/net/server/plugin src/ulib/orm/driver
 endif
 if ENABLE_EXAMPLES
-SUBDIRS += examples contrib
+SUBDIRS += examples
 endif
 SUBDIRS += tests
 
-DIST_SUBDIRS = include src/ulib src/ulib/net/server/plugin src/ulib/orm/driver m4 doc contrib examples tests
+DIST_SUBDIRS = include src/ulib src/ulib/net/server/plugin src/ulib/orm/driver m4 doc examples tests contrib
 
 ## bin_SCRIPTS = ulib-config
 
@@ -51,6 +53,7 @@ coverage_html:
 	@genhtml --ignore-errors source -o html coverage.info
 
 install-data-local:
+	@cd $(top_builddir)/src/ulib/net/server/plugin/usp; $(MAKE) $(AM_MAKEFLAGS) usp_compile.sh
 	@${INSTALL} -m 777 $(top_builddir)/libtool $(DESTDIR)${bindir}/usp_libtool.sh; \
 	 ${INSTALL} -m 777 $(top_builddir)/src/ulib/net/server/plugin/usp/usp_compile.sh $(DESTDIR)${bindir}
 
@@ -68,6 +71,7 @@ cleandist:
 		$(distdir)/tests/ulib/tmp/* \
 		$(distdir)/tests/ulib/private/* \
 		$(distdir)/tests/ulib/CApath/*.*0 \
+		$(distdir)/tests/ulib/ok/json.ok \
 		$(distdir)/tests/ulib/ok/timer.ok \
 		$(distdir)/tests/ulib/ok/socket.ok \
 		$(distdir)/tests/ulib/ok/interrupt.ok \
@@ -112,6 +116,7 @@ cleandist:
 		$(distdir)/tests/examples/nocat/.ht* \
 		$(distdir)/tests/examples/nocat/image \
 		$(distdir)/tests/examples/nocat/webif* \
+		$(distdir)/tests/examples/python/*.pyc \
 		$(distdir)/tests/examples/TSA/log \
 		$(distdir)/tests/examples/TSA/TSA \
 		$(distdir)/tests/examples/TSA/.rnd \
@@ -136,6 +141,7 @@ cleandist:
 		$(distdir)/tests/examples/docroot/uploads \
 		$(distdir)/tests/examples/docroot/vuoto.txt \
 		$(distdir)/tests/examples/docroot/www.sito1.com \
+		$(distdir)/tests/examples/ok/client_server.ok \
 		$(distdir)/tests/examples/ok/web_server_multiclient.ok \
 		$(distdir)/tests/examples/benchmark/userver_tcp.pid \
 		$(distdir)/tests/examples/benchmark/docroot/servlet/*.so \

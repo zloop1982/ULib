@@ -18,7 +18,7 @@ UPlugIn<void*>* UPlugIn<void*>::first;
 
 UPlugIn<void*>::~UPlugIn()
 {
-   U_TRACE(0, "UPlugIn<void*>::~UPlugIn()")
+   U_TRACE_NO_PARAM(0, "UPlugIn<void*>::~UPlugIn()")
 
    if (name) U_SYSCALL_VOID(free, "%p", (void*)name);
    if (next) delete next;
@@ -28,7 +28,9 @@ void* UPlugIn<void*>::create(const char* _name, uint32_t _name_len)
 {
    U_TRACE(0, "UPlugIn<void*>::create(%.*S,%u)", _name_len, _name, _name_len)
 
-   UPlugIn<void*>* item = U_NEW(UPlugIn<void*>);
+   UPlugIn<void*>* item;
+
+   U_NEW(UPlugIn<void*>, item, UPlugIn<void*>);
 
    item->next = first;
    first      = item;
@@ -40,7 +42,7 @@ void* UPlugIn<void*>::create(const char* _name, uint32_t _name_len)
       {
       char buffer[128];
 
-      (void) u__snprintf(buffer, sizeof(buffer), "u_creat_%.*s", _name_len, _name);
+      (void) u__snprintf(buffer, sizeof(buffer), U_CONSTANT_TO_PARAM("u_creat_%.*s"), _name_len, _name);
 
       pvPF creator = (pvPF) item->operator[](buffer);
 
@@ -57,7 +59,7 @@ void* UPlugIn<void*>::create(const char* _name, uint32_t _name_len)
 
 void UPlugIn<void*>::clear()
 {
-   U_TRACE(0, "UPlugIn<void*>::clear()")
+   U_TRACE_NO_PARAM(0, "UPlugIn<void*>::clear()")
 
    if (first)
       {
@@ -90,7 +92,7 @@ const char* UPlugIn<void*>::dump(bool reset) const
 
    char buffer[32];
 
-   UObjectIO::os->write(buffer, u__snprintf(buffer, sizeof(buffer), "%#.*S", name_len, name));
+   UObjectIO::os->write(buffer, u__snprintf(buffer, sizeof(buffer), U_CONSTANT_TO_PARAM("%#.*S"), name_len, name));
 
    *UObjectIO::os << '\n'
                   << "name_len " << name_len;

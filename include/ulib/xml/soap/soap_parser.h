@@ -174,8 +174,6 @@ public:
    U_MEMORY_ALLOCATOR
    U_MEMORY_DEALLOCATOR
 
-   // COSTRUTTORI
-
    USOAPParser(UVector<UString>* arg = 0) : URPCParser(arg), tree(0,0,2)
       {
       U_TRACE_REGISTER_OBJECT(0, USOAPParser, "", 0)
@@ -191,7 +189,7 @@ public:
 
    void clearData()
       {
-      U_TRACE(0, "USOAPParser::clearData()")
+      U_TRACE_NO_PARAM(0, "USOAPParser::clearData()")
 
       URPCParser::clearData();
 
@@ -202,13 +200,18 @@ public:
       tree.clear();
       }
 
-   virtual ~USOAPParser();
+   virtual ~USOAPParser()
+      {
+      U_TRACE_UNREGISTER_OBJECT(0, USOAPParser)
+
+      clearData();
+      }
 
    // SERVICES
 
    void zero()
       {
-      U_TRACE(0, "USOAPParser::zero()")
+      U_TRACE_NO_PARAM(0, "USOAPParser::zero()")
 
       body                    = 0;
       header                  = 0;
@@ -237,7 +240,7 @@ public:
 
    UString getResponse()
       {
-      U_TRACE(0, "USOAPParser::getResponse()")
+      U_TRACE_NO_PARAM(0, "USOAPParser::getResponse()")
       
       U_INTERNAL_ASSERT_POINTER(method)
 
@@ -299,13 +302,7 @@ private:
    UXMLElement* current;
    UTree<UXMLElement*>* ptree;
 
-#ifdef U_COMPILER_DELETE_MEMBERS
-   USOAPParser(const USOAPParser&) = delete;
-   USOAPParser& operator=(const USOAPParser&) = delete;
-#else
-   USOAPParser(const USOAPParser&) : UXMLParser(), URPCParser(0) {}
-   USOAPParser& operator=(const USOAPParser&)                    { return *this; }
-#endif      
+   U_DISALLOW_COPY_AND_ASSIGN(USOAPParser)
 };
 
 #endif

@@ -18,9 +18,13 @@
 #include <ulib/net/server/server.h>
 #include <ulib/utility/string_ext.h>
 
+#if defined(__NetBSD__) || defined(__UNIKERNEL__) || defined(__OSX__)
+extern char** environ;
+#endif
+
 U_NO_EXPORT void UFileConfig::init()
 {
-   U_TRACE(0, "UFileConfig::init()")
+   U_TRACE_NO_PARAM(0, "UFileConfig::init()")
 
    UFile::map      = (char*)MAP_FAILED;
    UFile::st_size  = 0;
@@ -49,13 +53,11 @@ UFileConfig::UFileConfig(const UString& _data, bool _preprocessing) : data(_data
    preprocessing = _preprocessing;
 }
 
-bool UFileConfig::processData()
+bool UFileConfig::processData(bool bload)
 {
-   U_TRACE(0, "UFileConfig::processData()")
+   U_TRACE(0, "UFileConfig::processData(%b)", bload)
 
    U_CHECK_MEMORY
-
-   bool result = false;
 
    // manage if we need preprocessing...
 
@@ -69,14 +71,14 @@ bool UFileConfig::processData()
               _dir = UStringExt::dirname(pathname);
 
 #  ifdef DEBUG
-#  define DBG_DEF " -DDEBUG "
+#     define DBG_DEF " -DDEBUG "
 #  else
-#  define DBG_DEF
+#     define DBG_DEF
 #  endif
 
       if (fd_stderr == 0) fd_stderr = UServices::getDevNull("/tmp/cpp.err");
 
-      command.snprintf("cpp -undef -nostdinc -w -P -C " DBG_DEF "-I%v -", _dir.rep);
+      command.snprintf(U_CONSTANT_TO_PARAM("cpp -undef -nostdinc -w -P -C " DBG_DEF "-I%v -"), _dir.rep);
 
       if (UFile::isOpen())
          {
@@ -87,7 +89,7 @@ bool UFileConfig::processData()
 #     ifdef HAVE_MCPP
          if (data.empty())
             {
-            command.snprintf("mcpp -P -C " DBG_DEF "-I%v -", _dir.rep);
+            command.snprintf(U_CONSTANT_TO_PARAM("mcpp -P -C " DBG_DEF "-I%v -"), _dir.rep);
 
             (void) UFile::lseek(U_SEEK_BEGIN, SEEK_SET);
 
@@ -111,7 +113,7 @@ bool UFileConfig::processData()
             {
             UCommand _cmd(command);
 
-            command.snprintf("mcpp -P -C " DBG_DEF "-I%v -", _dir.rep);
+            command.snprintf(U_CONSTANT_TO_PARAM("mcpp -P -C " DBG_DEF "-I%v -"), _dir.rep);
 
             (void) _cmd.execute(&data, &output, -1, fd_stderr);
 
@@ -126,41 +128,51 @@ bool UFileConfig::processData()
       }
 #endif
 
-   if (data.empty()) U_RETURN(false);
+   if (data.empty())   U_RETURN(false);
+   if (bload == false) U_RETURN(true);
 
-   _end   = data.end();
+   _end   = data.pend();
    _start = data.data();
    _size  = data.size();
 
    if (UFile::isPath())
       {
-      // -------------------------------------------------------------
-      // Loads configuration information from the file.
-      // The file type is determined by the file extension.
-      // The following extensions are supported:
-      // -------------------------------------------------------------
-      // .properties - properties file (JAVA Properties)
+      //------------ -------------------------------------------------------------
+      // Loads configuration information from the file. The file type is
+      // determined by the file extension. The following extensions are supported:
+      // -------------------------------------------------------------------------
       // .ini        - initialization file (Windows INI)
-      // -------------------------------------------------------------
+      // .properties - properties file (JAVA Properties)
+      // -------------------------------------------------------------------------
 
       UString suffix = UFile::getSuffix();
 
       if (suffix)
          {
-              if (suffix.equal(U_CONSTANT_TO_PARAM("ini")))        { result = loadINI();        goto end; }
-         else if (suffix.equal(U_CONSTANT_TO_PARAM("properties"))) { result = loadProperties(); goto end; }
+         if (suffix.equal(U_CONSTANT_TO_PARAM("ini")))
+            {
+            if (loadINI()) U_RETURN(true);
+
+            U_RETURN(false);
+            }
+
+         if (suffix.equal(U_CONSTANT_TO_PARAM("properties")))
+            {
+            if (loadProperties()) U_RETURN(true);
+
+            U_RETURN(false);
+            }
          }
       }
 
-   result = loadSection(0, 0);
+   if (loadSection(0, 0)) U_RETURN(true);
 
-end:
-   U_RETURN(result);
+   U_RETURN(false);
 }
 
 void UFileConfig::load()
 {
-   U_TRACE(0, "UFileConfig::load()")
+   U_TRACE_NO_PARAM(0, "UFileConfig::load()")
 
    U_CHECK_MEMORY
 
@@ -169,13 +181,13 @@ void UFileConfig::load()
    if (UFile::open()                   &&
        UFile::size() > 0               &&
        UFile::memmap(PROT_READ, &data) &&
-       processData())
+       processData(true))
       {
       if (UFile::isOpen()) UFile::close();
       }
    else
       {
-      U_ERROR("configuration file %.*S processing failed", U_FILE_TO_TRACE(*this));
+      U_ERROR("Configuration file %.*S processing failed", U_FILE_TO_TRACE(*this));
       }
 }
 
@@ -345,7 +357,7 @@ bool UFileConfig::loadSection(const char* section, uint32_t len)
 
 bool UFileConfig::loadINI()
 {
-   U_TRACE(0, "UFileConfig::loadINI()")
+   U_TRACE_NO_PARAM(0, "UFileConfig::loadINI()")
 
    U_CHECK_MEMORY
 
@@ -415,14 +427,14 @@ bool UFileConfig::loadINI()
             _start = ptr;
             }
 
-         // The name of a property is composed of the section key and the value key, separated by a period (<section key>.<value key>).
+         // The name of a property is composed of the section key and the value key, separated by a period (<section key>.<value key>)
 
          len = sectionKey.size();
 
          fullKey.setBuffer(len + 1 + key.size());
 
-         if (len == 0) fullKey.snprintf(   "%v",                 key.rep);
-         else          fullKey.snprintf("%v.%v", sectionKey.rep, key.rep);
+         if (len == 0) fullKey.snprintf(U_CONSTANT_TO_PARAM(   "%v"),                 key.rep);
+         else          fullKey.snprintf(U_CONSTANT_TO_PARAM("%v.%v"), sectionKey.rep, key.rep);
 
          (void) fullKey.shrink();
 
@@ -532,7 +544,7 @@ bool UFileConfig::loadProperties(UHashMap<UString>& table, const char* _start, c
 
 bool UFileConfig::loadProperties()
 {
-   U_TRACE(0, "UFileConfig::loadProperties()")
+   U_TRACE_NO_PARAM(0, "UFileConfig::loadProperties()")
 
    U_CHECK_MEMORY
 

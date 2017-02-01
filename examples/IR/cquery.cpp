@@ -38,11 +38,13 @@ void WeightWord::push()
 
    U_INTERNAL_ASSERT(*UPosting::filename)
 
-   WeightWord* item = U_NEW(WeightWord(*UPosting::filename, UPosting::word_freq));
+   WeightWord* item;
+
+   U_NEW(WeightWord, item, WeightWord(*UPosting::filename, UPosting::word_freq));
 
    if (check_for_duplicate)
       {
-      if (tbl == 0) tbl = U_NEW(UHashMap<WeightWord*>);
+      if (tbl == 0) U_NEW(UHashMap<WeightWord*>, tbl, UHashMap<WeightWord*>);
 
       if (tbl->find(*UPosting::filename))
          {
@@ -56,7 +58,7 @@ void WeightWord::push()
       tbl->insertAfterFind(*UPosting::filename, item);
       }
 
-   if (vec == 0) vec = U_NEW(UVector<WeightWord*>);
+   if (vec == 0) U_NEW(UVector<WeightWord*>, vec, UVector<WeightWord*>);
 
    vec->push_back(item);
 }
@@ -65,9 +67,17 @@ __pure int WeightWord::compareObj(const void* obj1, const void* obj2)
 {
    U_TRACE(5, "WeightWord::compareObj(%p,%p)", obj1, obj2)
 
-   int cmp = ((*(const WeightWord**)obj1)->word_freq < (*(const WeightWord**)obj2)->word_freq ?  1 :
-              (*(const WeightWord**)obj1)->word_freq > (*(const WeightWord**)obj2)->word_freq ? -1 :
-              (*(const WeightWord**)obj1)->filename.compare((*(const WeightWord**)obj2)->filename));
+   int cmp;
+
+#ifdef U_STDCPP_ENABLE
+   cmp = (((const WeightWord*)obj1)->word_freq < ((const WeightWord*)obj2)->word_freq ? 1 :
+          ((const WeightWord*)obj1)->word_freq > ((const WeightWord*)obj2)->word_freq ? 0 :
+          ((const WeightWord*)obj1)->filename.compare(((const WeightWord*)obj2)->filename) < 0);
+#else
+   cmp = ((*(const WeightWord**)obj1)->word_freq < (*(const WeightWord**)obj2)->word_freq ?  1 :
+          (*(const WeightWord**)obj1)->word_freq > (*(const WeightWord**)obj2)->word_freq ? -1 :
+          (*(const WeightWord**)obj1)->filename.compare((*(const WeightWord**)obj2)->filename));
+#endif
 
    return cmp;
 }
@@ -105,8 +115,8 @@ Query::Query()
    U_INTERNAL_ASSERT_EQUALS(parser,  0)
    U_INTERNAL_ASSERT_EQUALS(request, 0)
 
-   parser  = U_NEW(UQueryParser);
-   request = U_NEW(UString);
+   U_NEW(UQueryParser, parser, UQueryParser);
+   U_NEW(UString, request, UString);
 }
 
 Query::~Query()
@@ -134,8 +144,8 @@ int Query::query_meta(UStringRep* word_rep, UStringRep* value)
 {
    U_TRACE(5, "Query::query_meta(%.*S,%p)", U_STRING_TO_TRACE(*word_rep), value)
 
-   if (u_pfn_match(      word_rep->data(),       word_rep->size(),
-                   UPosting::word->data(), UPosting::word->size(), u_pfn_flags))
+   if (u_dosmatch(       word_rep->data(),       word_rep->size(),
+                   UPosting::word->data(), UPosting::word->size(), UPosting::ignore_case ? FNM_CASEFOLD : 0))
       {
       UPosting::posting->_assign(value);
 
@@ -263,8 +273,6 @@ void Query::run(const char* ptr, uint32_t len, UVector<WeightWord*>* vec)
          else
             {
             WeightWord::check_for_duplicate = true;
-
-            if (UPosting::ignore_case) u_pfn_flags |= FNM_CASEFOLD;
 
             cdb_words->callForAllEntryWithPattern(query_meta, 0);
 

@@ -4,16 +4,17 @@
 
 DOC_ROOT=docroot
 
-rm -f db/session.ssl* /tmp/ssl_session.txt /tmp/byterange* /tmp/*.memusage.* \
+rm -f db/session.ssl* /tmp/ssl_session.txt /tmp/byterange* /tmp/*.memusage.* /tmp/*.hpack.* /tmp/request* \
       $DOC_ROOT/webserver_ssl*.log* $DOC_ROOT/uploads/* /var/log/httpd/access_log \
       out/userver_ssl.out err/userver_ssl.err web_server_ssl.err \
                 trace.*userver_ssl*.[0-9]*           object.*userver_ssl*.[0-9]*           stack.*userver_ssl*.[0-9]* mempool.*userver_ssl*.[0-9]* \
       $DOC_ROOT/trace.*userver_ssl*.[0-9]* $DOC_ROOT/object.*userver_ssl*.[0-9]* $DOC_ROOT/stack.*userver_ssl*.[0-9]* $DOC_ROOT/mempool.*userver_ssl*.[0-9]*
 
  UTRACE="0 50M 0"
-#UOBJDUMP="0 100k 10"
+#UTRACE_SIGNAL="0 50M -1"
+#UOBJDUMP="0 10M 100"
 #USIMERR="error.sim"
- export UTRACE UOBJDUMP USIMERR
+export UTRACE UOBJDUMP USIMERR UTRACE_SIGNAL
 
 cat <<EOF >inp/webserver.cfg
 userver {
@@ -25,6 +26,7 @@ userver {
 #LOG_FILE_SZ 20k
  LOG_MSG_SIZE -1
  PID_FILE /var/run/userver_tcp.pid
+ BANDWIDTH_THROTTLING_MASK @FILE:throttling.txt
  PREFORK_CHILD 2
 #REQ_TIMEOUT 300
 #PLUGIN "ssi http"
@@ -40,14 +42,15 @@ userver {
  VERIFY_MODE 0
 }
 http {
-#ALIAS [ / /index.php ]
+#ALIAS "[ / /index.php ]"
 #VIRTUAL_HOST yes
-#ENABLE_INOTIFY yes
+ ENABLE_INOTIFY yes
+ URI_PROTECTED_MASK /admin*
  LIMIT_REQUEST_BODY 1M 
  REQUEST_READ_TIMEOUT 30
 #DIGEST_AUTHENTICATION yes
 #CACHE_FILE_STORE nocat/webif.gz
-#CACHE_FILE_MASK *.jpg|*.png|*.css|*.js|*.gif|inp/http/data/file1|*.*html|*.flv|*.svgz
+#CACHE_FILE_MASK inp/http/data/file1|*.flv|*.svgz
 }
 EOF
 

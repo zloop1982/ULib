@@ -6,17 +6,19 @@
 
 #ifdef DEBUG
 #  include "debug/trace.cpp"
-#  include "debug/objectDB.cpp"
+#  include "debug/debug_common.cpp"
 #  include "debug/error_memory.cpp"
 #  include "debug/error_simulation.cpp"
 #endif
 
 #ifdef U_STDCPP_ENABLE
 #  include "internal/objectIO.cpp"
+#  ifdef DEBUG
+#     include "debug/objectDB.cpp"
+#  endif
 #endif
 
-#include "debug/error.cpp"
-#include "debug/debug_common.cpp"
+#include "internal/error.cpp"
 #include "internal/memory_pool.cpp"
 
 #include "command.cpp"
@@ -56,6 +58,8 @@
 #include "net/client/smtp.cpp"
 #include "net/client/ftp.cpp"
 #include "net/client/http.cpp"
+#include "net/client/redis.cpp"
+#include "net/client/elasticsearch.cpp"
 #include "net/rpc/rpc.cpp"
 #include "net/rpc/rpc_client.cpp"
 #include "net/rpc/rpc_encoder.cpp"
@@ -92,16 +96,16 @@
 #  include "db/tdb.cpp"
 #endif
 
+#ifdef USE_MONGODB
+#  include "net/client/mongodb.cpp"
+#endif
+
 #ifndef U_HTTP2_DISABLE
 #  include "utility/http2.cpp"
 #endif
 
 #ifndef _MSWINDOWS_
 #  include "net/unixsocket.cpp"
-#endif
-
-#ifdef ENABLE_THREAD
-#  include "thread.cpp"
 #endif
 
 #ifdef ENABLE_ZIP
@@ -113,6 +117,7 @@
 #  include "ssl/pkcs7.cpp"
 #  include "ssl/crl.cpp"
 #  include "ssl/pkcs10.cpp"
+#  include "net/client/twilio.cpp"
 #  include "ssl/mime/mime_pkcs7.cpp"
 #  include "ssl/net/sslsocket.cpp"
 #  include "ssl/net/ssl_session.cpp"
@@ -171,6 +176,10 @@
 
 #ifdef USE_LIBEVENT
 #  include "libevent/event.cpp"
+#endif
+
+#ifdef ENABLE_THREAD
+#  include "thread.cpp"
 #endif
 
 // Handler static/dynamic plugin

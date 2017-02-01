@@ -3,7 +3,8 @@
 
 AUTOMAKE_OPTIONS = ## dist-shar dist-zip
 
-EXTRA_DIST = random.cdb plugin inp ok *.test *.cpp CA private server_rpc.cfg file_config.cf file_config.gperf file_config.gperf.sh file_config.key test_bison.h
+EXTRA_DIST = random.cdb plugin inp ok *.test *.cpp CA private server_rpc.cfg file_config.cf file_config.gperf \
+				 file_config.gperf.sh file_config.key test_bison.h dialog.test redis.test elasticsearch.test twilio.test
 
 MAINTAINERCLEANFILES	= Makefile.in
 
@@ -16,7 +17,8 @@ PRG = test_timeval test_timer test_notifier test_string \
 		test_vector test_options test_application test_tree test_compress test_cache test_date \
 		test_services test_base64 test_header test_entity \
 		test_ipaddress test_socket test_smtp test_pop3 test_imap test_ftp test_http test_rdb_client \
-		test_tokenizer test_query_parser test_multipart test_command test_dialog test_rdb_server test_json test_server
+		test_tokenizer test_query_parser test_multipart test_command test_dialog test_rdb_server test_json test_server test_redis test_elasticsearch
+##		test_twilio
 
 TST = timeval.test timer.test notifier.test string.test \
 		file.test cdb.test rdb.test file_config.test log.test \
@@ -24,7 +26,12 @@ TST = timeval.test timer.test notifier.test string.test \
 		services.test base64.test header.test entity.test \
 		ipaddress.test socket.test smtp.test pop3.test imap.test ftp.test http.test \
 		tokenizer.test query_parser.test multipart.test rdb_client_server.test command.test json.test server.test server_rpc.test
-## 	dialog.test
+## 	dialog.test redis.test elasticsearch.test twilio.test
+
+if MONGODB
+  PRG += test_mongodb
+##TST += mongodb.test
+endif
 
 test_ipaddress_SOURCES = test_ipaddress.cpp
 test_socket_SOURCES = test_socket.cpp
@@ -62,6 +69,9 @@ test_dialog_SOURCES = test_dialog.cpp
 test_rdb_server_SOURCES = test_rdb_server.cpp
 test_json_SOURCES = test_json.cpp
 test_server_SOURCES = test_server.cpp
+test_redis_SOURCES = test_redis.cpp
+test_mongodb_SOURCES = test_mongodb.cpp
+test_elasticsearch_SOURCES = test_elasticsearch.cpp
 
 if PTHREAD
 PRG += test_thread
@@ -85,16 +95,16 @@ endif
 ## TESTS_ENVIRONMENT = srcdir=$(srcdir)
 ## AM_LFLAGS = -olex.yy.c -S$(shell pwd)/../../include/ulib/flex/flex.skl
 ## NB: il comando per generare il file .cc dal file .ll viene lanciato in una subdirectory:
-## sh -x /mnt/source/ulib/autoconf/ylwrap test_flexer.ll lex.yy.c test_flexer.cc -- flex -olex.yy.c -S../../include/ulib/flex/flex.skl
+## sh -x ../../ylwrap test_flexer.ll lex.yy.c test_flexer.cc -- flex -olex.yy.c -S/usr/src/ULib-1.4.2/include/ulib/flex/flex.skl
 
 if USE_PARSER
 ##AM_LFLAGS = -olex.yy.c
 ##AM_YFLAGS = -d -v # -Sbison.skl
-TST += flexer.test
+##TST += flexer.test
 ##TST += bison.test
-PRG += test_flexer test_bison
-test_bison_SOURCES = test_bison_flexer.ll test_bison.yy
-test_flexer_SOURCES = test_flexer.ll
+##PRG += test_flexer test_bison
+##test_bison_SOURCES = test_bison_flexer.ll test_bison.yy
+##test_flexer_SOURCES = test_flexer.ll
 endif
 
 if PCRE
@@ -116,6 +126,7 @@ test_ssl_client_SOURCES = test_ssl_client.cpp
 test_ssl_server_SOURCES = test_ssl_server.cpp
 test_https_SOURCES = test_https.cpp
 test_url_SOURCES = test_url.cpp
+##test_twilio_SOURCES = test_twilio.cpp
 if SSL_TS
 PRG += test_timestamp
 TST += timestamp.test
@@ -179,17 +190,17 @@ TST += event.test
 test_event_SOURCES = test_event.cpp
 endif
 
-if !MINGW
+if LINUX
 PRG += test_process test_interrupt test_unixsocket_client test_unixsocket_server test_arping
 TST += process.test interrupt.test unixsocket.test
 test_arping_SOURCES = test_arping.cpp
-test_unixsocket_client_SOURCES = test_unixsocket_client.cpp
-test_unixsocket_server_SOURCES = test_unixsocket_server.cpp
 test_process_SOURCES = test_process.cpp
 test_interrupt_SOURCES = test_interrupt.cpp
+test_unixsocket_client_SOURCES = test_unixsocket_client.cpp
+test_unixsocket_server_SOURCES = test_unixsocket_server.cpp
 test_process_LDADD = $(LDADD)
 test_interrupt_LDADD = $(LDADD)
-if SANITIZE 
+if SANITIZE
 test_process_LDADD   += -lubsan
 test_interrupt_LDADD += -lubsan
 endif
@@ -203,13 +214,11 @@ test_plugin_SOURCES  = test_plugin.cpp
 
 product1_la_SOURCES  = plugin/product1.cpp
 product1_la_LIBADD   = $(LDADD)
-product1_la_LDFLAGS  = -module -rpath /nowhere $(MODULE_LIBTOOL_OPTIONS)
+product1_la_LDFLAGS  = -module -rpath /nowhere @MODULE_LIBTOOL_OPTIONS@
 
 product2_la_SOURCES  = plugin/product2.cpp
 product2_la_LIBADD   = $(LDADD)
-product2_la_LDFLAGS  = -module -rpath /nowhere $(MODULE_LIBTOOL_OPTIONS)
-
-noinst_moduledir = $(libexecdir)/ulib
+product2_la_LDFLAGS  = -module -rpath /nowhere @MODULE_LIBTOOL_OPTIONS@
 
 ## for convenience module
 noinst_LTLIBRARIES = product1.la product2.la

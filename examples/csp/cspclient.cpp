@@ -19,7 +19,7 @@ public:
 
    // COSTRUTTORE
 
-            UClientCSP(UFileConfig* cfg) : USOAPClient<T>(cfg) {}
+   explicit UClientCSP(UFileConfig* cfg) : USOAPClient<T>(cfg) {}
    virtual ~UClientCSP()                                       {}
 
    // OBJECT FOR METHOD REQUEST
@@ -574,6 +574,8 @@ public:
 
       UString cfg_str;
       UFileConfig cfg;
+
+      UString::str_allocate(STR_ALLOCATE_SOAP);
 
       if (UApplication::isOptions()) cfg_str = opt['c'];
 

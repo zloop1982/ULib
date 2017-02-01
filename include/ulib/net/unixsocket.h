@@ -66,8 +66,6 @@ class UServer_Base;
 class U_EXPORT UUnixSocket : public USocket {
 public:
 
-   // COSTRUTTORI
-
    UUnixSocket(bool _flag = false) : USocket(false)
       {
       U_TRACE_REGISTER_OBJECT(0, UUnixSocket, "%b", _flag)
@@ -80,13 +78,11 @@ public:
       U_TRACE_UNREGISTER_OBJECT(0, UUnixSocket)
       }
 
-   // VARIE
-
    static void setPath(const char* pathname);
 
    // VIRTUAL METHOD
 
-   virtual bool connectServer(const UString& pathname, unsigned int iServPort, int timeoutMS = 0) U_DECL_OVERRIDE;
+   virtual bool connectServer(const UString& pathname, unsigned int iServPort, int timeoutMS = 0) U_DECL_FINAL;
 
    // DEBUG
 
@@ -99,13 +95,7 @@ private:
    static const char* path;
    static union uusockaddr_un addr;
 
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UUnixSocket(const UUnixSocket&) = delete;
-   UUnixSocket& operator=(const UUnixSocket&) = delete;
-#else
-   UUnixSocket(const UUnixSocket&) : USocket(false) {}
-   UUnixSocket& operator=(const UUnixSocket&)       { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UUnixSocket)
 
    friend class USocket;
    friend class UServer_Base;

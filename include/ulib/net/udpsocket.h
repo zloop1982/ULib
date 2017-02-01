@@ -19,8 +19,6 @@
 class U_EXPORT UUDPSocket : public USocket {
 public:
 
-   // COSTRUTTORI
-
    UUDPSocket(bool bSocketIsIPv6 = false) : USocket(bSocketIsIPv6)
       {
       U_TRACE_REGISTER_OBJECT(0, UUDPSocket, "%b", bSocketIsIPv6)
@@ -40,13 +38,7 @@ public:
 #endif
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UUDPSocket(const UUDPSocket&) = delete;
-   UUDPSocket& operator=(const UUDPSocket&) = delete;
-#else
-   UUDPSocket(const UUDPSocket&) : USocket(false) {}
-   UUDPSocket& operator=(const UUDPSocket&)       { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(UUDPSocket)
 };
 
 #endif

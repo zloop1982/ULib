@@ -22,7 +22,7 @@ URDBServer::URDBServer(UFileConfig* cfg, bool ignore_case) : UServer<UTCPSocket>
 {
    U_TRACE_REGISTER_OBJECT(0, URDBServer, "%p,%b", cfg, ignore_case)
 
-   rdb = U_NEW(URDB(ignore_case));
+   U_NEW(URDB, rdb, URDB(ignore_case));
 
    URPC::allocate();
 }
@@ -52,7 +52,7 @@ bool URDBServer::open(const UString& pathdb, uint32_t log_size)
 
 void URDBServer::preallocate()
 {
-   U_TRACE(0+256, "URDBServer::preallocate()")
+   U_TRACE_NO_PARAM(0+256, "URDBServer::preallocate()")
 
    UServer_Base::vClientImage = new URDBClientImage[UNotifier::max_connection];
 }
@@ -60,7 +60,7 @@ void URDBServer::preallocate()
 #ifdef DEBUG
 void URDBServer::deallocate()
 {
-   U_TRACE(0+256, "URDBServer::deallocate()")
+   U_TRACE_NO_PARAM(0+256, "URDBServer::deallocate()")
 
    // NB: array are not pointers (virtual table can shift the address of this)...
 

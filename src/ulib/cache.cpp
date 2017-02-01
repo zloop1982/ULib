@@ -57,7 +57,7 @@ U_NO_EXPORT void UCache::init(UFile& _x, uint32_t size, bool bexist, bool brdonl
 
       U_INTERNAL_DUMP("hsize = %u writer = %u oldest = %u unused = %u size = %u", info->hsize, info->writer, info->oldest, info->unused, info->size)
 
-      U_gettimeofday; // NB: optimization if it is enough a time resolution of one second...
+      U_gettimeofday // NB: optimization if it is enough a time resolution of one second...
 
       start = u_now->tv_sec;
       }
@@ -96,6 +96,10 @@ bool UCache::open(const UString& path, const UString& dir, const UString* enviro
 #  ifdef DEBUG
       dir_template       = _y.getPath();
       dir_template_mtime = _y.st_mtime;
+
+      U_INTERNAL_DUMP("dir_template = %V", dir_template.rep)
+
+      U_INTERNAL_ASSERT(dir_template)
 #  endif
 
       bool exist = true;
@@ -105,7 +109,7 @@ bool UCache::open(const UString& path, const UString& dir, const UString* enviro
 
       if (( _x.size() == 0                          ||
            (_x.fstat(), _x.st_mtime < _y.st_mtime)) &&
-          (UDirWalk::setFollowLinks(), n = dirwalk.walk(vec1)))
+          (UDirWalk::setFollowLinks(true), n = dirwalk.walk(vec1)))
          {
          exist = false;
 
@@ -123,7 +127,7 @@ bool UCache::open(const UString& path, const UString& dir, const UString* enviro
                {
                vec2.push_back(content);
 
-               size += sizeof(UCache::cache_hash_table_entry) + UStringExt::getBaseNameLen(item) + _y.getSize() + 1; // NB: + null-terminator...
+               size += sizeof(UCache::cache_hash_table_entry) + UStringExt::getBaseNameLen(item) + _y.getSize() + 1; // NB: 1 => (+null-terminator)...
                }
             }
 
@@ -142,30 +146,24 @@ bool UCache::open(const UString& path, const UString& dir, const UString* enviro
          U_INTERNAL_ASSERT_EQUALS(info->hsize, hsize)
          U_INTERNAL_ASSERT_EQUALS(info->size, size - sizeof(UCache::cache_info))
 
-         for (i = 0, n = vec2.size(); i < n; ++i) addContent(UStringExt::basename(vec1[i]), vec2[i]);
+         for (i = 0, n = vec2.size(); i < n; ++i)
+            {
+            addContent(UStringExt::basename(vec1[i]), vec2[i]);
+
+            U_ASSERT_EQUALS(getContent(UStringExt::basename(vec1[i])), vec2[i])
+            }
 
          U_INTERNAL_DUMP("hsize = %u writer = %u oldest = %u unused = %u size = %u", info->hsize, info->writer, info->oldest, info->unused, info->size)
 
          U_INTERNAL_ASSERT_EQUALS(info->writer, info->size)
 
-         // flushes changes made to memory mapped file back to disk
-
-      // (void) U_SYSCALL(msync, "%p,%u,%d", (char*)info, sizeof(UCache::cache_info) + info->size, MS_SYNC);
+      // (void) U_SYSCALL(msync, "%p,%u,%d", (char*)info, sizeof(UCache::cache_info) + info->size, MS_SYNC); // flushes changes made to memory mapped file back to disk
          }
 
       U_RETURN(true);
       }
 
    U_RETURN(false);
-}
-
-inline uint32_t UCache::hash(const char* key, uint32_t keylen)
-{
-   U_TRACE(0, "UCache::hash(%.*S,%u)", keylen, key, keylen)
-
-   uint32_t keyhash = u_cdb_hash((unsigned char*)key, keylen, -1) * sizeof(uint32_t) % info->hsize;
-
-   U_RETURN(keyhash);
 }
 
 char* UCache::add(const char* key, uint32_t keylen, uint32_t datalen, uint32_t _ttl)
@@ -189,7 +187,7 @@ char* UCache::add(const char* key, uint32_t keylen, uint32_t datalen, uint32_t _
          {
          if (info->writer <= info->hsize)
             {
-            U_ERROR("cache exhausted");
+            U_ERROR("Cache exhausted");
 
             U_RETURN((char*)0);
             }
@@ -273,12 +271,14 @@ void UCache::addContent(const UString& _key, const UString& content, uint32_t _t
    const char*  key =    _key.data();
    const char* data = content.data();
    uint32_t keylen  =    _key.size(),
-            datalen = content.size() + 1; // NB: + null-terminator...
+            datalen = content.size() + 1; // NB: 1 => (+null-terminator)...
 
    char* ptr = add(key, keylen, datalen, _ttl);
 
    U_MEMCPY(ptr,           key,  keylen);
    U_MEMCPY(ptr + keylen, data, datalen);
+
+   if (content.isNullTerminated() == false) ptr[keylen+datalen-1] = '\0';
 }
 
 UString UCache::get(const char* key, uint32_t keylen)
@@ -334,7 +334,7 @@ UString UCache::get(const char* key, uint32_t keylen)
             }
          }
 
-      if (++loop > 100U) break; /* to protect against hash flooding */
+      if (++loop > 100U) break; // to protect against hash flooding
 
       uint32_t nextpos = prevpos ^ getLink(pos);
 
@@ -349,29 +349,30 @@ UString UCache::getContent(const char* key, uint32_t keylen)
 {
    U_TRACE(0, "UCache::getContent(%.*S,%u)", keylen, key, keylen)
 
-   UString content;
-
 #ifdef DEBUG
-   struct stat st;
-   char buffer[U_PATH_MAX];
+   U_INTERNAL_DUMP("dir_template = %V", dir_template.rep)
 
-   (void) u__snprintf(buffer, sizeof(buffer), "%v/%.*s", dir_template.rep, keylen, key);
-
-   if (U_SYSCALL(stat, "%S,%p", buffer, &st) == 0 &&
-       st.st_mtime >= dir_template_mtime)
+   if (dir_template)
       {
-      content = UFile::contentOf(buffer); 
+      struct stat st;
+      UString buffer(U_PATH_MAX);
 
-      U_RETURN_STRING(content);
+      buffer.snprintf(U_CONSTANT_TO_PARAM("%v/%.*s"), dir_template.rep, keylen, key);
+
+      if (U_SYSCALL(stat, "%S,%p", buffer.data(), &st) == 0 &&
+          st.st_mtime >= dir_template_mtime)
+         {
+         return UFile::contentOf(buffer);
+         }
       }
 #endif
 
-   content = get(key, keylen);
+   UString content = get(key, keylen);
 
    if (content &&
-       content.isNullTerminated() == false)
+       content.last_char() == '\0')
       {
-      content.rep->_length -= 1; // NB: minus null-terminator...
+      content.rep->_length -= 1; // NB: 1 => (-null-terminator)...
 
       U_INTERNAL_ASSERT(content.isNullTerminated())
       }
@@ -435,7 +436,9 @@ U_EXPORT istream& operator>>(istream& is, UCache& cache)
       is >> datalen;
       is.get(); // skip ':'
 
+#  ifndef U_COVERITY_FALSE_POSITIVE /* TAINTED_SCALAR */
       is.read(key, keylen);
+#  endif
 
       U_INTERNAL_DUMP("key = %.*S keylen = %u", keylen, key, keylen)
 
@@ -443,8 +446,7 @@ U_EXPORT istream& operator>>(istream& is, UCache& cache)
 
       ptr = cache.add(key, keylen, datalen, 0);
 
-      // coverity[TAINTED_SCALAR]
-#  ifndef U_COVERITY_FALSE_POSITIVE
+#  ifndef U_COVERITY_FALSE_POSITIVE // coverity[TAINTED_SCALAR]
       U_MEMCPY(ptr, key, keylen);
 #  endif
 
@@ -453,7 +455,9 @@ U_EXPORT istream& operator>>(istream& is, UCache& cache)
 
       ptr += keylen;
 
+#  ifndef U_COVERITY_FALSE_POSITIVE /* TAINTED_SCALAR */
       is.read(ptr, datalen);
+#  endif
 
       U_INTERNAL_DUMP("data = %.*S datalen = %u", datalen, ptr, datalen)
 

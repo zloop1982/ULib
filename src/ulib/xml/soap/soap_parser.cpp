@@ -16,17 +16,6 @@
 #include <ulib/xml/soap/soap_parser.h>
 #include <ulib/xml/soap/soap_encoder.h>
 
-USOAPParser::~USOAPParser()
-{
-   U_TRACE_UNREGISTER_OBJECT(0, USOAPParser)
-
-   clearData();
-
-#ifdef U_SOAP_NAMESPACE
-   XMLNStoURN.deallocate();
-#endif
-}
-
 bool USOAPParser::parse(const UString& msg)
 {
    U_TRACE(0+256, "USOAPParser::parse(%V)", msg.rep)
@@ -67,7 +56,7 @@ bool USOAPParser::parse(const UString& msg)
 
 UString USOAPParser::getFaultResponse()
 {
-   U_TRACE(0, "USOAPParser::getFaultResponse()")
+   U_TRACE_NO_PARAM(0, "USOAPParser::getFaultResponse()")
 
    U_INTERNAL_ASSERT_POINTER(method)
 
@@ -119,7 +108,7 @@ UString USOAPParser::processMessage(const UString& msg, URPCObject& object, bool
       }
    else if (parse(msg))
       {
-      U_ASSERT(envelope.methodName != *UString::str_fault)
+      U_ASSERT_EQUALS(envelope.methodName.equal(U_CONSTANT_TO_PARAM("Fault")), false)
 
       retval = object.processMessage(envelope, bContainsFault);
       }
@@ -134,7 +123,7 @@ UString USOAPParser::processMessage(const UString& msg, URPCObject& object, bool
 
       U_INTERNAL_DUMP("UXMLParser: %V (%d,%d) ", URPCMethod::pFault->getFaultReason().rep, line, coln)
 
-      URPCMethod::pFault->setDetail("The fault occurred near position (line: %d col: %d) within the message", line, coln);
+      URPCMethod::pFault->setDetail(U_CONSTANT_TO_PARAM("The fault occurred near position (line: %d col: %d) within the message"), line, coln);
 
       bContainsFault = true;
       retval         = URPCMethod::encoder->encodeFault(URPCMethod::pFault);
@@ -150,7 +139,7 @@ void USOAPParser::startElement(const XML_Char* name, const XML_Char** attrs)
    U_DUMP_ATTRS(attrs)
 
    UXMLAttribute* attribute;
-   UString str((void*)name), namespaceName, accessorName, value;
+   UString str((void*)name, u__strlen(name, __PRETTY_FUNCTION__)), namespaceName, accessorName, value;
 
    UXMLElement::splitNamespaceAndName(str, namespaceName, accessorName);
 
@@ -164,8 +153,9 @@ void USOAPParser::startElement(const XML_Char* name, const XML_Char** attrs)
    U_DUMP("flag_state = %d ptree = %p ptree->parent() = %p ptree->numChild() = %u ptree->depth() = %u",
            flag_state, ptree, ptree->parent(), ptree->numChild(), ptree->depth())
 
-   current = U_NEW(UXMLElement(str, accessorName, namespaceName));
-   ptree   = ptree->push(current);
+   U_NEW(UXMLElement, current, UXMLElement(str, accessorName, namespaceName));
+
+   ptree = ptree->push(current);
 
    if (flag_state <= 2)
       {
@@ -191,7 +181,7 @@ void USOAPParser::startElement(const XML_Char* name, const XML_Char** attrs)
 
       UXMLElement::splitNamespaceAndName(str, namespaceName, accessorName);
 
-      attribute = U_NEW(UXMLAttribute(str, accessorName, namespaceName, value));
+      U_NEW(UXMLAttribute, attribute, UXMLAttribute(str, accessorName, namespaceName, value));
 
       current->addAttribute(attribute);
 
@@ -207,8 +197,8 @@ void USOAPParser::startElement(const XML_Char* name, const XML_Char** attrs)
 
       // set the name of namespace qualified element information (gSOAP)
 
-      if (flag_state    == 1 &&
-          namespaceName == *UString::str_xmlns &&
+      if (flag_state == 1                                   &&
+          namespaceName.equal(U_CONSTANT_TO_PARAM("xmlns")) &&
            accessorName == *UString::str_ns)
          {
          envelope.nsName = value;
@@ -218,10 +208,10 @@ void USOAPParser::startElement(const XML_Char* name, const XML_Char** attrs)
 
       // Manage the names and URNs of any and all namespaces found when parsing the message.
       // If duplicate namespace names are used with different URNs, only the last one found
-      // will appear in the set of values.
+      // will appear in the set of values
 
 #  ifdef U_SOAP_NAMESPACE
-      if (namespaceName == *UString::str_xmlns) XMLNStoURN.insert(accessorName, value);
+      if (namespaceName.equal(U_CONSTANT_TO_PARAM("xmlns"))) XMLNStoURN.insert(accessorName, value);
 #  endif
       }
 }

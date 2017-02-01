@@ -19,7 +19,6 @@
 #include <ulib/string.h>
 
 /**
- * ---------------------------------------------------------------------------
  * Encode-Decode escape sequences into a buffer, the following are recognized:
  * ---------------------------------------------------------------------------
  * \a  BEL                 (\007  7  7)
@@ -58,7 +57,7 @@ struct U_EXPORT UEscape {
 
    static void decode(const char* s, uint32_t n, UString& buffer)
       {
-      U_TRACE(0, "UEscape::decode(%.*S,%u,%p)", n, s, n, &buffer)
+      U_TRACE(0, "UEscape::decode(%.*S,%u,%V)", n, s, n, buffer.rep)
 
       U_ASSERT(buffer.uniq())
 

@@ -20,40 +20,14 @@ extern "C" {
 
 U_CREAT_FUNC(orm_driver_sqlite, UOrmDriverSqlite)
 
-const UString* UOrmDriverSqlite::str_name;
-const UString* UOrmDriverSqlite::str_dbdir;
-const UString* UOrmDriverSqlite::str_memory;
-
-void UOrmDriverSqlite::str_allocate()
-{
-   U_TRACE(0, "UOrmDriverSqlite::str_allocate()")
-
-   U_INTERNAL_ASSERT_EQUALS(str_name,0)
-   U_INTERNAL_ASSERT_EQUALS(str_dbdir,0)
-   U_INTERNAL_ASSERT_EQUALS(str_memory,0)
-
-   static ustringrep stringrep_storage[] = {
-      { U_STRINGREP_FROM_CONSTANT("sqlite") },
-      { U_STRINGREP_FROM_CONSTANT("dbdir") },
-      { U_STRINGREP_FROM_CONSTANT(":memory:") },
-   };
-
-   U_NEW_ULIB_OBJECT(str_name,   U_STRING_FROM_STRINGREP_STORAGE(0));
-   U_NEW_ULIB_OBJECT(str_dbdir,  U_STRING_FROM_STRINGREP_STORAGE(1));
-   U_NEW_ULIB_OBJECT(str_memory, U_STRING_FROM_STRINGREP_STORAGE(2));
-}
-
 UOrmDriverSqlite::~UOrmDriverSqlite()
 {
    U_TRACE_UNREGISTER_OBJECT(0, UOrmDriverSqlite)
 }
 
-#undef  ENTRY
-#define ENTRY(name) {name, #name}
-
 void UOrmDriverSqlite::handlerError()
 {
-   U_TRACE(0, "UOrmDriverSqlite::handlerError()")
+   U_TRACE_NO_PARAM(0, "UOrmDriverSqlite::handlerError()")
 
    U_INTERNAL_ASSERT_POINTER(UOrmDriver::connection)
 
@@ -65,48 +39,48 @@ void UOrmDriverSqlite::handlerError()
    };
 
    static const struct error_value_info error_value_table[] = {
-      ENTRY(SQLITE_OK),          /* Successful result */
-      ENTRY(SQLITE_ERROR),       /* SQL error or missing database */
-      ENTRY(SQLITE_INTERNAL),    /* Internal logic error in SQLite */
-      ENTRY(SQLITE_PERM),        /* Access permission denied */
-      ENTRY(SQLITE_ABORT),       /* Callback routine requested an abort */
-      ENTRY(SQLITE_BUSY),        /* The database file is locked */
-      ENTRY(SQLITE_LOCKED),      /* A table in the database is locked */
-      ENTRY(SQLITE_NOMEM),       /* A malloc() failed */
-      ENTRY(SQLITE_READONLY),    /* Attempt to write a readonly database */
-      ENTRY(SQLITE_INTERRUPT),   /* Operation terminated by sqlite3_interrupt()*/
-      ENTRY(SQLITE_IOERR),       /* Some kind of disk I/O error occurred */
-      ENTRY(SQLITE_CORRUPT),     /* The database disk image is malformed */
-      ENTRY(SQLITE_NOTFOUND),    /* Unknown opcode in sqlite3_file_control() */
-      ENTRY(SQLITE_FULL),        /* Insertion failed because database is full */
-      ENTRY(SQLITE_CANTOPEN),    /* Unable to open the database file */
-      ENTRY(SQLITE_PROTOCOL),    /* Database lock protocol error */
-      ENTRY(SQLITE_EMPTY),       /* Database is empty */
-      ENTRY(SQLITE_SCHEMA),      /* The database schema changed */
-      ENTRY(SQLITE_TOOBIG),      /* String or BLOB exceeds size limit */
-      ENTRY(SQLITE_CONSTRAINT),  /* Abort due to constraint violation */
-      ENTRY(SQLITE_MISMATCH),    /* Data type mismatch */
-      ENTRY(SQLITE_MISUSE),      /* Library used incorrectly */
-      ENTRY(SQLITE_NOLFS),       /* Uses OS features not supported on host */
-      ENTRY(SQLITE_AUTH),        /* Authorization denied */
-      ENTRY(SQLITE_FORMAT),      /* Auxiliary database format error */
-      ENTRY(SQLITE_RANGE),       /* 2nd parameter to sqlite3_bind out of range */
-      ENTRY(SQLITE_NOTADB),      /* File opened that is not a database file */
+      U_ENTRY(SQLITE_OK),           /* Successful result */
+      U_ENTRY(SQLITE_ERROR),        /* SQL error or missing database */
+      U_ENTRY(SQLITE_INTERNAL),     /* Internal logic error in SQLite */
+      U_ENTRY(SQLITE_PERM),         /* Access permission denied */
+      U_ENTRY(SQLITE_ABORT),        /* Callback routine requested an abort */
+      U_ENTRY(SQLITE_BUSY),         /* The database file is locked */
+      U_ENTRY(SQLITE_LOCKED),       /* A table in the database is locked */
+      U_ENTRY(SQLITE_NOMEM),        /* A malloc() failed */
+      U_ENTRY(SQLITE_READONLY),     /* Attempt to write a readonly database */
+      U_ENTRY(SQLITE_INTERRUPT),    /* Operation terminated by sqlite3_interrupt()*/
+      U_ENTRY(SQLITE_IOERR),        /* Some kind of disk I/O error occurred */
+      U_ENTRY(SQLITE_CORRUPT),      /* The database disk image is malformed */
+      U_ENTRY(SQLITE_NOTFOUND),     /* Unknown opcode in sqlite3_file_control() */
+      U_ENTRY(SQLITE_FULL),         /* Insertion failed because database is full */
+      U_ENTRY(SQLITE_CANTOPEN),     /* Unable to open the database file */
+      U_ENTRY(SQLITE_PROTOCOL),     /* Database lock protocol error */
+      U_ENTRY(SQLITE_EMPTY),        /* Database is empty */
+      U_ENTRY(SQLITE_SCHEMA),       /* The database schema changed */
+      U_ENTRY(SQLITE_TOOBIG),       /* String or BLOB exceeds size limit */
+      U_ENTRY(SQLITE_CONSTRAINT),   /* Abort due to constraint violation */
+      U_ENTRY(SQLITE_MISMATCH),     /* Data type mismatch */
+      U_ENTRY(SQLITE_MISUSE),       /* Library used incorrectly */
+      U_ENTRY(SQLITE_NOLFS),        /* Uses OS features not supported on host */
+      U_ENTRY(SQLITE_AUTH),         /* Authorization denied */
+      U_ENTRY(SQLITE_FORMAT),       /* Auxiliary database format error */
+      U_ENTRY(SQLITE_RANGE),        /* 2nd parameter to sqlite3_bind out of range */
+      U_ENTRY(SQLITE_NOTADB),       /* File opened that is not a database file */
 #  ifdef SQLITE_NOTICE
-      ENTRY(SQLITE_NOTICE),      /* Notifications from sqlite3_log() */
+      U_ENTRY(SQLITE_NOTICE),       /* Notifications from sqlite3_log() */
 #  endif
 #  ifdef SQLITE_WARNING
-      ENTRY(SQLITE_WARNING),     /* Warnings from sqlite3_log() */
+      U_ENTRY(SQLITE_WARNING),      /* Warnings from sqlite3_log() */
 #  endif
-      ENTRY(SQLITE_ROW),         /* sqlite3_step() has another row ready */
-      ENTRY(SQLITE_DONE)         /* sqlite3_step() has finished executing */
+      U_ENTRY(SQLITE_ROW),          /* sqlite3_step() has another row ready */
+      U_ENTRY(SQLITE_DONE)          /* sqlite3_step() has finished executing */
    };
 
    if (UOrmDriver::errmsg  == 0) UOrmDriver::errmsg  = U_SYSCALL(sqlite3_errmsg,  "%p", (sqlite3*)UOrmDriver::connection);
    if (UOrmDriver::errcode == 0) UOrmDriver::errcode = U_SYSCALL(sqlite3_errcode, "%p", (sqlite3*)UOrmDriver::connection);
 
-   if (UOrmDriver::errcode >= 0                                &&
-       UOrmDriver::errcode < U_NUM_ELEMENTS(error_value_table) &&
+   if (UOrmDriver::errcode >= 0                                     &&
+       UOrmDriver::errcode < (int)U_NUM_ELEMENTS(error_value_table) &&
        UOrmDriver::errcode == error_value_table[UOrmDriver::errcode].value)
       {
       UOrmDriver::errname = error_value_table[UOrmDriver::errcode].name;
@@ -115,7 +89,7 @@ void UOrmDriverSqlite::handlerError()
       {
       UOrmDriver::errname = "???";
 
-      for (int i = 0; i < U_NUM_ELEMENTS(error_value_table); ++i)
+      for (unsigned int i = 0; i < U_NUM_ELEMENTS(error_value_table); ++i)
          {
          if (UOrmDriver::errcode == error_value_table[i].value)
             {
@@ -133,7 +107,10 @@ UOrmDriver* UOrmDriverSqlite::handlerConnect(const UString& option)
 {
    U_TRACE(1, "UOrmDriverSqlite::handlerConnect(%V)", option.rep)
 
-   UOrmDriver* pdrv = (UOrmDriver::connection ? U_NEW(UOrmDriverSqlite(*str_name)) : this);
+   UOrmDriver* pdrv;
+
+   if (UOrmDriver::connection == 0) pdrv = this;
+   else U_NEW(UOrmDriverSqlite, pdrv, UOrmDriverSqlite(*UString::str_sqlite_name));
 
    if (pdrv->setOption(option) == false)
       {
@@ -154,35 +131,40 @@ UOrmDriver* UOrmDriverSqlite::handlerConnect(const UString& option)
    // When this is done, no disk file is opened. Instead, a new database is created purely
    // in memory. The database ceases to exist as soon as the database connection is closed.
    // Every :memory: database is distinct from every other. So, opening two database connections
-   // each with the filename ":memory:" will create two independent in-memory databases.
+   // each with the filename ":memory:" will create two independent in-memory databases
    // -------------------------------------------------------------------------------------------
 
    const char* fullpath;
    char buffer[U_PATH_MAX];
 
-   if (pdrv->dbname == *str_memory) fullpath = str_memory->data();
+   if (pdrv->dbname == *UString::str_memory) fullpath = UString::str_memory->data();
    else
       {
-      UString dbdir = pdrv->getOptionValue(*str_dbdir);
+      UString dbdir = pdrv->getOptionValue(*UString::str_dbdir);
 
       uint32_t sz = dbdir.size();
 
       U_INTERNAL_DUMP("sz = %u", sz)
 
-      if (sz) sz = u__snprintf(buffer,    sizeof(buffer),    "%v/", dbdir.rep);
-            (void) u__snprintf(buffer+sz, sizeof(buffer)-sz, "%v.db", pdrv->dbname.rep);
+      if (sz) sz = u__snprintf(buffer,    sizeof(buffer),    U_CONSTANT_TO_PARAM("%v/"), dbdir.rep);
+            (void) u__snprintf(buffer+sz, sizeof(buffer)-sz, U_CONSTANT_TO_PARAM("%v.db"), pdrv->dbname.rep);
 
       fullpath = buffer;
       }
 
    // create a database connection
 
-   ((UOrmDriverSqlite*)pdrv)->encoding_UTF16 = (pdrv->getOptionValue(*UString::str_encoding) == *UOrmDriver::str_UTF16);
+   ((UOrmDriverSqlite*)pdrv)->encoding_UTF16 = (pdrv->getOptionValue(U_CONSTANT_TO_PARAM("encoding")) == *UString::str_UTF16);
 
-   sqlite3** pconnection = (sqlite3**)&(pdrv->connection);
+   union uusqlite3 {
+      void** p1;
+   sqlite3** p2;
+   };
 
-   pdrv->errcode = (((UOrmDriverSqlite*)pdrv)->encoding_UTF16 ? U_SYSCALL(sqlite3_open16, "%S,%p", fullpath, pconnection)
-                                                              : U_SYSCALL(sqlite3_open,   "%S,%p", fullpath, pconnection));
+   union uusqlite3 pconnection = { &(pdrv->connection) };
+
+   pdrv->errcode = (((UOrmDriverSqlite*)pdrv)->encoding_UTF16 ? U_SYSCALL(sqlite3_open16, "%S,%p", fullpath, pconnection.p2)
+                                                              : U_SYSCALL(sqlite3_open,   "%S,%p", fullpath, pconnection.p2));
 
    if (pdrv->errcode)
       {
@@ -201,11 +183,11 @@ UOrmDriver* UOrmDriverSqlite::handlerConnect(const UString& option)
 
    // set options
 
-   UString x = pdrv->getOptionValue(*UOrmDriver::str_timeout); // timeout is specified in milliseconds
+   UString x = pdrv->getOptionValue(*UString::str_timeout); // timeout is specified in milliseconds
 
    // Calling this routine with an argument less than or equal to zero turns off all busy handlers
 
-   (void) U_SYSCALL(sqlite3_busy_timeout, "%p,%d", (sqlite3*)pdrv->connection, x ? x.strtol() : 8); // 8ms
+   (void) U_SYSCALL(sqlite3_busy_timeout, "%p,%d", (sqlite3*)pdrv->connection, x ? x.strtoul() : 8); // 8ms
 
    (void) U_SYSCALL(sqlite3_exec, "%p,%S,%p,%p,%p", (sqlite3*)pdrv->connection, "PRAGMA journal_mode=OFF", 0, 0, 0);
    (void) U_SYSCALL(sqlite3_exec, "%p,%S,%p,%p,%p", (sqlite3*)pdrv->connection, "PRAGMA mmap_size=44040192", 0, 0, 0);
@@ -216,7 +198,7 @@ UOrmDriver* UOrmDriverSqlite::handlerConnect(const UString& option)
 
 void UOrmDriverSqlite::handlerDisConnect()
 {
-   U_TRACE(0, "UOrmDriverSqlite::handlerDisConnect()")
+   U_TRACE_NO_PARAM(0, "UOrmDriverSqlite::handlerDisConnect()")
 
    U_INTERNAL_ASSERT_POINTER(UOrmDriver::connection)
 
@@ -254,13 +236,14 @@ USqlStatement* UOrmDriverSqlite::handlerStatementCreation(const char* stmt, uint
 
    U_INTERNAL_ASSERT_POINTER(UOrmDriver::connection)
 
-   /* If the nByte argument is less than zero, then zSql is read up to the first zero terminator.
+   /**
+    * If the nByte argument is less than zero, then zSql is read up to the first zero terminator.
     * If nByte is non-negative, then it is the maximum number of bytes read from Sql. When nByte
     * is non-negative, the Sql string ends at either the first '\000' or '\u0000' character or
     * the nByte-th byte, whichever comes first. If the caller knows that the supplied string is
     * nul-terminated, then there is a small performance advantage to be gained by passing an nByte
     * parameter that is equal to the number of bytes in the input string including the nul-terminator
-    * bytes as this saves SQLite from having to make a copy of the input string.
+    * bytes as this saves SQLite from having to make a copy of the input string
     */
 
    sqlite3_stmt* pHandle;
@@ -288,7 +271,9 @@ USqlStatement* UOrmDriverSqlite::handlerStatementCreation(const char* stmt, uint
    uint32_t num_bind_param  = U_SYSCALL(sqlite3_bind_parameter_count, "%p", pHandle),
             num_bind_result = U_SYSCALL(sqlite3_column_count,         "%p", pHandle);
 
-   USqlStatement* pstmt = U_NEW(USqliteStatement(pHandle, num_bind_param, num_bind_result));
+   USqlStatement* pstmt;
+
+   U_NEW(USqliteStatement, pstmt, USqliteStatement(pHandle, num_bind_param, num_bind_result));
 
    U_RETURN_POINTER(pstmt, USqlStatement);
 }
@@ -407,14 +392,15 @@ bool USqliteStatement::setBindParam(UOrmDriver* pdrv)
 
          case STRING_VALUE:
             {
-            /* the fourth argument is the number of bytes in the parameter. To be clear: the value is the number of bytes
+            /**
+             * The fourth argument is the number of bytes in the parameter. To be clear: the value is the number of bytes
              * in the value, not the number of characters. If the fourth parameter to sqlite3_bind_text() or sqlite3_bind_text16()
              * is negative, then the length of the string is the number of bytes up to the first zero terminator. If the fourth
              * parameter to sqlite3_bind_blob() is negative, then the behavior is undefined. If a non-negative fourth parameter is
              * provided to sqlite3_bind_text() or sqlite3_bind_text16() then that parameter must be the byte offset where the NUL
              * terminator would occur assuming the string were NUL terminated. If any NUL characters occur at byte offsets less than
              * the value of the fourth parameter then the resulting string value will contain embedded NULs. The result of expressions
-             * involving strings with embedded NULs is undefined.
+             * involving strings with embedded NULs is undefined
              */
 
             pdrv->errcode = (((UOrmDriverSqlite*)pdrv)->encoding_UTF16
@@ -440,7 +426,9 @@ USqlStatementBindParam* UOrmDriverSqlite::creatSqlStatementBindParam(USqlStateme
 
    if (rebind == -1)
       {
-      USqlStatementBindParam* ptr = U_NEW(USqliteStatementBindParam(s, n, bstatic));
+      USqlStatementBindParam* ptr;
+      
+      U_NEW(USqliteStatementBindParam, ptr, USqliteStatementBindParam(s, n, bstatic));
 
       U_RETURN_POINTER(ptr, USqlStatementBindParam);
       }
@@ -542,10 +530,11 @@ retry:
       {
       if (UOrmDriver::errcode == SQLITE_BUSY) // (5) The database file is locked
          {
-         /* SQLITE_BUSY means that the database engine was unable to acquire the database locks it needs to do its job.
+         /**
+          * SQLITE_BUSY means that the database engine was unable to acquire the database locks it needs to do its job.
           * If the statement is a COMMIT or occurs outside of an explicit transaction, then you can retry the statement.
           * If the statement is not a COMMIT and occurs within an explicit transaction then you should rollback the
-          * transaction before continuing.
+          * transaction before continuing
           */
 
          struct timespec ts = { 0L, 10000000L }; // 10ms
@@ -618,7 +607,7 @@ unsigned long long UOrmDriverSqlite::affected(USqlStatement* pstmt)
    U_INTERNAL_ASSERT_POINTER(UOrmDriver::connection)
 
    // NB: I've checked the source code of sqlite3, and I found the function of sqlite3_changes().
-   //     But the function is only useful when the database is changed (after insert, delete or update).
+   //     But the function is only useful when the database is changed (after insert, delete or update)
 
    if (pstmt &&
        pstmt->num_row_result != U_NOT_FOUND)

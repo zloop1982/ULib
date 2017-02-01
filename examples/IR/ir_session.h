@@ -54,7 +54,7 @@ public:
 
       (void) buffer_data.reserve(U_CAPACITY);
 
-      buffer_data.snprintf("%ld %u \"%.*s\" \"%.*s\" [", creation, for_page, U_STRING_TO_TRACE(timerun), U_STRING_TO_TRACE(query));
+      buffer_data.snprintf(U_CONSTANT_TO_PARAM("%ld %u \"%.*s\" \"%.*s\" ["), creation, for_page, U_STRING_TO_TRACE(timerun), U_STRING_TO_TRACE(query));
 
       sz = vec.size();
 
@@ -62,7 +62,7 @@ public:
 
       (void) buffer_data.append(U_CONSTANT_TO_PARAM(" ]"));
 
-      u_buffer_len = buffer_data.size();
+      buffer_len = buffer_data.size();
 
       U_RETURN(buffer_data.data());
       }
@@ -74,6 +74,7 @@ public:
       U_ASSERT(vec.empty())
       U_INTERNAL_ASSERT_EQUALS(sz, 0)
 
+#  ifdef U_STDCPP_ENABLE
       is >> creation
          >> for_page;
 
@@ -90,14 +91,17 @@ public:
       is >> vec;
 
       sz = vec.size();
+#  endif
 
       last_access = u_now->tv_sec;
       }
 
    // STREAMS
 
+#ifdef U_STDCPP_ENABLE
    friend istream& operator>>(istream& is, IRDataSession& d) { d.fromStream(is); return is; }
    friend ostream& operator<<(ostream& os, IRDataSession& d) {   d.toStream(os); return os; }
+#endif
 
    // DEBUG
 

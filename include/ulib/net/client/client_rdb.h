@@ -33,14 +33,14 @@ public:
 
    void reset()
       {
-      U_TRACE(0, "URDBClient_Base::reset()")
+      U_TRACE_NO_PARAM(0, "URDBClient_Base::reset()")
 
       URPC::resetInfo();
       }
 
    bool isOK()
       {
-      U_TRACE(0, "URDBClient_Base::isOK()")
+      U_TRACE_NO_PARAM(0, "URDBClient_Base::isOK()")
 
       U_RETURN(nResponseCode == 200);
       }
@@ -115,8 +115,6 @@ public:
 protected:
    int nResponseCode;
 
-   // Costruttori
-
    URDBClient_Base(UFileConfig* _cfg) : UClient_Base(_cfg)
       {
       U_TRACE_REGISTER_OBJECT(0, URDBClient_Base, "%p", _cfg)
@@ -140,20 +138,17 @@ protected:
 private:
    void setStatus() U_NO_EXPORT;
 
-   URDBClient_Base(const URDBClient_Base&) : UClient_Base(0) {}
-   URDBClient_Base& operator=(const URDBClient_Base&)        { return *this; }
+   U_DISALLOW_COPY_AND_ASSIGN(URDBClient_Base)
 };
 
 template <class Socket> class U_EXPORT URDBClient : public URDBClient_Base {
 public:
 
-   // COSTRUTTORI
-
    URDBClient(UFileConfig* _cfg) : URDBClient_Base(_cfg)
       {
       U_TRACE_REGISTER_OBJECT(0, URDBClient, "%p", _cfg)
 
-      UClient_Base::socket = U_NEW(Socket(UClient_Base::bIPv6));
+      U_NEW(Socket, UClient_Base::socket, Socket(UClient_Base::bIPv6));
       }
 
    ~URDBClient()
@@ -168,13 +163,7 @@ public:
 #endif
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   URDBClient(const URDBClient&) = delete;
-   URDBClient& operator=(const URDBClient&) = delete;
-#else
-   URDBClient(const URDBClient&) : URDBClient_Base(0) {}
-   URDBClient& operator=(const URDBClient&)           { return *this; }
-#endif
+   U_DISALLOW_COPY_AND_ASSIGN(URDBClient)
 };
 
 #endif

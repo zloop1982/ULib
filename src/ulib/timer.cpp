@@ -13,198 +13,121 @@
 
 #include <ulib/timer.h>
 
-bool    UTimer::async;
+int     UTimer::mode;
 UTimer* UTimer::pool;
 UTimer* UTimer::first;
 
-UTimer::~UTimer()
+void UTimer::init(Type _mode)
 {
-   U_TRACE_UNREGISTER_OBJECT(0, UTimer)
-
-   if (next)  delete next;
-   if (alarm) delete alarm;
-}
-
-void UTimer::init(bool _async)
-{
-   U_TRACE(0, "UTimer::init(%b)", _async)
+   U_TRACE(0, "UTimer::init(%d)", _mode)
 
    if (u_start_time     == 0 &&
        u_setStartTime() == false)
       {
-      U_ERROR("UTimer::init: system date not updated");
+      U_ERROR("UTimer::init(%d): system date not updated", _mode);
       }
 
-   if ((async = _async)) UInterrupt::insert(             SIGALRM, (sighandler_t)UTimer::handlerAlarm); // async signal
-   else                  UInterrupt::setHandlerForSignal(SIGALRM, (sighandler_t)UTimer::handlerAlarm);
-
-#ifdef USE_LIBEVENT
-   if (u_ev_base == 0) u_ev_base = (struct event_base*) U_SYSCALL_NO_PARAM(event_init);
-
-   U_INTERNAL_ASSERT_POINTER(u_ev_base)
-#endif
-}
-
-void UTimer::stop()
-{
-   U_TRACE(1, "UTimer::stop()")
-
-   UInterrupt::timerval.it_value.tv_sec  =
-   UInterrupt::timerval.it_value.tv_usec = 0;
-
-   (void) U_SYSCALL(setitimer, "%d,%p,%p", ITIMER_REAL, &UInterrupt::timerval, 0);
+   if ((mode = _mode) != NOSIGNAL)
+      {
+           if (_mode ==  SYNC) UInterrupt::setHandlerForSignal(SIGALRM, (sighandler_t)UTimer::handlerAlarm);
+      else if (_mode == ASYNC) UInterrupt::insert(             SIGALRM, (sighandler_t)UTimer::handlerAlarm); // async signal
+      }
 }
 
 U_NO_EXPORT void UTimer::insertEntry()
 {
-   U_TRACE(1, "UTimer::insertEntry()")
+   U_TRACE_NO_PARAM(0, "UTimer::insertEntry()")
 
    U_CHECK_MEMORY
 
-   alarm->setCurrentTime();
+   U_INTERNAL_DUMP("first = %p", first)
 
-   UTimer** ptr = &first;
-
-   while (*ptr)
+   if (first)
       {
-      if (*this < **ptr) break;
+      UTimer** ptr = &first;
 
-      ptr = &(*ptr)->next;
+      do {
+         U_INTERNAL_DUMP("this = %p *ptr = %p", this, *ptr)
+
+         if (*this < **ptr) break;
+
+         ptr = &(*ptr)->next;
+         }
+      while (*ptr);
+
+      next = *ptr;
+      *ptr = this;
       }
+   else
+      {
+      // The list is empty
 
-   next = *ptr;
-   *ptr = this;
+      next  = 0;
+      first = this;
+      }
 
    U_ASSERT(invariant())
 }
 
-inline void UTimer::callHandlerTime()
+void UTimer::insert(UEventTime* a)
 {
-   U_TRACE(0, "UTimer::callHandlerTime()")
+   U_TRACE(0, "UTimer::insert(%p)", a)
 
-   U_INTERNAL_DUMP("u_now = %#19D (next alarm expire) = %#19D", u_now->tv_sec, (next ? next->alarm->expire() : u_now->tv_sec))
+   // set an alarm to more than 2 month is very suspect...
 
-   int result = alarm->handlerTime(); // call the manager of event time expired
+   U_INTERNAL_ASSERT_MINOR(a->tv_sec, 60L * U_ONE_DAY_IN_SECOND) // 60 gg (2 month)
 
-   U_INTERNAL_DUMP("result = %d", result)
+   UTimer* item;
 
-   // return value:
-   // ---------------
-   // -1 - normal
-   //  0 - monitoring
-   // ---------------
-
-   if (result == 0) insertEntry(); // monitoraggio: si aggiunge il nodo alla lista con la scadenza aggiornata al nuovo tempo assoluto...
+   if (pool == 0 ||
+       mode != NOSIGNAL)
+      {
+      U_NEW(UTimer, item, UTimer);
+      }
    else
       {
-      // per rientranza gestione memoria si evita new e/o delete nella gestione del segnale SIGALRM
-
-      if (async)
-         {
-         delete alarm;
-                alarm = 0;
-         }
-
-      // lo si mette all'inizio della lista degli item da riutilizzare...
-
-      next = pool;
-      pool = this;
-      }
-}
-
-RETSIGTYPE UTimer::handlerAlarm(int signo)
-{
-   U_TRACE(0, "[SIGALRM] UTimer::handlerAlarm(%d)", signo)
-
-   // NB: can happen that in manage the signal setitimer() produce another signal because the interval is too short (< 10ms)... 
-
-   setTimer(true);
-}
-
-void UTimer::setTimer(bool bsignal)
-{
-   U_TRACE(1, "UTimer::setTimer(%b)", bsignal)
-
-   bool expired;
-   UTimer* item;
-   UTimer** ptr = &first;
-
-   (void) U_SYSCALL(gettimeofday, "%p,%p", u_now, 0);
-
-   U_INTERNAL_DUMP("u_now = { %ld %6ld }", u_now->tv_sec, u_now->tv_usec)
-
-   while ((item = *ptr))
-      {
-      expired = (bsignal ? item->alarm->isExpired()
-                         : item->alarm->isOld());
-
-      if (expired)
-         {
-         *ptr = item->next; // remove the node expired from list...
-
-         item->callHandlerTime();
-
-         ptr = &first;
-
-         continue;
-         }
-
-      item->alarm->setTimerVal(&UInterrupt::timerval.it_value);
-
-      goto set_itimer;
-      }
-
-   UInterrupt::timerval.it_value.tv_sec =
-   UInterrupt::timerval.it_value.tv_usec = 0L;
-
-set_itimer: // NB: can happen that setitimer() produce immediatly a signal because the interval is too short (< 10ms)... 
-
-   U_INTERNAL_DUMP("UInterrupt::timerval.it_value = { %ld %6ld }", UInterrupt::timerval.it_value.tv_sec, UInterrupt::timerval.it_value.tv_usec)
-
-   (void) U_SYSCALL(setitimer, "%d,%p,%p", ITIMER_REAL, &UInterrupt::timerval, 0);
-}
-
-void UTimer::insert(UEventTime* a, bool set_timer)
-{
-   U_TRACE(0, "UTimer::insert(%p,%b)", a, set_timer)
-
-   // NB: non si puo' riutilizzare uno stesso oggetto gia' inserito nel timer...
-
-   U_INTERNAL_ASSERT_EQUALS(a->ctime.tv_sec,0)
-   U_INTERNAL_ASSERT_EQUALS(a->ctime.tv_usec,0)
-
-   // settare un allarme a piu' di due mesi e' molto sospetto...
-
-   U_INTERNAL_ASSERT_MINOR(a->tv_sec,(2 * 30 * 24 * 3600))
-
-   UTimer* item;
-
-   if (pool)
-      {
-      // per rientranza gestione memoria si evita new e/o delete nella gestione del segnale SIGALRM
-
-      if (pool->alarm) delete pool->alarm;
-
       item = pool;
       pool = pool->next;
       }
-   else
-      {
-      item = U_NEW(UTimer);
-      }
 
-   item->alarm = a;
+   // add it in to its new list, sorted correctly
 
-   // NB: si mette il nodo in ordine nella lista con la scadenza settata al tempo assoluto...
+   (item->alarm = a)->setTimeToExpire();
 
    item->insertEntry();
-
-   if (set_timer) setTimer(false);
 }
 
-void UTimer::erase(UEventTime* a, bool flag_reuse, bool set_timer)
+void UTimer::callHandlerTimeout()
 {
-   U_TRACE(0, "UTimer::erase(%p,%b,%b)", a, flag_reuse, set_timer)
+   U_TRACE_NO_PARAM(0, "UTimer::callHandlerTimeout()")
+
+   U_INTERNAL_ASSERT_POINTER(first)
+
+   UTimer* item = first;
+                  first = first->next; // remove it from its active list
+
+   int result = item->alarm->handlerTime();
+
+        if (result == -1) erase(item); // -1 => normal
+   else if (result ==  0)              //  0 => monitoring
+      {
+      U_INTERNAL_DUMP("UEventTime::timeout1 = %#19D (next alarm expire) = %#19D", UEventTime::timeout1.tv_sec, item->next ? item->next->alarm->expire() : 0L)
+
+      u_gettimeofday(&UEventTime::timeout1);
+
+      U_INTERNAL_DUMP("UEventTime::timeout1 = { %ld %6ld } first = %p", UEventTime::timeout1.tv_sec, UEventTime::timeout1.tv_usec, first)
+
+      // add it back in to its new list, sorted correctly
+
+      item->alarm->updateTimeToExpire();
+
+      item->insertEntry();
+      }
+}
+
+void UTimer::updateTimeToExpire(UEventTime* ptime)
+{
+   U_TRACE(0, "UTimer::updateTimeToExpire(%p)", ptime)
 
    U_INTERNAL_ASSERT_POINTER(first)
 
@@ -212,74 +135,172 @@ void UTimer::erase(UEventTime* a, bool flag_reuse, bool set_timer)
 
    for (UTimer** ptr = &first; (item = *ptr); ptr = &(*ptr)->next)
       {
-      if (item->alarm == a)
+      if (item->alarm == ptime)
          {
-         *ptr = item->next; // remove the node from list of item expired...
+         U_INTERNAL_DUMP("*ptr = %p item->next = %p", *ptr, item->next)
 
-         U_ASSERT(invariant())
-
-         // and we put it into the list of item to reuse...
-
-         if (flag_reuse)
-            {
-            item->next = pool;
-            pool       = item;
-
-            delete item->alarm;
-                   item->alarm = 0;
-            }
-         else
-            {
-            item->next  = 0;
-            item->alarm = 0;
-
-            delete item;
-            }
+         *ptr = item->next; // remove it from its active list
 
          break;
          }
       }
 
-   if (set_timer) setTimer(false);
+   U_ASSERT(invariant())
+   U_INTERNAL_ASSERT_POINTER(item)
+
+   U_INTERNAL_DUMP("UEventTime::timeout1 = %#19D (next alarm expire) = %#19D", UEventTime::timeout1.tv_sec, item->next ? item->next->alarm->expire() : 0L)
+
+   u_gettimeofday(&UEventTime::timeout1);
+
+   U_INTERNAL_DUMP("UEventTime::timeout1 = { %ld %6ld } first = %p", UEventTime::timeout1.tv_sec, UEventTime::timeout1.tv_usec, first)
+
+   // add it back in to its new list, sorted correctly
+
+   ptime->updateTimeToExpire();
+
+#ifndef U_COVERITY_FALSE_POSITIVE // Dereference after null check (FORWARD_NULL)
+   item->insertEntry();
+#endif
 }
 
-void UTimer::clear(bool clean_alarm)
+void UTimer::run()
 {
-   U_TRACE(0, "UTimer::clear(%b)", clean_alarm)
+   U_TRACE_NO_PARAM(1, "UTimer::run()")
 
-   U_INTERNAL_DUMP("first = %p pool = %p", first, pool)
+   u_gettimeofday(&UEventTime::timeout1);
+
+   U_INTERNAL_DUMP("UEventTime::timeout1 = { %ld %6ld } first = %p", UEventTime::timeout1.tv_sec, UEventTime::timeout1.tv_usec, first)
 
    UTimer* item = first;
+   bool bnosignal = (mode == NOSIGNAL);
+
+loop:
+#ifdef DEBUG
+   U_INTERNAL_DUMP("item = %p item->next = %p", item, item->next)
+
+   U_INTERNAL_ASSERT_POINTER(item)
+
+   if (item->next) U_INTERNAL_ASSERT(*item <= *(item->next))
+#endif
+
+   if (bnosignal ? item->alarm->isExpired()
+                 : item->alarm->isExpiredWithTolerance())
+      {
+      item = item->next;
+
+      callHandlerTimeout();
+
+      if (item) goto loop;
+      }
+
+   U_INTERNAL_DUMP("first = %p", first)
+
+   if (UInterrupt::event_signal_pending) UInterrupt::callHandlerSignal();
+}
+
+void UTimer::setTimer()
+{
+   U_TRACE_NO_PARAM(1, "UTimer::setTimer()")
+
+   U_INTERNAL_ASSERT_DIFFERS(mode, NOSIGNAL)
+
+   run();
+
+   if (first) first->alarm->setTimeVal(&(UInterrupt::timerval.it_value));
+   else
+      {
+      UInterrupt::timerval.it_value.tv_sec  =
+      UInterrupt::timerval.it_value.tv_usec = 0L;
+      }
+
+   // NB: it can happen that setitimer() produce immediatly a signal because the interval is very short (< 10ms)... 
+
+   U_INTERNAL_DUMP("UInterrupt::timerval.it_value = { %ld %6ld }", UInterrupt::timerval.it_value.tv_sec, UInterrupt::timerval.it_value.tv_usec)
+
+   U_INTERNAL_ASSERT(UInterrupt::timerval.it_value.tv_sec  >= 0 &&
+                     UInterrupt::timerval.it_value.tv_usec >= 0)
+
+   (void) U_SYSCALL(setitimer, "%d,%p,%p", ITIMER_REAL, &UInterrupt::timerval, 0);
+}
+
+void UTimer::erase(UEventTime* palarm)
+{
+   U_TRACE(0, "UTimer::erase(%p)", palarm)
+
+   U_INTERNAL_ASSERT_POINTER(first)
+
+   UTimer* item;
+
+   for (UTimer** ptr = &first; (item = *ptr); ptr = &(*ptr)->next)
+      {
+      if (item->alarm == palarm)
+         {
+         U_INTERNAL_DUMP("*ptr = %p item->next = %p", *ptr, item->next)
+
+         *ptr = item->next; // remove it from its active list
+
+         erase(item);
+
+         break;
+         }
+      }
+
+   U_ASSERT(invariant())
+}
+
+void UTimer::clear()
+{
+   U_TRACE_NO_PARAM(1, "UTimer::clear()")
+
+   U_INTERNAL_DUMP("mode = %d first = %p pool = %p", mode, first, pool)
+
+   if (mode != NOSIGNAL)
+      {
+      UInterrupt::timerval.it_value.tv_sec  =
+      UInterrupt::timerval.it_value.tv_usec = 0L;
+
+      (void) U_SYSCALL(setitimer, "%d,%p,%p", ITIMER_REAL, &UInterrupt::timerval, 0);
+      }
 
    if (first)
       {
-      if (clean_alarm) do { item->alarm = 0; } while ((item = item->next));
+      for (UTimer* item = first; item; item = item->next)
+         {
+         delete item->alarm;
+         delete item;
+         }
 
-      delete first;
-             first = 0;
+      first = 0;
       }
 
    if (pool)
       {
-      item = pool;
+      for (UTimer* item = pool; item; item = item->next)
+         {
+         delete item->alarm;
+         delete item;
+         }
 
-      if (clean_alarm) do { item->alarm = 0; } while ((item = item->next));
-
-      delete pool;
-             pool = 0;
+      pool = 0;
       }
 }
 
 #ifdef DEBUG
 bool UTimer::invariant()
 {
-   U_TRACE(0, "UTimer::invariant()")
+   U_TRACE_NO_PARAM(0, "UTimer::invariant()")
 
    if (first)
       {
       for (UTimer* item = first; item->next; item = item->next)
          {
-         U_INTERNAL_ASSERT(*item <= *(item->next))
+         if (          item->next &&
+             *item > *(item->next))
+            {
+            U_ERROR("UTimer::invariant() failed: item = %p { %ld %6ld } item->next = %p { %ld %6ld }",
+                        item,             item->alarm->xtime.tv_sec,       item->alarm->xtime.tv_usec,
+                        item->next, item->next->alarm->xtime.tv_sec, item->next->alarm->xtime.tv_usec);
+            }
          }
       }
 

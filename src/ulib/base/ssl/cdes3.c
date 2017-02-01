@@ -1,4 +1,4 @@
-// ============================================================================
+/* ============================================================================
 //
 // = LIBRARY
 //    ULib - c++ library
@@ -9,7 +9,7 @@
 // = AUTHOR
 //    Stefano Casazza
 //
-// ============================================================================
+// ============================================================================ */
 
 #include <ulib/base/utility.h>
 #include <ulib/base/ssl/des3.h>
@@ -18,9 +18,21 @@
 #include <openssl/des.h>
 #include <openssl/rand.h>
 
+#if defined(__NetBSD__) || defined(__UNIKERNEL__)
+#  include <des.h>
+#endif
+
 #define U_ENCRYPT   1
 #define U_DECRYPT   0
 #define U_STR_MAGIC "Salted__"
+
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+#  define des_cblock         DES_cblock
+#  define des_key_schedule   DES_key_schedule
+#  define des_string_to_key  DES_string_to_key
+#  define RAND_pseudo_bytes  RAND_bytes
+#  define des_set_odd_parity DES_set_odd_parity
+#endif
 
 static const char* password;
 
@@ -44,19 +56,28 @@ void u_des_init(void)
    u__memcpy(&inp_ivec, &key, sizeof(inp_ivec), __PRETTY_FUNCTION__);
    u__memcpy(&out_ivec, &key, sizeof(out_ivec), __PRETTY_FUNCTION__);
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
    (void) des_set_key(&inp_ivec, inp1_sched);
    (void) des_set_key(&inp_ivec, inp2_sched);
    (void) des_set_key(&inp_ivec, inp3_sched);
    (void) des_set_key(&out_ivec, out1_sched);
    (void) des_set_key(&out_ivec, out2_sched);
    (void) des_set_key(&out_ivec, out3_sched);
+#else
+   (void) DES_set_key(&inp_ivec, &inp1_sched);
+   (void) DES_set_key(&inp_ivec, &inp2_sched);
+   (void) DES_set_key(&inp_ivec, &inp3_sched);
+   (void) DES_set_key(&out_ivec, &out1_sched);
+   (void) DES_set_key(&out_ivec, &out2_sched);
+   (void) DES_set_key(&out_ivec, &out3_sched);
+#endif
 }
 
 void u_des3_init(void)
 {
    U_INTERNAL_TRACE("u_des3_init()")
 
-/* OpenSSL_add_all_algorithms(); // called in ULib_init() */
+/* OpenSSL_add_all_algorithms(); // called in ULib::init() */
 
    md     = EVP_md5();
    cipher = EVP_des_ede3_cbc(); /* EVP_get_cipherbyname("SN_des_ede3_cbc"); // des3 */
@@ -124,7 +145,11 @@ long u_des_encode(const unsigned char* restrict inp, long len, unsigned char* re
     * The extra state information to record how much of the 64bit block we have used is contained in inp_num
     */
 
-   des_ede3_cfb64_encrypt(inp, out, len, out1_sched, out2_sched, out3_sched, &out_ivec, &inp_num, DES_ENCRYPT);
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+   des_ede3_cfb64_encrypt(inp, out, len,  out1_sched,  out2_sched,  out3_sched, &out_ivec, &inp_num, DES_ENCRYPT);
+#else
+   DES_ede3_cfb64_encrypt(inp, out, len, &out1_sched, &out2_sched, &out3_sched, &out_ivec, &inp_num, DES_ENCRYPT);
+#endif
 
    U_INTERNAL_PRINT("inp_num = %d", inp_num)
 
@@ -177,7 +202,11 @@ long u_des_decode(const unsigned char* restrict inp, long len, unsigned char* re
     * The extra state information to record how much of the 64bit block we have used is contained in out_num
     */
 
-   des_ede3_cfb64_encrypt(inp, out, len, inp1_sched, inp2_sched, inp3_sched, &inp_ivec, &out_num, DES_DECRYPT);
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+   des_ede3_cfb64_encrypt(inp, out, len,  inp1_sched,  inp2_sched,  inp3_sched, &inp_ivec, &out_num, DES_DECRYPT);
+#else
+   DES_ede3_cfb64_encrypt(inp, out, len, &inp1_sched, &inp2_sched, &inp3_sched, &inp_ivec, &out_num, DES_DECRYPT);
+#endif
 
    U_INTERNAL_PRINT("out_num = %d", out_num)
 

@@ -19,6 +19,10 @@
 #include <ulib/utility/services.h>
 #include <ulib/utility/string_ext.h>
 
+#if defined(__OSX__) || defined(__NetBSD__) || defined(__UNIKERNEL__)
+extern char** environ;
+#endif
+
 int   UCommand::status;
 int   UCommand::exit_value;
 int   UCommand::timeoutMS = -1;
@@ -26,7 +30,7 @@ pid_t UCommand::pid;
 
 void UCommand::freeCommand()
 {
-   U_TRACE(0, "UCommand::freeCommand()")
+   U_TRACE_NO_PARAM(0, "UCommand::freeCommand()")
 
    if (pathcmd)
       {
@@ -39,7 +43,7 @@ void UCommand::freeCommand()
       {
       U_INTERNAL_ASSERT_MAJOR(ncmd, 0)
 
-      // NB: considera che u_splitCommand() parte da 1 e null terminator...
+      // NB: we need to consider that u_splitCommand() start by 1 and null terminator...
 
       UMemoryPool::_free(argv_exec, 1+ncmd+1 + U_ADD_ARGS, sizeof(char*));
 
@@ -49,7 +53,7 @@ void UCommand::freeCommand()
 
 void UCommand::freeEnvironment()
 {
-   U_TRACE(0, "UCommand::freeEnvironment()")
+   U_TRACE_NO_PARAM(0, "UCommand::freeEnvironment()")
 
    if (envp_exec)
       {
@@ -85,7 +89,7 @@ void UCommand::reset(const UString* penv)
 
 void UCommand::setCommand()
 {
-   U_TRACE(0, "UCommand::setCommand()")
+   U_TRACE_NO_PARAM(0, "UCommand::setCommand()")
 
    U_INTERNAL_ASSERT(command)
 
@@ -110,13 +114,13 @@ void UCommand::setCommand()
 
       U_INTERNAL_DUMP("pathcmd = %S", pathcmd)
 
-      // NB: allocazione e copia lista argomenti
+      // NB: allocation and copy list arguments
 
       uint32_t n = 1+ncmd+1;
 
       argv_exec = (char**) UMemoryPool::_malloc(n + U_ADD_ARGS, sizeof(char*)); // U_ADD_ARGS => space for addArgument()...
 
-      U_MEMCPY(argv_exec, argv, n * sizeof(char*)); // NB: copia anche null terminator...
+      U_MEMCPY(argv_exec, argv, n * sizeof(char*)); // NB: copy also null terminator...
       }
    else
       {
@@ -138,13 +142,13 @@ int32_t UCommand::setEnvironment(const UString& env, char**& _envp)
 
    U_INTERNAL_ASSERT_RANGE(1, _nenv, U_MAX_ARGS)
 
-   // NB: allocazione e copia lista argomenti
+   // NB: allocation and copy list arguments
 
-   uint32_t n = _nenv + 1; // NB: considera anche null terminator...
+   uint32_t n = _nenv + 1; // NB: consider also null terminator...
 
-   _envp = (char**) UMemoryPool::_malloc(n, sizeof(char*)); // NB: considera anche null terminator...
+   _envp = (char**) UMemoryPool::_malloc(n, sizeof(char*)); // NB: consider also null terminator...
 
-   U_MEMCPY(_envp, argp, n * sizeof(char*)); // NB: copia anche null terminator...
+   U_MEMCPY(_envp, argp, n * sizeof(char*)); // NB: copy also null terminator...
 
    U_INTERNAL_DUMP("_envp = %p", _envp)
 
@@ -180,7 +184,7 @@ void UCommand::setEnvironment(const UString* penv)
 
 void UCommand::setFileArgument()
 {
-   U_TRACE(0, "UCommand::setFileArgument()")
+   U_TRACE_NO_PARAM(0, "UCommand::setFileArgument()")
 
    U_INTERNAL_ASSERT_POINTER(argv_exec)
 
@@ -190,7 +194,7 @@ void UCommand::setFileArgument()
       {
       U_INTERNAL_DUMP("argv_exec[%d] = %S", i, argv_exec[i])
 
-      if (strncmp(argv_exec[i], U_CONSTANT_TO_PARAM("$FILE")) == 0)
+      if (u_get_unalignedp32(argv_exec[i]) == U_MULTICHAR_CONSTANT32('$','F','I','L'))
          {
          nfile = i;
 
@@ -277,14 +281,14 @@ U_NO_EXPORT void UCommand::execute(bool flag_stdin, bool flag_stdout, bool flag_
       }
 
 #ifdef DEBUG
-   char* _end  = (char*) command.end();
+   char* _end  = (char*) command.pend();
    char* begin =         command.data();
 
    U_INTERNAL_DUMP("begin = %p end = %p argv_exec[1] = %p %S", begin, _end, argv_exec[1], argv_exec[1])
 
-#  ifndef _MSWINDOWS_
+# ifndef _MSWINDOWS_
    U_INTERNAL_ASSERT_RANGE(begin, argv_exec[1], _end)
-#  endif
+# endif
 
    int32_t i;
 
@@ -298,7 +302,7 @@ U_NO_EXPORT void UCommand::execute(bool flag_stdin, bool flag_stdout, bool flag_
        envp != environ &&
        flag_expand == U_NOT_FOUND)
       {
-      _end  = (char*) environment.end();
+      _end  = (char*) environment.pend();
       begin =         environment.data();
 
       U_INTERNAL_DUMP("begin = %p _end = %p envp[0] = %p %S", begin, _end, envp[0], envp[0])
@@ -378,7 +382,7 @@ U_NO_EXPORT bool UCommand::postCommand(UString* input, UString* output)
 
          UProcess::kill(pid, SIGTERM);
 
-         UTimeVal(1L).nanosleep();
+         UTimeVal::nanosleep(1L);
 
          UProcess::kill(pid, SIGKILL);
          }
@@ -400,7 +404,7 @@ U_NO_EXPORT bool UCommand::postCommand(UString* input, UString* output)
 
 U_NO_EXPORT bool UCommand::wait()
 {
-   U_TRACE(0, "UCommand::wait()")
+   U_TRACE_NO_PARAM(0, "UCommand::wait()")
 
    UProcess::waitpid(pid, &status, 0);
 
@@ -417,11 +421,11 @@ bool UCommand::setMsgError(const char* cmd, bool only_if_error)
 
    U_INTERNAL_DUMP("pid = %d exit_value = %d status = %d", pid, exit_value, status)
 
-   // NB: il carattere '<' e' riservato per xml...
+   // NB: '<' is reserved for xml...
 
    if (isStarted() == false)
       {
-      u_buffer_len = u__snprintf(u_buffer, U_MAX_SIZE_PREALLOCATE, "command %S didn't start %R",  cmd, 0); // NB: the last argument (0) is necessary...
+      u_buffer_len = u__snprintf(u_buffer, U_MAX_SIZE_PREALLOCATE, U_CONSTANT_TO_PARAM("command %S didn't start %R"),  cmd, 0); // NB: the last argument (0) is necessary...
 
       U_RETURN(true);
       }
@@ -429,7 +433,7 @@ bool UCommand::setMsgError(const char* cmd, bool only_if_error)
    if (isTimeout() &&
        timeoutMS > 0)
       {
-      u_buffer_len = u__snprintf(u_buffer, U_MAX_SIZE_PREALLOCATE, "command %S (pid %u) excedeed time (%d secs) for execution", cmd, pid, timeoutMS / 1000);
+      u_buffer_len = u__snprintf(u_buffer, U_MAX_SIZE_PREALLOCATE, U_CONSTANT_TO_PARAM("command %S (pid %u) excedeed time (%d secs) for execution"), cmd, pid, timeoutMS / 1000);
 
       U_RETURN(true);
       }
@@ -438,7 +442,7 @@ bool UCommand::setMsgError(const char* cmd, bool only_if_error)
       {
       char buffer[128];
 
-      u_buffer_len = u__snprintf(u_buffer, U_MAX_SIZE_PREALLOCATE, "command %S started (pid %u) and ended with status: %d (%d, %s)",
+      u_buffer_len = u__snprintf(u_buffer, U_MAX_SIZE_PREALLOCATE, U_CONSTANT_TO_PARAM("command %S started (pid %u) and ended with status: %d (%d, %s)"),
                                                                     cmd, pid, status, exit_value, UProcess::exitInfo(buffer, status));
       }
 
@@ -475,9 +479,13 @@ bool UCommand::executeAndWait(UString* input, int fd_stdin, int fd_stderr)
 {
    U_TRACE(0, "UCommand::executeAndWait(%p,%d,%d)", input, fd_stdin, fd_stderr)
 
-   bool result = execute(input, 0, fd_stdin, fd_stderr) && wait();
+   if (execute(input, 0, fd_stdin, fd_stderr) &&
+       wait())
+      {
+      U_RETURN(true);
+      }
 
-   U_RETURN(result);
+   U_RETURN(false);
 }
 
 bool UCommand::execute(UString* input, UString* output, int fd_stdin, int fd_stderr)
@@ -492,9 +500,9 @@ bool UCommand::execute(UString* input, UString* output, int fd_stdin, int fd_std
 
    execute(flag_stdin, flag_stdout, flag_stderr);
 
-   bool result = postCommand(input, output);
+   if (postCommand(input, output)) U_RETURN(true);
 
-   U_RETURN(result);
+   U_RETURN(false);
 }
 
 // Return output of command
@@ -559,12 +567,12 @@ UCommand* UCommand::loadConfigCommand(UFileConfig* cfg)
          {
          UString buffer(U_CONSTANT_SIZE(U_PATH_SHELL) + 1 + command.size());
 
-         buffer.snprintf("%s %v", U_PATH_SHELL, command.rep);
+         buffer.snprintf(U_CONSTANT_TO_PARAM("%s %v"), U_PATH_SHELL, command.rep);
 
          command = buffer;
          }
 
-      cmd = U_NEW(UCommand(command));
+      U_NEW(UCommand, cmd, UCommand(command));
 
       if (cmd->checkForExecute() == false)
          {
@@ -575,7 +583,7 @@ UCommand* UCommand::loadConfigCommand(UFileConfig* cfg)
          U_RETURN_POINTER(0,UCommand);
          }
 
-      UString environment = (*cfg)[*UString::str_ENVIRONMENT];
+      UString environment = cfg->at(U_CONSTANT_TO_PARAM("ENVIRONMENT"));
 
       if (environment)
          {

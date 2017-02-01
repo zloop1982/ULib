@@ -14,7 +14,7 @@
 #ifndef ULIB_INTERNAL_COMMON_H
 #define ULIB_INTERNAL_COMMON_H 1
 
-// Manage file to include
+// Manage which file headers to include
 
 #include <ulib/base/base.h>
 
@@ -75,14 +75,14 @@ extern U_EXPORT void  operator delete[](void*);
 #endif
 
 #ifdef U_COMPILER_EXPLICIT_OVERRIDES
-# define U_DECL_OVERRIDE override
 # define U_DECL_FINAL final
+# define U_DECL_OVERRIDE override
 #else
-# ifndef U_DECL_OVERRIDE
-# define U_DECL_OVERRIDE
-# endif
 # ifndef U_DECL_FINAL
 # define U_DECL_FINAL
+# endif
+# ifndef U_DECL_OVERRIDE
+# define U_DECL_OVERRIDE
 # endif
 #endif
 
@@ -111,64 +111,87 @@ extern U_EXPORT void  operator delete[](void*);
 #  endif
 #endif
 
+#include <ulib/internal/macro.h>
 #include <ulib/internal/objectIO.h>
 #include <ulib/internal/memory_pool.h>
-#include <ulib/internal/macro.h>
 
-// json value representation
+enum StringAllocationType {
+   STR_ALLOCATE_SOAP         = 0x00000001,
+   STR_ALLOCATE_IMAP         = 0x00000002,
+   STR_ALLOCATE_SSI          = 0x00000004,
+   STR_ALLOCATE_NOCAT        = 0x00000008,
+   STR_ALLOCATE_HTTP         = 0x00000010,
+   STR_ALLOCATE_QUERY_PARSER = 0x00000020,
+   STR_ALLOCATE_ORM          = 0x00000040,
+   STR_ALLOCATE_HTTP2        = 0x00000080
+};
 
-union anyvalue {
-   bool bool_;
-            char char_;
-   unsigned char uchar_;
-            short short_;
-   unsigned short ushort_;
-            int int_;
-   unsigned int uint_;
-            long long_;
-   unsigned long ulong_;
-            long long llong_;
-   unsigned long long ullong_;
-   float float_;
-   void* ptr_;
-        double real_;
-   long double lreal_;
+enum StringAllocationIndex {
+   STR_ALLOCATE_INDEX_SOAP         = 18,
+   STR_ALLOCATE_INDEX_IMAP         = STR_ALLOCATE_INDEX_SOAP+14,
+   STR_ALLOCATE_INDEX_SSI          = STR_ALLOCATE_INDEX_IMAP+4,
+   STR_ALLOCATE_INDEX_NOCAT        = STR_ALLOCATE_INDEX_SSI+2,
+   STR_ALLOCATE_INDEX_HTTP         = STR_ALLOCATE_INDEX_NOCAT+2,
+   STR_ALLOCATE_INDEX_QUERY_PARSER = STR_ALLOCATE_INDEX_HTTP+10,
+   STR_ALLOCATE_INDEX_ORM          = STR_ALLOCATE_INDEX_QUERY_PARSER+5,
+   STR_ALLOCATE_INDEX_HTTP2        = STR_ALLOCATE_INDEX_ORM+15
 };
 
 struct null {}; // Special type to bind a NULL value to column using operator,() - syntactic sugar
 
-// Type of the value held by a UValue object
-
-typedef enum ValueType {
-      NULL_VALUE =  0, // null value
-   BOOLEAN_VALUE =  1, // bool value
-      CHAR_VALUE =  2, //   signed char value
-     UCHAR_VALUE =  3, // unsigned char value
-     SHORT_VALUE =  4, //   signed short integer value
-    USHORT_VALUE =  5, // unsigned short integer value
-       INT_VALUE =  6, //   signed integer value
-      UINT_VALUE =  7, // unsigned integer value
-      LONG_VALUE =  8, //   signed long value
-     ULONG_VALUE =  9, // unsigned long value
-     LLONG_VALUE = 10, //   signed long long value
-    ULLONG_VALUE = 11, // unsigned long long value
-     FLOAT_VALUE = 12, // float value
-      REAL_VALUE = 13, // double value
-     LREAL_VALUE = 14, // long double value
-    STRING_VALUE = 15, // UTF-8 string value
-     ARRAY_VALUE = 16, // array value (ordered list)
-    OBJECT_VALUE = 17  // object value (collection of name/value pairs)
-} ValueType;
-
 using namespace std;
+
+class UString;
+class UStringRep;
+
+union uustring    { ustring*    p1; UString*    p2; };
+union uustringrep { ustringrep* p1; UStringRep* p2; };
+
+class U_EXPORT ULib {
+public:
+    ULib(const char* mempool) { init(mempool, 0); }
+   ~ULib()                    {  end(); }
+
+   static void end();
+   static void init(const char* mempool, char** argv);
+
+private:
+   static uustring uustringnull;
+   static uustringrep uustringrepnull;
+
+   friend class UString;
+   friend class UStringRep;
+
+   U_DISALLOW_COPY_AND_ASSIGN(ULib)
+};
+
+extern U_EXPORT const double u_pow10[309]; /* 1e-0...1e308: 309 * 8 bytes = 2472 bytes */
+
+#ifndef HAVE_CXX11
+static inline           uint16_t u_dd(uint8_t i) { return U_MULTICHAR_CONSTANT16(u_ctn2s[i], u_ctn2s[i+1]); }
+#else
+static inline constexpr uint16_t u_dd(uint8_t i)
+{
+   return U_MULTICHAR_CONSTANT16('0' + ((i%2)     ? ((i/2)%10)     : ((i/2)/10)),
+                                 '0' + (((i+1)%2) ? (((i+1)/2)%10) : (((i+1)/2)/10)));
+}
+
+static_assert( u_dd(0) == U_MULTICHAR_CONSTANT16('0','0'), "should be U_MULTICHAR_CONSTANT16('0','0')" );
+static_assert( u_dd(1) == U_MULTICHAR_CONSTANT16('0','0'), "should be U_MULTICHAR_CONSTANT16('0','0')" );
+static_assert( u_dd(2) == U_MULTICHAR_CONSTANT16('0','1'), "should be U_MULTICHAR_CONSTANT16('0','1')" );
+static_assert( u_dd(3) == U_MULTICHAR_CONSTANT16('1','0'), "should be U_MULTICHAR_CONSTANT16('1','0')" );
+static_assert( u_dd(4) == U_MULTICHAR_CONSTANT16('0','2'), "should be U_MULTICHAR_CONSTANT16('0','2')" );
+
+template<typename T> static constexpr T pow10(size_t x) { return x ? 10*pow10<T>(x-1) : 1; }
+
+static_assert( pow10<double>(29)   == 1e+29,                   "should be 1e+29" ); // NB: fail for exponent >= 30
+static_assert( pow10<uint64_t>(19) == 10000000000000000000ULL, "should be 1e+19" );
+
+static_assert( U_SIZE_TO_STACK_INDEX(U_MAX_SIZE_PREALLOCATE) == 9, "should be 9" );
+#endif
 
 // Init library
 
-U_EXPORT void ULib_init();
-#ifdef USE_LIBSSL
-U_EXPORT void ULib_init_openssl();
-#endif
-
-#define U_ULIB_INIT(argv) U_SET_LOCATION_INFO, u_init_ulib(argv), ULib_init()
+#define U_ULIB_INIT(argv) U_SET_LOCATION_INFO, ULib::init(0, argv)
 
 #endif

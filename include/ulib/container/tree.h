@@ -21,8 +21,6 @@ template <class T> class UTree;
 template <> class U_EXPORT UTree<void*> : public UVector<void*> {
 public:
 
-   // Costruttori e distruttore
-
    UTree(const void* __elem = 0, const void* __parent = 0, uint32_t n = 1) : UVector<void*>(n)
       {
       U_TRACE_REGISTER_OBJECT(0, UTree<void*>, "%p,%p,%u", __elem, __parent, n)
@@ -48,28 +46,28 @@ public:
 
    bool null() const
       {
-      U_TRACE(0, "UTree<void*>::null()")
+      U_TRACE_NO_PARAM(0, "UTree<void*>::null()")
 
       U_RETURN(_elem == 0);
       }
 
    bool root() const
       {
-      U_TRACE(0, "UTree<void*>::root()")
+      U_TRACE_NO_PARAM(0, "UTree<void*>::root()")
 
       U_RETURN(_parent == 0);
       }
 
    bool empty() const
       {
-      U_TRACE(0, "UTree<void*>::empty()")
+      U_TRACE_NO_PARAM(0, "UTree<void*>::empty()")
 
       U_RETURN(_elem == 0 && _length == 0);
       }
 
    uint32_t numChild() const
       {
-      U_TRACE(0, "UTree<void*>::numChild()")
+      U_TRACE_NO_PARAM(0, "UTree<void*>::numChild()")
 
       U_RETURN(_length);
       }
@@ -78,7 +76,7 @@ public:
 
    uint32_t depth() const __pure
       {
-      U_TRACE(0, "UTree<void*>::depth()")
+      U_TRACE_NO_PARAM(0, "UTree<void*>::depth()")
 
       uint32_t result = 0;
       const UTree<void*>* p = this;
@@ -121,7 +119,9 @@ public:
       {
       U_TRACE(0, "UTree<void*>::push(%p)", __elem)
 
-      UTree<void*>* p = U_NEW(UTree<void*>(__elem, this, (size_allocate ? : 64)));
+      UTree<void*>* p;
+
+      U_NEW(UTree<void*>, p, UTree<void*>(__elem, this, (size_allocate ? : 64)));
 
       UVector<void*>::push(p);
 
@@ -145,14 +145,14 @@ public:
 
    UTree<void*>* last() // return last element
       {
-      U_TRACE(0, "UTree<void*>::last()")
+      U_TRACE_NO_PARAM(0, "UTree<void*>::last()")
 
       return (UTree<void*>*) UVector<void*>::last();
       }
 
    UTree<void*>* pop() // remove last element
       {
-      U_TRACE(0, "UTree<void*>::pop()")
+      U_TRACE_NO_PARAM(0, "UTree<void*>::pop()")
 
       return (UTree<void*>*) UVector<void*>::pop();
       }
@@ -163,7 +163,9 @@ public:
       {
       U_TRACE(0, "UTree<void*>::insert(%u,%p)", pos, __elem)
 
-      UTree<void*>* p = U_NEW(UTree<void*>(__elem, this));
+      UTree<void*>* p;
+
+      U_NEW(UTree<void*>, p, UTree<void*>(__elem, this));
 
       UVector<void*>::insert(pos, p);
 
@@ -194,11 +196,7 @@ protected:
    const void* _parent;
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UTree<void*>& operator=(const UTree<void*>&) = delete;
-#else
-   UTree<void*>& operator=(const UTree<void*>&) { return *this; }
-#endif
+   U_DISALLOW_ASSIGN(UTree<void*>)
 };
 
 template <class T> class U_EXPORT UTree<T*> : public UTree<void*> {
@@ -206,7 +204,7 @@ public:
 
    void clear() // erase all element
       {
-      U_TRACE(0, "UTree<T*>::clear()")
+      U_TRACE_NO_PARAM(0, "UTree<T*>::clear()")
 
       if (_elem)
          {
@@ -224,8 +222,6 @@ public:
          _length = 0;
          }
       }
-
-   // Costruttori e distruttore
 
    UTree(const T* __elem = 0, const T* __parent = 0, uint32_t n = 1) : UTree<void*>(__elem, __parent, n)
       {
@@ -247,12 +243,8 @@ public:
    UVector<T*>* vector() const                      { return (UVector<T*>*)this; }
    UTree<T*>*   childAt(uint32_t pos) const  __pure { return (UTree<T*>*)((UVector<void*>*)this)->at(pos); }
 
-   T* begin()  { return ((UTree<T*>*)UVector<void*>::begin())->elem(); }
-   T* end()    { return ((UTree<T*>*)UVector<void*>::end())->elem(); }
-   T* rbegin() { return ((UTree<T*>*)UVector<void*>::rbegin())->elem(); }
-   T* rend()   { return ((UTree<T*>*)UVector<void*>::rend())->elem(); }
-   T* front()  { return ((UTree<T*>*)UVector<void*>::front())->elem(); }
-   T* back()   { return ((UTree<T*>*)UVector<void*>::back())->elem(); }
+   T* front() { return ((UTree<T*>*)UVector<void*>::front())->elem(); }
+   T*  back() { return ((UTree<T*>*)UVector<void*>::back())->elem(); }
 
    T* at(uint32_t pos) const { return ((UTree<T*>*)UVector<void*>::at(pos))->elem(); }
 
@@ -297,14 +289,14 @@ public:
 
    UTree<T*>* last() // return last element
       {
-      U_TRACE(0, "UTree<T*>::last()")
+      U_TRACE_NO_PARAM(0, "UTree<T*>::last()")
 
       return (UTree<T*>*) UVector<void*>::last();
       }
 
    UTree<T*>* pop() // remove last element
       {
-      U_TRACE(0, "UTree<T*>::pop()")
+      U_TRACE_NO_PARAM(0, "UTree<T*>::pop()")
 
       return (UTree<T*>*) UVector<void*>::pop();
       }
@@ -370,25 +362,17 @@ public:
       return os;
       }
 
-#  ifdef DEBUG
+# ifdef DEBUG
    const char* dump(bool reset) const { return UTree<void*>::dump(reset); }
-#  endif
+# endif
 #endif
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UTree<T*>& operator=(const UTree<T*>&) = delete;
-#else
-   UTree<T*>& operator=(const UTree<T*>&) { return *this; }
-#endif
+   U_DISALLOW_ASSIGN(UTree<T*>)
 };
-
-// specializzazione stringa
 
 template <> class U_EXPORT UTree<UString> : public UTree<UStringRep*> {
 public:
-
-   // Costruttori e distruttore
 
    UTree(uint32_t n = 64) : UTree<UStringRep*>(0, 0, n)
       {
@@ -404,7 +388,7 @@ public:
 
    UString elem() const
       {
-      U_TRACE(0, "UTree<UString>::elem()")
+      U_TRACE_NO_PARAM(0, "UTree<UString>::elem()")
 
       if (_elem)
          {
@@ -420,13 +404,8 @@ public:
    UVector<UString>* vector() const                       { return (UVector<UString>*)this; }
    UTree<UString>*   childAt(uint32_t pos) const   __pure { return (UTree<UString>*)((UVector<void*>*)this)->at(pos); }
 
-   UString begin()  { return ((UTree<UString>*)UVector<void*>::begin())->elem(); }
-   UString end()    { return ((UTree<UString>*)UVector<void*>::end())->elem(); }
-   UString rbegin() { return ((UTree<UString>*)UVector<void*>::rbegin())->elem(); }
-   UString rend()   { return ((UTree<UString>*)UVector<void*>::rend())->elem(); }
-   UString front()  { return ((UTree<UString>*)UVector<void*>::front())->elem(); }
-
-   UString back();
+   UString  back();
+   UString front() { return ((UTree<UString>*)UVector<void*>::front())->elem(); }
 
    UString at(uint32_t pos) const { return ((UTree<UString>*)UVector<void*>::at(pos))->elem(); }
 
@@ -459,14 +438,14 @@ public:
 
    UTree<UString>* last()
       {
-      U_TRACE(0, "UTree<UString>::last()")
+      U_TRACE_NO_PARAM(0, "UTree<UString>::last()")
 
       return (UTree<UString>*) UTree<UStringRep*>::last();
       }
 
    UTree<UString>* pop()
       {
-      U_TRACE(0, "UTree<UString>::pop()")
+      U_TRACE_NO_PARAM(0, "UTree<UString>::pop()")
 
       return (UTree<UString>*) UTree<UStringRep*>::pop();
       }
@@ -487,11 +466,7 @@ public:
 #endif
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UTree<UString>& operator=(const UTree<UString>&) = delete;
-#else
-   UTree<UString>& operator=(const UTree<UString>&) { return *this; }
-#endif
+   U_DISALLOW_ASSIGN(UTree<UString>)
 };
 
 #endif

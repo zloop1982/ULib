@@ -42,7 +42,7 @@ int URpcPlugIn::handlerConfig(UFileConfig& cfg)
 
    // Perform registration of server RPC method
 
-   rpc_parser = U_NEW(URPCParser);
+   U_NEW(URPCParser, rpc_parser, URPCParser);
 
    URPCObject::loadGenericMethod(&cfg);
 
@@ -51,7 +51,7 @@ int URpcPlugIn::handlerConfig(UFileConfig& cfg)
 
 __pure int URpcPlugIn::handlerInit()
 {
-   U_TRACE(0, "URpcPlugIn::handlerInit()")
+   U_TRACE_NO_PARAM(0, "URpcPlugIn::handlerInit()")
 
    if (rpc_parser) U_RETURN(U_PLUGIN_HANDLER_PROCESSED | U_PLUGIN_HANDLER_GO_ON);
 
@@ -62,20 +62,13 @@ __pure int URpcPlugIn::handlerInit()
 
 int URpcPlugIn::handlerREAD()
 {
-   U_TRACE(0, "URpcPlugIn::handlerREAD()")
+   U_TRACE_NO_PARAM(0, "URpcPlugIn::handlerREAD()")
 
    if (rpc_parser)
       {
       is_rpc_msg = URPC::readRequest(UServer_Base::csocket); // NB: URPC::resetInfo() it is already called by clearData()...
 
-      if (is_rpc_msg)
-         {
-#     ifdef U_SERVER_CHECK_TIME_BETWEEN_REQUEST
-         U_http_info.nResponseCode = 0;
-#     endif
-
-         U_RETURN(U_PLUGIN_HANDLER_PROCESSED | U_PLUGIN_HANDLER_FINISHED);
-         }
+      if (is_rpc_msg) U_RETURN(U_PLUGIN_HANDLER_PROCESSED | U_PLUGIN_HANDLER_FINISHED);
       }
 
    U_RETURN(U_PLUGIN_HANDLER_GO_ON);
@@ -83,7 +76,7 @@ int URpcPlugIn::handlerREAD()
 
 int URpcPlugIn::handlerRequest()
 {
-   U_TRACE(0, "URpcPlugIn::handlerRequest()")
+   U_TRACE_NO_PARAM(0, "URpcPlugIn::handlerRequest()")
 
    if (is_rpc_msg)
       {
@@ -99,7 +92,7 @@ int URpcPlugIn::handlerRequest()
 
       U_SRV_LOG_WITH_ADDR("method %V process %s for", method.rep, (bSendingFault ? "failed" : "passed"));
 
-#  ifdef U_LOG_ENABLE
+#  ifndef U_LOG_DISABLE
       if (UServer_Base::isLog()) (void) UClientImage_Base::request_uri->assign(method);
 #  endif
 

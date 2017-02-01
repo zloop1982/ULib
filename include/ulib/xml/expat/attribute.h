@@ -31,8 +31,6 @@ public:
    U_MEMORY_ALLOCATOR
    U_MEMORY_DEALLOCATOR
 
-   // Costruttori
-
    UXMLAttribute()
       {
       U_TRACE_REGISTER_OBJECT(0, UXMLAttribute, "", 0)
@@ -72,11 +70,7 @@ protected:
             namespaceName; // Name  of the namespace associated with the attribute
 
 private:
-#ifdef U_COMPILER_DELETE_MEMBERS
-   UXMLAttribute& operator=(const UXMLAttribute&) = delete;
-#else
-   UXMLAttribute& operator=(const UXMLAttribute&) { return *this; }
-#endif      
+   U_DISALLOW_ASSIGN(UXMLAttribute)
 };
 
 #endif
